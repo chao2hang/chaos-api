@@ -27,16 +27,13 @@ type MiniMaxImageRequest struct {
 }
 
 type MiniMaxImageResponse struct {
-	ID   string `json:"id"`
-	Data struct {
+	ID       string          `json:"id"`
+	Data     struct {
 		ImageURLs   []string `json:"image_urls"`
 		ImageBase64 []string `json:"image_base64"`
 	} `json:"data"`
-	Metadata map[string]any `json:"metadata"`
-	BaseResp struct {
-		StatusCode int    `json:"status_code"`
-		StatusMsg  string `json:"status_msg"`
-	} `json:"base_resp"`
+	Metadata map[string]any  `json:"metadata"`
+	BaseResp MiniMaxBaseResp `json:"base_resp"`
 }
 
 func oaiImage2MiniMaxImageRequest(request dto.ImageRequest) MiniMaxImageRequest {
@@ -187,11 +184,17 @@ func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if minimaxResponse.BaseResp.StatusCode != 0 {
+		statusCode := http.StatusBadRequest
+		if minimaxResponse.BaseResp.StatusCode == 2056 {
+			statusCode = http.StatusTooManyRequests
+		} else if resp.StatusCode != http.StatusOK {
+			statusCode = resp.StatusCode
+		}
 		return nil, types.WithOpenAIError(types.OpenAIError{
 			Message: minimaxResponse.BaseResp.StatusMsg,
 			Type:    "minimax_image_error",
 			Code:    fmt.Sprintf("%d", minimaxResponse.BaseResp.StatusCode),
-		}, resp.StatusCode)
+		}, statusCode)
 	}
 
 	openAIResponse, err := responseMiniMax2OpenAIImage(&minimaxResponse, info)

@@ -1,18 +1,19 @@
 package minimax
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
@@ -26,14 +27,8 @@ func TestGetRequestURLForImageGeneration(t *testing.T) {
 	}
 
 	got, err := GetRequestURL(info)
-	if err != nil {
-		t.Fatalf("GetRequestURL returned error: %v", err)
-	}
-
-	want := "https://api.minimax.chat/v1/image_generation"
-	if got != want {
-		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.minimax.chat/v1/image_generation", got)
 }
 
 func TestConvertImageRequest(t *testing.T) {
@@ -53,35 +48,20 @@ func TestConvertImageRequest(t *testing.T) {
 	}
 
 	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
-	if err != nil {
-		t.Fatalf("ConvertImageRequest returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	body, err := json.Marshal(got)
-	if err != nil {
-		t.Fatalf("json.Marshal returned error: %v", err)
-	}
+	body, err := common.Marshal(got)
+	require.NoError(t, err)
 
 	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatalf("json.Unmarshal returned error: %v", err)
-	}
+	err = common.Unmarshal(body, &payload)
+	require.NoError(t, err)
 
-	if payload["model"] != "image-01" {
-		t.Fatalf("model = %#v, want %q", payload["model"], "image-01")
-	}
-	if payload["prompt"] != request.Prompt {
-		t.Fatalf("prompt = %#v, want %q", payload["prompt"], request.Prompt)
-	}
-	if payload["n"] != float64(2) {
-		t.Fatalf("n = %#v, want 2", payload["n"])
-	}
-	if payload["aspect_ratio"] != "3:2" {
-		t.Fatalf("aspect_ratio = %#v, want %q", payload["aspect_ratio"], "3:2")
-	}
-	if payload["response_format"] != "url" {
-		t.Fatalf("response_format = %#v, want %q", payload["response_format"], "url")
-	}
+	assert.Equal(t, "image-01", payload["model"])
+	assert.Equal(t, request.Prompt, payload["prompt"])
+	assert.Equal(t, float64(2), payload["n"])
+	assert.Equal(t, "3:2", payload["aspect_ratio"])
+	assert.Equal(t, "url", payload["response_format"])
 }
 
 func TestDoResponseForImageGeneration(t *testing.T) {
@@ -98,26 +78,103 @@ func TestDoResponseForImageGeneration(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     make(http.Header),
-		Body:       httptest.NewRecorder().Result().Body,
+		Body:       ioNopCloser(`{"data":{"image_urls":["https://example.com/minimax.png"]}}`),
 	}
-	resp.Body = ioNopCloser(`{"data":{"image_urls":["https://example.com/minimax.png"]}}`)
 
 	adaptor := &Adaptor{}
 	usage, err := adaptor.DoResponse(c, resp, info)
-	if err != nil {
-		t.Fatalf("DoResponse returned error: %v", err)
-	}
-	if usage == nil {
-		t.Fatalf("DoResponse returned nil usage")
-	}
+	require.Nil(t, err)
+	require.NotNil(t, usage)
 
 	body := recorder.Body.String()
-	if !strings.Contains(body, `"url":"https://example.com/minimax.png"`) {
-		t.Fatalf("response body = %s, want OpenAI image response with image URL", body)
+	assert.Contains(t, body, `"url":"https://example.com/minimax.png"`)
+	assert.NotContains(t, body, `"image_urls"`)
+}
+
+func TestMiniMaxChatDoResponse_2056TokenPlanLimit(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		IsStream:  false,
 	}
-	if strings.Contains(body, `"image_urls"`) {
-		t.Fatalf("response body = %s, should not expose raw MiniMax image_urls payload", body)
+
+	rawJSON := `{"base_resp":{"status_code":2056,"status_msg":"已达到 Token Plan 用量上限：请升级 Token Plan 套餐或购买积分补充用量。"},"choices":null}`
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       ioNopCloser(rawJSON),
 	}
+
+	adaptor := &Adaptor{}
+	usage, apiErr := adaptor.DoResponse(c, resp, info)
+	assert.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Error(), "已达到 Token Plan 用量上限")
+	assert.False(t, c.Writer.Written())
+}
+
+func TestMiniMaxChatDoResponse_StreamJSON_2056(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		IsStream:  true,
+	}
+
+	rawJSON := `{"base_resp":{"status_code":2056,"status_msg":"已达到 Token Plan 用量上限"},"choices":null}`
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       ioNopCloser(rawJSON),
+	}
+
+	adaptor := &Adaptor{}
+	usage, apiErr := adaptor.DoResponse(c, resp, info)
+	assert.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Error(), "已达到 Token Plan 用量上限")
+	assert.False(t, c.Writer.Written())
+}
+
+func TestMiniMaxChatDoResponse_StreamSSE_2056(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		IsStream:  true,
+	}
+
+	rawSSE := "data: {\"base_resp\":{\"status_code\":2056,\"status_msg\":\"已达到 Token Plan 用量上限\"}}\n\n"
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       ioNopCloser(rawSSE),
+	}
+
+	adaptor := &Adaptor{}
+	usage, apiErr := adaptor.DoResponse(c, resp, info)
+	assert.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+	assert.False(t, c.Writer.Written())
 }
 
 type nopReadCloser struct {

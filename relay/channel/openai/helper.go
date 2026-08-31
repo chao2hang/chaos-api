@@ -136,6 +136,11 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	containStreamUsage *bool, info *relaycommon.RelayInfo,
 	shouldSendLastResp *bool) error {
 
+	if code, _, hasErr := extractBaseRespError(lastStreamData); hasErr && code != 0 {
+		*shouldSendLastResp = false
+		return nil
+	}
+
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &lastStreamResponse); err != nil {
 		return err
@@ -161,10 +166,17 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 
 func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStreamData string,
 	responseId string, createAt int64, model string, systemFingerprint string,
-	usage *dto.Usage, containStreamUsage bool) {
+	usage *dto.Usage, containStreamUsage bool, hasFinishReason bool) {
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
+		if !hasFinishReason {
+			stopResponse := helper.GenerateStopResponse(responseId, createAt, model, "stop")
+			if systemFingerprint != "" {
+				stopResponse.SetSystemFingerprint(systemFingerprint)
+			}
+			_ = helper.ObjectData(c, stopResponse)
+		}
 		if info.ShouldIncludeUsage && !containStreamUsage {
 			response := helper.GenerateFinalUsageResponse(responseId, createAt, model, *usage)
 			response.SetSystemFingerprint(systemFingerprint)
@@ -241,4 +253,36 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 		return
 	}
 	_ = helper.ResponseChunkData(c, streamResponse, data)
+}
+
+func hasChoiceFinishReason(data string) bool {
+	if data == "" {
+		return false
+	}
+	var streamResponse dto.ChatCompletionsStreamResponse
+	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+		return false
+	}
+	for _, choice := range streamResponse.Choices {
+		if choice.FinishReason != nil && *choice.FinishReason != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func extractBaseRespError(data string) (statusCode int64, statusMsg string, hasError bool) {
+	if data == "" {
+		return 0, "", false
+	}
+	var resp struct {
+		BaseResp *struct {
+			StatusCode int64  `json:"status_code"`
+			StatusMsg  string `json:"status_msg"`
+		} `json:"base_resp,omitempty"`
+	}
+	if err := common.UnmarshalJsonStr(data, &resp); err == nil && resp.BaseResp != nil && resp.BaseResp.StatusCode != 0 {
+		return resp.BaseResp.StatusCode, resp.BaseResp.StatusMsg, true
+	}
+	return 0, "", false
 }

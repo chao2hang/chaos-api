@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -109,7 +110,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	defer service.CloseResponseBodyGracefully(resp)
 
-	model := info.UpstreamModelName
+	model := info.GetUpstreamModelName()
 	var responseId string
 	var createAt int64 = 0
 	var systemFingerprint string
@@ -121,11 +122,33 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
+	var hasFinishReason bool
+	var streamEarlyError *types.NewAPIError
 
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if code, msg, hasErr := extractBaseRespError(data); hasErr {
+			if !c.Writer.Written() {
+				httpStatus := http.StatusBadRequest
+				if code == 2056 {
+					httpStatus = http.StatusTooManyRequests
+				}
+				streamEarlyError = types.WithOpenAIError(types.OpenAIError{
+					Message: msg,
+					Type:    "minimax_error",
+					Code:    fmt.Sprintf("%d", code),
+				}, httpStatus)
+			}
+			sr.Stop(fmt.Errorf("upstream base_resp error: %d - %s", code, msg))
+			return
+		}
+
+		if hasChoiceFinishReason(data) {
+			hasFinishReason = true
+		}
+
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -146,6 +169,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 	})
+
+	if streamEarlyError != nil && !c.Writer.Written() {
+		return nil, streamEarlyError
+	}
 
 	// 对音频模型，从倒数第二个stream data中提取usage信息
 	if isAudioModel && secondLastStreamData != "" {
@@ -179,8 +206,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.GetUpstreamModelName(), info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
+	}
+
+	if hasChoiceFinishReason(lastStreamData) {
+		hasFinishReason = true
 	}
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
@@ -189,7 +220,17 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
 	}
 
-	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
+	if responseId == "" {
+		responseId = helper.GetResponseID(c)
+	}
+	if model == "" {
+		model = info.OriginModelName
+	}
+	if createAt == 0 {
+		createAt = time.Now().Unix()
+	}
+
+	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage, hasFinishReason)
 
 	return usage, nil
 }
@@ -276,7 +317,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		completionTokens := simpleResponse.Usage.CompletionTokens
 		if completionTokens == 0 {
 			for _, choice := range simpleResponse.Choices {
-				ctkm := service.CountTextToken(choice.Message.StringContent()+choice.Message.GetReasoningContent(), info.UpstreamModelName)
+				ctkm := service.CountTextToken(choice.Message.StringContent()+choice.Message.GetReasoningContent(), info.GetUpstreamModelName())
 				completionTokens += ctkm
 			}
 		}
