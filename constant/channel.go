@@ -225,4 +225,40 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
 		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
 	},
+	"ark-coding-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+	},
+	"volc-coding-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+	},
+	"doubao-agent-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/plan",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3",
+	},
+	"ark-agent-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/plan",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3",
+	},
+	"volc-agent-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/plan",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3",
+	},
+	"https://ark.cn-beijing.volces.com/api/coding": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+	},
+	"https://ark.cn-beijing.volces.com/api/coding/v3": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+	},
+	"https://ark.cn-beijing.volces.com/api/plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/plan",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3",
+	},
+	"https://ark.cn-beijing.volces.com/api/plan/v3": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/plan",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3",
+	},
 }

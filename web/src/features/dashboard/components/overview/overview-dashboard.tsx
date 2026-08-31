@@ -20,7 +20,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
-  BookOpen,
   Check,
   ChevronDown,
   ChevronUp,
@@ -84,10 +83,8 @@ const SETUP_GUIDE_CODE_PATTERN = [
 type DashboardActionPath =
   | '/keys'
   | '/wallet'
-  | '/playground'
   | '/channels'
   | '/usage-logs'
-  | '/pricing'
 
 interface StartStep {
   title: string
@@ -515,8 +512,8 @@ export function OverviewDashboard() {
       },
       {
         title: t('Send a request'),
-        description: t('Verify routing with Playground or your client'),
-        to: '/playground',
+        description: t('Verify routing with your client'),
+        to: '/keys',
         icon: TerminalSquare,
         completed: requestCount > 0,
       },
@@ -544,12 +541,6 @@ export function OverviewDashboard() {
         description: t('Inspect requests, errors, and billing details'),
         to: '/usage-logs',
         icon: FileText,
-      },
-      {
-        title: t('Pricing'),
-        description: t('Review model rates before scaling traffic'),
-        to: '/pricing',
-        icon: BookOpen,
       },
     ],
     [t]

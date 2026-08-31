@@ -86,7 +86,6 @@ func GetStatus(c *gin.Context) {
 		"data_export_default_time":      common.DataExportDefaultTime,
 		"default_collapse_sidebar":      common.DefaultCollapseSidebar,
 		"mj_notify_enabled":             setting.MjNotifyEnabled,
-		"chats":                         setting.Chats,
 		"demo_site_enabled":             operation_setting.DemoSiteEnabled,
 		"self_use_mode_enabled":         operation_setting.SelfUseModeEnabled,
 		"register_enabled":              common.RegisterEnabled,
@@ -181,17 +180,6 @@ func GetNotice(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    common.OptionMap["Notice"],
-	})
-	return
-}
-
-func GetAbout(c *gin.Context) {
-	common.OptionMapRWMutex.RLock()
-	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["About"],
 	})
 	return
 }

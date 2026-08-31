@@ -16,10 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { describe, expect, test } from 'vitest'
 
-import { About } from '@/features/about'
+import { CHANNEL_TYPES } from '../../constants'
+import { getChannelTypeConfig } from '../channel-type-config'
+import { getChannelTypeIcon } from '../channel-utils'
 
-export const Route = createFileRoute('/about/')({
-  component: About,
+describe('VolcEngine channel config', () => {
+  const VOLCENGINE_TYPE = 45
+
+  test('registers VolcEngine type metadata and default base URL', () => {
+    expect(CHANNEL_TYPES[VOLCENGINE_TYPE]).toBe('VolcEngine')
+    expect(getChannelTypeIcon(VOLCENGINE_TYPE)).toBe('Volcengine')
+
+    const config = getChannelTypeConfig(VOLCENGINE_TYPE)
+    expect(config.id).toBe(45)
+    expect(config.defaultBaseUrl).toBe('https://ark.cn-beijing.volces.com')
+    expect(config.hints?.baseUrl).toBe('Default: https://ark.cn-beijing.volces.com')
+  })
 })

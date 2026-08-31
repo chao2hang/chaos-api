@@ -275,8 +275,69 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	return balance, nil
 }
 
+func parseDeepSeekBalance(response DeepSeekUsageResponse) (float64, error) {
+	if len(response.BalanceInfos) == 0 {
+		return 0, errors.New("no balance info found")
+	}
+
+	type parsedInfo struct {
+		currency string
+		balance  float64
+	}
+
+	parsed := make([]parsedInfo, 0, len(response.BalanceInfos))
+	for _, info := range response.BalanceInfos {
+		val, err := strconv.ParseFloat(info.TotalBalance, 64)
+		if err != nil {
+			continue
+		}
+		parsed = append(parsed, parsedInfo{
+			currency: strings.ToUpper(strings.TrimSpace(info.Currency)),
+			balance:  val,
+		})
+	}
+
+	if len(parsed) == 0 {
+		return 0, errors.New("failed to parse balance")
+	}
+
+	for _, item := range parsed {
+		if item.currency == "USD" && item.balance > 0 {
+			return item.balance, nil
+		}
+	}
+
+	for _, item := range parsed {
+		if item.currency == "CNY" && item.balance > 0 {
+			return item.balance, nil
+		}
+	}
+
+	for _, item := range parsed {
+		if item.balance > 0 {
+			return item.balance, nil
+		}
+	}
+
+	for _, item := range parsed {
+		if item.currency == "USD" {
+			return item.balance, nil
+		}
+	}
+	for _, item := range parsed {
+		if item.currency == "CNY" {
+			return item.balance, nil
+		}
+	}
+
+	return parsed[0].balance, nil
+}
+
 func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
-	url := "https://api.deepseek.com/user/balance"
+	url := fmt.Sprintf("%s/user/balance", channel.GetBaseURL())
+	if channel.GetBaseURL() == "" {
+		url = "https://api.deepseek.com/user/balance"
+	}
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
@@ -286,17 +347,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	index := -1
-	for i, balanceInfo := range response.BalanceInfos {
-		if balanceInfo.Currency == "CNY" {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return 0, errors.New("currency CNY not found")
-	}
-	balance, err := strconv.ParseFloat(response.BalanceInfos[index].TotalBalance, 64)
+	balance, err := parseDeepSeekBalance(response)
 	if err != nil {
 		return 0, err
 	}

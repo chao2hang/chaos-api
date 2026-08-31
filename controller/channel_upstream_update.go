@@ -418,9 +418,11 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		}
 	case constant.ChannelTypeVolcEngine:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
+			url = fmt.Sprintf("%s/models", strings.TrimSuffix(plan.OpenAIBaseURL, "/"))
+		} else if strings.HasSuffix(baseURL, "/api/v3") {
+			url = fmt.Sprintf("%s/models", strings.TrimSuffix(baseURL, "/"))
 		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
+			url = fmt.Sprintf("%s/api/v3/models", strings.TrimSuffix(baseURL, "/"))
 		}
 	case constant.ChannelTypeMoonshot:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {

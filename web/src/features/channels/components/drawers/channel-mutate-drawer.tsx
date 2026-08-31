@@ -1309,15 +1309,6 @@ export function ChannelMutateDrawer({
   }, [currentType, isEditing, form])
 
   useEffect(() => {
-    if (currentType !== 45 || currentBaseUrl !== 'doubao-coding-plan') return
-
-    form.setValue('base_url', 'https://ark.cn-beijing.volces.com', {
-      shouldDirty: false,
-      shouldValidate: true,
-    })
-  }, [currentBaseUrl, currentType, form])
-
-  useEffect(() => {
     if (isEditing || supportsMultiKeyAddMode) return
     if (multiKeyMode && multiKeyMode !== 'single') {
       form.setValue('multi_key_mode', 'single', {
@@ -2764,23 +2755,33 @@ export function ChannelMutateDrawer({
                                           value:
                                             'https://ark.cn-beijing.volces.com',
                                           label: t(
-                                            'https://ark.cn-beijing.volces.com'
+                                            'https://ark.cn-beijing.volces.com (Default / Beijing)'
+                                          ),
+                                        },
+                                        {
+                                          value: 'doubao-coding-plan',
+                                          label: t(
+                                            'doubao-coding-plan (Volcengine Ark Coding Plan)'
+                                          ),
+                                        },
+                                        {
+                                          value: 'doubao-agent-plan',
+                                          label: t(
+                                            'doubao-agent-plan (Volcengine Ark Agent Plan)'
                                           ),
                                         },
                                         {
                                           value:
                                             'https://ark.ap-southeast.bytepluses.com',
                                           label: t(
-                                            'https://ark.ap-southeast.bytepluses.com'
+                                            'https://ark.ap-southeast.bytepluses.com (BytePlus Singapore)'
                                           ),
                                         },
                                       ]}
                                       onValueChange={field.onChange}
                                       value={
-                                        field.value === 'doubao-coding-plan'
-                                          ? 'https://ark.cn-beijing.volces.com'
-                                          : field.value ||
-                                            'https://ark.cn-beijing.volces.com'
+                                        field.value ||
+                                        'https://ark.cn-beijing.volces.com'
                                       }
                                     >
                                       <FormControl>
@@ -2794,12 +2795,22 @@ export function ChannelMutateDrawer({
                                         <SelectGroup>
                                           <SelectItem value='https://ark.cn-beijing.volces.com'>
                                             {t(
-                                              'https://ark.cn-beijing.volces.com'
+                                              'https://ark.cn-beijing.volces.com (Default / Beijing)'
+                                            )}
+                                          </SelectItem>
+                                          <SelectItem value='doubao-coding-plan'>
+                                            {t(
+                                              'doubao-coding-plan (Volcengine Ark Coding Plan)'
+                                            )}
+                                          </SelectItem>
+                                          <SelectItem value='doubao-agent-plan'>
+                                            {t(
+                                              'doubao-agent-plan (Volcengine Ark Agent Plan)'
                                             )}
                                           </SelectItem>
                                           <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
                                             {t(
-                                              'https://ark.ap-southeast.bytepluses.com'
+                                              'https://ark.ap-southeast.bytepluses.com (BytePlus Singapore)'
                                             )}
                                           </SelectItem>
                                         </SelectGroup>

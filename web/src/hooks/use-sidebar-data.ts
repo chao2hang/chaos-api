@@ -21,11 +21,9 @@ import {
   Box,
   CreditCard,
   FileText,
-  FlaskConical,
   Key,
   LayoutDashboard,
   ListTodo,
-  MessageSquare,
   PlugZap,
   Radio,
   ServerCog,
@@ -37,36 +35,20 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
 
 /**
  * Root navigation groups for the application sidebar.
  *
  * These are shown when the URL does not match any nested sidebar view
- * registered in `layout/lib/sidebar-view-registry.ts`.
+ * registered in `layout/lib/sidebar-view-registry.ts``.
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
 
   return {
     navGroups: [
-      {
-        id: 'chat',
-        title: t('Chat'),
-        items: [
-          {
-            title: t('Playground'),
-            url: '/playground',
-            icon: FlaskConical,
-          },
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
-          },
-        ],
-      },
       {
         id: 'general',
         title: t('General'),
