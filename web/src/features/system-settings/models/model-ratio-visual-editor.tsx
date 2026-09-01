@@ -46,7 +46,6 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
-import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { useMediaQuery } from '@/hooks'
 
@@ -139,7 +138,13 @@ const ModelRatioVisualEditorComponent = forwardRef<
   ref
 ) {
   const { t } = useTranslation()
-  const { models: pricingModels } = usePricingData()
+  const pricingModels: Array<{
+    key: string
+    model_name: string
+    billing_usage_schema?: unknown
+    billing_usage_examples?: unknown
+    group_ratio: unknown
+  }> = []
   const isMobile = useMediaQuery('(max-width: 767px)')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)

@@ -55,8 +55,6 @@ import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Label } from '@/components/ui/label'
-import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
-import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
@@ -67,7 +65,6 @@ import {
   parseLogOther,
   getParamOverrideActionLabel,
   parseAuditLine,
-  decodeBillingExprB64,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   isViolationFeeLog,
@@ -516,10 +513,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
     !isViolation &&
     other?.billing_mode === 'tiered_expr' &&
     !!other?.expr_b64
-  const pricingData = usePricingData(props.open && isTieredBilling)
-  const billingUsageSchema = pricingData.models.find(
-    (model) => model.model_name === props.log.model_name
-  )?.billing_usage_schema
   const hasAudioTokens = other?.ws || other?.audio
   const showTiming = isTimingLogType(props.log.type)
   const showAdminIp =
@@ -1158,20 +1151,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           />
         )}
 
-        {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
-        {isTieredBilling && other?.expr_b64 && (
-          <DetailSection label={t('Dynamic Pricing')}>
-            <DynamicPricingBreakdown
-              compact
-              billingExpr={decodeBillingExprB64(other.expr_b64)}
-              matchedTierLabel={other.matched_tier}
-              requestRules={other.request_rules}
-              hideCacheColumns={!hasAnyCacheTokens(other)}
-              usageSchema={billingUsageSchema}
-              usageFacts={other.usage_facts}
-            />
-          </DetailSection>
-        )}
+        {/* Tiered pricing breakdown removed: /api/pricing endpoint no longer available */}
 
         {/* Admin billing mode indicator for non-consume */}
         {props.isAdmin &&

@@ -61,7 +61,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import {
   createDefaultTaskVisualConfig,
   generateTaskExprFromConfig,
@@ -166,7 +165,12 @@ export const ModelPricingEditorPanel = forwardRef<
   const [editorReloadToken, setEditorReloadToken] = useState(0)
   const autoSwitchedForRef = useRef<string | null>(null)
   const isEditMode = !!editData
-  const { models: pricingModels } = usePricingData()
+  type PricingModelRow = {
+    model_name: string
+    billing_usage_schema?: import('@/features/pricing/types').BillingUsageSchema
+    billing_usage_examples?: import('@/features/pricing/types').BillingUsageExample[]
+  }
+  const pricingModels: PricingModelRow[] = []
 
   const form = useForm<ModelPricingFormValues>({
     resolver: zodResolver(createModelPricingSchema(t)),
