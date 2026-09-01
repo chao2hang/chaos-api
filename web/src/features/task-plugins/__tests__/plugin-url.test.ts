@@ -32,7 +32,7 @@ describe('plugin source URL normalization', () => {
       normalizePluginSourceUrl(
         'https://github.com/chaos-api/chaos-api-plugins/blob/main/plugins/tasks/doubao/1.0.0/plugin.js'
       ),
-      'https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/plugins/tasks/doubao/1.0.0/plugin.js'
+      'https://raw.githubusercontent.com/chaos-api/chaos-api-plugins/main/plugins/tasks/doubao/1.0.0/plugin.js'
     )
   })
 
