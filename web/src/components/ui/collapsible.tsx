@@ -15,22 +15,8 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible'
-
-function Collapsible({ ...props }: CollapsiblePrimitive.Root.Props) {
-  return <CollapsiblePrimitive.Root data-slot='collapsible' {...props} />
-}
-
-function CollapsibleTrigger({ ...props }: CollapsiblePrimitive.Trigger.Props) {
-  return (
-    <CollapsiblePrimitive.Trigger data-slot='collapsible-trigger' {...props} />
-  )
-}
-
-function CollapsibleContent({ ...props }: CollapsiblePrimitive.Panel.Props) {
-  return (
-    <CollapsiblePrimitive.Panel data-slot='collapsible-content' {...props} />
-  )
-}
-
-export { Collapsible, CollapsibleTrigger, CollapsibleContent }
+export {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@chaos_team/chaos-ui/ui'

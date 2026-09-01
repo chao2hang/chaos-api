@@ -52,7 +52,7 @@ function ToolSurchargeMarker() {
       <TooltipTrigger
         render={
           <Badge
-            variant='warning'
+            variant='secondary'
             className='h-5 min-w-5 cursor-help gap-0 rounded-full px-1'
             role='img'
             aria-label={label}
