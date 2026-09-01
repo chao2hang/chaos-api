@@ -1,4 +1,4 @@
-module github.com/QuantumNous/new-api/relaykit
+module github.com/chaos-api/chaos-api/relaykit
 
 go 1.25.1
 

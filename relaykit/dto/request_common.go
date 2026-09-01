@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/chaos-api/chaos-api/relaykit/types"
 	"net/http"
 )
 
