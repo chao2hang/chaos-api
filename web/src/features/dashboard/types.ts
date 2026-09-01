@@ -192,6 +192,8 @@ export interface DashboardFilters {
 
 export type ConsumptionDistributionChartType = 'bar' | 'area'
 
+export type ConsumptionDistributionMetric = 'quota' | 'tokens'
+
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'
 
 export interface DashboardChartPreferences {
@@ -241,8 +243,10 @@ export interface ProcessedChartData {
   spec_area: VChartSpec
   spec_model_line: VChartSpec
   spec_rank_bar: VChartSpec
+  metric: ConsumptionDistributionMetric
   totalQuotaDisplay: string
   totalCountDisplay: string
+  totalTokensDisplay: string
 }
 
 export interface ProcessedUserChartData {
