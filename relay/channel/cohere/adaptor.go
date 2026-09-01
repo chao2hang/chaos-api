@@ -6,11 +6,11 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/QuantumNous/new-api/relay/channel"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/chaos-api/chaos-api/relay/channel"
+	relaycommon "github.com/chaos-api/chaos-api/relay/common"
+	"github.com/chaos-api/chaos-api/relay/constant"
+	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/chaos-api/chaos-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )

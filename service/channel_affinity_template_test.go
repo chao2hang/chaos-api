@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
+	relaycommon "github.com/chaos-api/chaos-api/relay/common"
+	"github.com/chaos-api/chaos-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

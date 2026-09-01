@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/constant"
+	"github.com/chaos-api/chaos-api/dto"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"

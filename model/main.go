@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/constant"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/clickhouse"

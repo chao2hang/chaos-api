@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
-	"github.com/QuantumNous/new-api/middleware"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/oauth"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/i18n"
+	"github.com/chaos-api/chaos-api/middleware"
+	"github.com/chaos-api/chaos-api/model"
+	"github.com/chaos-api/chaos-api/oauth"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )

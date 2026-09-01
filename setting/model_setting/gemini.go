@@ -3,8 +3,8 @@ package model_setting
 import (
 	"fmt"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/setting/config"
 )
 
 const defaultGeminiSafetySetting = "OFF"

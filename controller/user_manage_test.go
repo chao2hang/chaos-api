@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/model"
+	"github.com/chaos-api/chaos-api/service/authz"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 QuantumNous
+Copyright (C) 2023-2026 Chaos
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,7 +14,6 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
@@ -27,15 +26,16 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SignInDialog } from '@/features/auth/sign-in/components/sign-in-dialog'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
-import { HeaderLogo } from './header-logo'
 
 const AUTH_PROMPT_SECONDS = 5
 
@@ -66,7 +66,6 @@ export function PublicHeader(props: PublicHeaderProps) {
     navLinks = defaultTopNavLinks,
     showThemeSwitch = true,
     showLanguageSwitcher = true,
-    logo: customLogo,
     siteName: customSiteName,
     homeUrl = '/',
     showAuthButtons = true,
@@ -77,17 +76,13 @@ export function PublicHeader(props: PublicHeaderProps) {
   const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [signInOpen, setSignInOpen] = useState(false)
   const [authPromptTarget, setAuthPromptTarget] =
     useState<AuthPromptTarget | null>(null)
   const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
     useState(AUTH_PROMPT_SECONDS)
   const { auth } = useAuthStore()
-  const {
-    systemName,
-    logo: systemLogo,
-    loading,
-    logoLoaded,
-  } = useSystemConfig()
+  const { systemName, loading } = useSystemConfig()
   const dynamicLinks = useTopNavLinks()
   const notifications = useNotifications()
   const routerState = useRouterState()
@@ -95,8 +90,19 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   const user = auth.user
   const isAuthenticated = !!user
-  const displaySiteName = customSiteName || systemName
-  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  const displaySiteName = customSiteName || systemName || DEFAULT_SYSTEM_NAME
+  // When the user is signed out we collapse the right side to a single
+  // text-only sign-in trigger (the rest of the chrome is only useful
+  // once a session exists).
+  const showChrome = isAuthenticated
+  // Nav links (Home / Console) are only meaningful once signed in.
+  // Hide them entirely on the public header so unauthenticated users
+  // only see the brand and the sign-in entry point.
+  const links = isAuthenticated
+    ? dynamicLinks.length > 0
+      ? dynamicLinks
+      : navLinks
+    : []
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -195,20 +201,6 @@ export function PublicHeader(props: PublicHeaderProps) {
               to={homeUrl}
               className='group flex shrink-0 items-center gap-2.5'
             >
-              <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
-                {loading ? (
-                  <Skeleton className='size-full rounded-lg' />
-                ) : customLogo ? (
-                  customLogo
-                ) : (
-                  <HeaderLogo
-                    src={systemLogo}
-                    loading={loading}
-                    logoLoaded={logoLoaded}
-                    className='size-full rounded-lg object-contain'
-                  />
-                )}
-              </div>
               <span className='text-sm font-semibold tracking-tight'>
                 {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
               </span>
@@ -256,15 +248,14 @@ export function PublicHeader(props: PublicHeaderProps) {
                 )
               })}
 
-              {(showLanguageSwitcher ||
-                showThemeSwitch ||
-                showNotifications) && (
-                <div className='bg-border/40 mx-2 h-4 w-px' />
-              )}
+              {showChrome &&
+                (showLanguageSwitcher || showThemeSwitch || showNotifications) && (
+                  <div className='bg-border/40 mx-2 h-4 w-px' />
+                )}
 
-              {showLanguageSwitcher && <LanguageSwitcher />}
-              {showThemeSwitch && <ThemeSwitch />}
-              {showNotifications && (
+              {showChrome && showLanguageSwitcher && <LanguageSwitcher />}
+              {showChrome && showThemeSwitch && <ThemeSwitch />}
+              {showChrome && showNotifications && (
                 <NotificationPopover
                   open={notifications.popoverOpen}
                   onOpenChange={notifications.setPopoverOpen}
@@ -279,19 +270,21 @@ export function PublicHeader(props: PublicHeaderProps) {
 
               {showAuthButtons && (
                 <>
-                  <div className='bg-border/40 mx-1 h-4 w-px' />
+                  {showChrome && (
+                    <div className='bg-border/40 mx-1 h-4 w-px' />
+                  )}
                   {loading ? (
                     <Skeleton className='h-8 w-20 rounded-lg' />
                   ) : isAuthenticated ? (
                     <ProfileDropdown />
                   ) : (
-                    <Button
-                      size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
-                      render={<Link to='/sign-in' />}
+                    <button
+                      type='button'
+                      onClick={() => setSignInOpen(true)}
+                      className='text-sm font-medium text-white/85 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-md px-2 py-1'
                     >
                       {t('Sign in')}
-                    </Button>
+                    </button>
                   )}
                 </>
               )}
@@ -299,7 +292,7 @@ export function PublicHeader(props: PublicHeaderProps) {
 
             {/* Mobile: compact actions + hamburger */}
             <div className='flex items-center gap-2 sm:hidden'>
-              {showThemeSwitch && <ThemeSwitch />}
+              {showChrome && showThemeSwitch && <ThemeSwitch />}
               {showAuthButtons && !loading && isAuthenticated && (
                 <ProfileDropdown />
               )}
@@ -443,6 +436,8 @@ export function PublicHeader(props: PublicHeaderProps) {
           })}
         </div>
       </Dialog>
+
+      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </>
   )
 }

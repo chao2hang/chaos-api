@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/model"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/constant"
+	"github.com/chaos-api/chaos-api/logger"
+	"github.com/chaos-api/chaos-api/model"
+	relaycommon "github.com/chaos-api/chaos-api/relay/common"
+	"github.com/chaos-api/chaos-api/setting/ratio_setting"
+	"github.com/chaos-api/chaos-api/types"
 	"github.com/gin-gonic/gin"
 )
 

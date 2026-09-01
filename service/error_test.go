@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

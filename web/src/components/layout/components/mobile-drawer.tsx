@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 QuantumNous
+Copyright (C) 2023-2026 Chaos
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,7 +14,6 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { X, User, Wallet, LogOut } from 'lucide-react'
@@ -37,19 +36,15 @@ import type { TopNavLink } from '../types'
  */
 interface BrandLogoProps {
   homeUrl: string
-  displayLogo: React.ReactNode
   displaySiteName: string
   loading: boolean
-  logoLoaded: boolean
   onClick?: () => void
 }
 
 function BrandLogo({
   homeUrl,
-  displayLogo,
   displaySiteName,
   loading,
-  logoLoaded,
   onClick,
 }: BrandLogoProps) {
   return (
@@ -58,12 +53,6 @@ function BrandLogo({
       className='flex items-center gap-2 text-xl font-bold'
       onClick={onClick}
     >
-      <div className='relative h-6 w-6'>
-        {loading || !logoLoaded ? (
-          <Skeleton className='absolute inset-0 rounded-full' />
-        ) : null}
-        {displayLogo}
-      </div>
       {loading ? <Skeleton className='h-5 w-20' /> : displaySiteName}
     </Link>
   )
@@ -175,10 +164,8 @@ export interface MobileDrawerProps {
   isOpen: boolean
   onClose: () => void
   homeUrl: string
-  displayLogo: React.ReactNode
   displaySiteName: string
   loading: boolean
-  logoLoaded: boolean
   mobileLinksList: TopNavLink[]
   showAuthButtons: boolean
   user: AuthUser | null
@@ -192,10 +179,8 @@ export function MobileDrawer({
   isOpen,
   onClose,
   homeUrl,
-  displayLogo,
   displaySiteName,
   loading,
-  logoLoaded,
   mobileLinksList,
   showAuthButtons,
   user,
@@ -231,10 +216,8 @@ export function MobileDrawer({
               <div className='flex items-center justify-between'>
                 <BrandLogo
                   homeUrl={homeUrl}
-                  displayLogo={displayLogo}
                   displaySiteName={displaySiteName}
                   loading={loading}
-                  logoLoaded={logoLoaded}
                   onClick={onClose}
                 />
                 <Button

@@ -3,11 +3,11 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/logger"
-	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
-	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/dto"
+	"github.com/chaos-api/chaos-api/logger"
+	pluginruntime "github.com/chaos-api/chaos-api/pkg/jsplugin"
+	"github.com/chaos-api/chaos-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
 

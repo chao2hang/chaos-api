@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/model"
 )
 
 var (

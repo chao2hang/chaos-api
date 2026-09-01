@@ -7,14 +7,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
-	channelconstant "github.com/QuantumNous/new-api/constant"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/relay/channel/openai"
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/QuantumNous/new-api/service"
+	"github.com/chaos-api/chaos-api/common"
+	channelconstant "github.com/chaos-api/chaos-api/constant"
+	relaycommon "github.com/chaos-api/chaos-api/relay/common"
+	"github.com/chaos-api/chaos-api/relay/constant"
+	"github.com/chaos-api/chaos-api/relay/channel/openai"
+	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/chaos-api/chaos-api/service"
 	"github.com/gin-gonic/gin"
 )
 

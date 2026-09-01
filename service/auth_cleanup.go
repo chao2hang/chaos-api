@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/model"
 )
 
 const authArtifactCleanupInterval = time.Hour

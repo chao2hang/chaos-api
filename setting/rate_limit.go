@@ -5,7 +5,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/QuantumNous/new-api/common"
+	"github.com/chaos-api/chaos-api/common"
 )
 
 // maxRateLimitDurationSeconds is the largest window the count cap is computed

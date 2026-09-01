@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
+	"github.com/chaos-api/chaos-api/common"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"

@@ -4,12 +4,12 @@ import (
 	"io"
 	"net/http"
 
-	taskdto "github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/model"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/types"
-	hosttypes "github.com/QuantumNous/new-api/types"
+	taskdto "github.com/chaos-api/chaos-api/dto"
+	"github.com/chaos-api/chaos-api/model"
+	relaycommon "github.com/chaos-api/chaos-api/relay/common"
+	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/chaos-api/chaos-api/relaykit/types"
+	hosttypes "github.com/chaos-api/chaos-api/types"
 
 	"github.com/gin-gonic/gin"
 )

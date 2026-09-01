@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/QuantumNous/new-api/model"
+	"github.com/chaos-api/chaos-api/model"
 )
 
 const (

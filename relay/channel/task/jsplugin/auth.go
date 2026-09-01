@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
-	vertexcore "github.com/QuantumNous/new-api/relay/channel/vertex"
+	"github.com/chaos-api/chaos-api/common"
+	pluginruntime "github.com/chaos-api/chaos-api/pkg/jsplugin"
+	vertexcore "github.com/chaos-api/chaos-api/relay/channel/vertex"
 )
 
 type cachedAuth struct {

@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
+	"github.com/chaos-api/chaos-api/common"
 	"github.com/gin-gonic/gin"
 )
 

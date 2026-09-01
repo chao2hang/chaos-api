@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/model"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/logger"
+	"github.com/chaos-api/chaos-api/model"
+	relaycommon "github.com/chaos-api/chaos-api/relay/common"
+	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/chaos-api/chaos-api/setting/model_setting"
 
 	"github.com/shopspring/decimal"
 

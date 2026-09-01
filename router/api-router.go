@@ -1,12 +1,12 @@
 package router
 
 import (
-	"github.com/QuantumNous/new-api/controller"
-	"github.com/QuantumNous/new-api/middleware"
-	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/chaos-api/chaos-api/controller"
+	"github.com/chaos-api/chaos-api/middleware"
+	"github.com/chaos-api/chaos-api/service/authz"
 
 	// Import oauth package to register providers via init()
-	_ "github.com/QuantumNous/new-api/oauth"
+	_ "github.com/chaos-api/chaos-api/oauth"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"

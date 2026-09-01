@@ -16,13 +16,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/logger"
 
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/setting/billing_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/chaos-api/chaos-api/model"
+	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/chaos-api/chaos-api/setting/billing_setting"
+	"github.com/chaos-api/chaos-api/setting/ratio_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"

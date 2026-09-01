@@ -3,12 +3,12 @@ package service
 import (
 	"errors"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/constant"
+	"github.com/chaos-api/chaos-api/dto"
+	"github.com/chaos-api/chaos-api/logger"
+	"github.com/chaos-api/chaos-api/model"
+	"github.com/chaos-api/chaos-api/pkg/jsplugin"
 	"github.com/gin-gonic/gin"
 )
 

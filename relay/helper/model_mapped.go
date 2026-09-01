@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/chaos-api/chaos-api/relay/common"
+	"github.com/chaos-api/chaos-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 )
 

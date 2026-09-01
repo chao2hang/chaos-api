@@ -13,12 +13,12 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/controller"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/middleware"
-	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/constant"
+	"github.com/chaos-api/chaos-api/controller"
+	"github.com/chaos-api/chaos-api/logger"
+	"github.com/chaos-api/chaos-api/middleware"
+	"github.com/chaos-api/chaos-api/pkg/jsplugin"
 	"github.com/gin-gonic/gin"
 )
 

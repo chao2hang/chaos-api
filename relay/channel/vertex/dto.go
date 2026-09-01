@@ -3,7 +3,7 @@ package vertex
 import (
 	"encoding/json"
 
-	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/chaos-api/chaos-api/relaykit/dto"
 )
 
 type VertexAIClaudeRequest struct {

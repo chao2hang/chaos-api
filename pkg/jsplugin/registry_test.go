@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/constant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

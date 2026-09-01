@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/middleware"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service"
-	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
-	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/middleware"
+	"github.com/chaos-api/chaos-api/model"
+	"github.com/chaos-api/chaos-api/service"
+	passkeysvc "github.com/chaos-api/chaos-api/service/passkey"
+	"github.com/chaos-api/chaos-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-webauthn/webauthn/protocol"

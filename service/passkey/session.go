@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
+	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/model"
 
 	webauthn "github.com/go-webauthn/webauthn/webauthn"
 )

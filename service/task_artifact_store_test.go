@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/chaos-api/chaos-api/model"
+	"github.com/chaos-api/chaos-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

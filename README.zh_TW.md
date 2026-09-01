@@ -2,7 +2,7 @@
 
 ![new-api](/web/public/logo.png)
 
-# New API
+# chaos-api
 
 🍥 **新一代大模型網關與AI資產管理系統**
 
@@ -24,21 +24,21 @@
   <a href="https://hub.docker.com/r/CalciumIon/new-api">
     <img src="https://img.shields.io/badge/docker-dockerHub-blue" alt="docker">
   </a>
-  <a href="https://atomgit.com/QuantumNous/new-api" target="_blank">
-    <img alt="AtomGit G-Star" src="https://atomgit.com/QuantumNous/new-api/star/badge.svg"/>
+  <a href="https://atomgit.com/Chaos/new-api" target="_blank">
+    <img alt="AtomGit G-Star" src="https://atomgit.com/Chaos/new-api/star/badge.svg"/>
   </a>
 </p>
 
 <p align="center">
   <a href="https://trendshift.io/repositories/20180" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/20180" alt="QuantumNous%2Fnew-api | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
+    <img src="https://trendshift.io/api/badge/repositories/20180" alt="Chaos%2Fnew-api | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
   </a>
   <br>
-  <a href="https://hellogithub.com/repository/QuantumNous/new-api" target="_blank">
+  <a href="https://hellogithub.com/repository/Chaos/new-api" target="_blank">
     <img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=539ac4217e69431684ad4a0bab768811&claim_uid=tbFPfKIDHpc4TzR" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" />
   </a>
-  <a href="https://atomgit.com/QuantumNous/new-api" target="_blank">
-    <img alt="AtomGit G-Star" src="https://atomgit.com/QuantumNous/new-api/star/new_badge.svg" width="250" height="55" />
+  <a href="https://atomgit.com/Chaos/new-api" target="_blank">
+    <img alt="AtomGit G-Star" src="https://atomgit.com/Chaos/new-api/star/new_badge.svg" width="250" height="55" />
   </a>
 </p>
 
@@ -111,8 +111,8 @@
 
 ```bash
 # 複製項目
-git clone https://github.com/QuantumNous/new-api.git
-cd new-api
+git clone https://github.com/Chaos/new-api.git
+cd chaos-api
 
 # 編輯 docker-compose.yml 配置
 nano docker-compose.yml
@@ -126,22 +126,22 @@ docker-compose up -d
 
 ```bash
 # 拉取最新鏡像
-docker pull calciumion/new-api:latest
+docker pull chaos-api/chaos-api:latest
 
 # 使用 SQLite（預設）
-docker run --name new-api -d --restart always \
+docker run --name chaos-api -d --restart always \
   -p 3000:3000 \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
-  calciumion/new-api:latest
+  chaos-api/chaos-api:latest
 
 # 使用 MySQL
-docker run --name new-api -d --restart always \
+docker run --name chaos-api -d --restart always \
   -p 3000:3000 \
   -e SQL_DSN="root:123456@tcp(localhost:3306)/oneapi" \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
-  calciumion/new-api:latest
+  chaos-api/chaos-api:latest
 ```
 
 > **💡 提示：** `-v ./data:/data` 會將數據保存在當前目錄的 `data` 資料夾中，你也可以改為絕對路徑如 `-v /your/custom/path:/data`
@@ -163,7 +163,7 @@ docker run --name new-api -d --restart always \
 
 <div align="center">
 
-### 📖 [官方文件](https://docs.newapi.pro/zh/docs) | [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/QuantumNous/new-api)
+### 📖 [官方文件](https://docs.newapi.pro/zh/docs) | [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Chaos/new-api)
 
 </div>
 
@@ -295,7 +295,7 @@ docker run --name new-api -d --restart always \
 ## 🚢 部署
 
 > [!TIP]
-> **最新版 Docker 鏡像：** `calciumion/new-api:latest`
+> **最新版 Docker 鏡像：** `chaos-api/chaos-api:latest`
 
 ### 📋 部署要求
 
@@ -349,8 +349,8 @@ docker run --name new-api -d --restart always \
 
 ```bash
 # 複製項目
-git clone https://github.com/QuantumNous/new-api.git
-cd new-api
+git clone https://github.com/Chaos/new-api.git
+cd chaos-api
 
 # 編輯配置
 nano docker-compose.yml
@@ -366,21 +366,21 @@ docker-compose up -d
 
 **使用 SQLite：**
 ```bash
-docker run --name new-api -d --restart always \
+docker run --name chaos-api -d --restart always \
   -p 3000:3000 \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
-  calciumion/new-api:latest
+  chaos-api/chaos-api:latest
 ```
 
 **使用 MySQL：**
 ```bash
-docker run --name new-api -d --restart always \
+docker run --name chaos-api -d --restart always \
   -p 3000:3000 \
   -e SQL_DSN="root:123456@tcp(localhost:3306)/oneapi" \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
-  calciumion/new-api:latest
+  chaos-api/chaos-api:latest
 ```
 
 > **💡 路徑說明：**
@@ -442,7 +442,7 @@ Token、Origin 驗證和 PAT 契約請參閱[使用者鑑權與登入工作階�
 | 項目 | 說明 |
 |------|------|
 | [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool) | Key 額度查詢工具 |
-| [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon) | New API 高性能優化版 |
+| [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon) | chaos-api 高性能優化版 |
 
 ---
 
@@ -490,12 +490,12 @@ Token、Origin 驗證和 PAT 契約請參閱[使用者鑑權與登入工作階�
 
 <div align="center">
 
-### 💖 感謝使用 New API
+### 💖 感謝使用 chaos-api
 
 如果這個項目對你有幫助，歡迎給我們一個 ⭐️ Star！
 
 **[官方文件](https://docs.newapi.pro/zh/docs)** • **[問題回饋](https://github.com/Calcium-Ion/new-api/issues)** • **[最新發布](https://github.com/Calcium-Ion/new-api/releases)**
 
-<sub>Built with ❤️ by QuantumNous</sub>
+<sub>Built with ❤️ by Chaos</sub>
 
 </div>

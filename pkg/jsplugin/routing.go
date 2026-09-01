@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/chaos-api/chaos-api/constant"
 )
 
 type RouteType string
