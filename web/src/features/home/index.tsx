@@ -16,13 +16,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 import { PublicLayout } from '@/components/layout'
+import { useAuthStore } from '@/stores/auth-store'
 
-import { BlackHoleCanvas } from './components'
+import {
+  BlackHoleCanvas,
+  CTA,
+  Features,
+  Hero,
+  HowItWorks,
+  Stats,
+} from './components'
 
 export function Home() {
+  const isAuthenticated = useAuthStore((state) => Boolean(state.auth.user))
+
   return (
     <PublicLayout showMainContainer={false}>
-      <BlackHoleCanvas />
+      <div className='relative isolate overflow-hidden'>
+        <div className='pointer-events-none absolute inset-0 -z-20'>
+          <BlackHoleCanvas />
+        </div>
+        <main>
+          <Hero isAuthenticated={isAuthenticated} />
+          <Stats />
+          <Features />
+          <HowItWorks />
+          <CTA isAuthenticated={isAuthenticated} />
+        </main>
+      </div>
     </PublicLayout>
   )
 }
