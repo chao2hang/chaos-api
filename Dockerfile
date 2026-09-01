@@ -17,13 +17,12 @@ ENV GOEXPERIMENT=greenteagc
 
 WORKDIR /build
 
-ADD go.mod go.sum ./
-# relaykit is a local submodule referenced via replace; its go.mod must be
-# present for go mod download to resolve the main module graph.
-ADD relaykit/go.mod ./relaykit/go.mod
+# Copy the entire tree (including relaykit/) first so the local replace
+# target exists for go mod download. .dockerignore trims web/node_modules,
+# web/dist, and other large/unneeded paths.
+COPY . .
 RUN go mod download
 
-COPY . .
 COPY --from=builder /build/web/dist ./web/dist
 RUN go build -ldflags "-s -w -X 'github.com/chaos-api/chaos-api/common.Version=$(cat VERSION)'" -o new-api
 
