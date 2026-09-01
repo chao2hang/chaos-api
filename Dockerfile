@@ -20,6 +20,7 @@ WORKDIR /build
 # target exists for go mod download. .dockerignore trims web/node_modules,
 # web/dist, and other large/unneeded paths.
 COPY . .
+RUN echo "=== relaykit listing ===" && ls -la /build/relaykit/ | head -20 && echo "=== relaykit go.mod ===" && head -3 /build/relaykit/go.mod && echo "=== go list ./... 2>&1 | head -5 ===" && go list ./... 2>&1 | head -5
 RUN go mod download
 
 COPY --from=builder /build/web/dist ./web/dist
