@@ -18,7 +18,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import {
   Plus,
   MoreHorizontal,
-  RefreshCw,
   List,
   Building2,
   AlertCircle,
@@ -50,10 +49,6 @@ export function ModelsPrimaryButtons() {
     setOpen('missing-models')
   }
 
-  const handleSync = () => {
-    setOpen('sync-wizard')
-  }
-
   const handlePrefillGroups = () => {
     setOpen('prefill-groups')
   }
@@ -80,13 +75,6 @@ export function ModelsPrimaryButtons() {
             {t('Missing Models')}
             <DropdownMenuShortcut>
               <AlertCircle className='h-4 w-4' />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem onClick={handleSync}>
-            {t('Sync Upstream')}
-            <DropdownMenuShortcut>
-              <RefreshCw className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 

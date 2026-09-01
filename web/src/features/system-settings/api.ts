@@ -19,15 +19,12 @@ import { api } from '@/lib/api'
 
 import type {
   ConfirmPaymentComplianceResponse,
-  FetchUpstreamRatiosRequest,
   LogCleanupTask,
   SystemOptionsResponse,
   SystemTaskListResponse,
   SystemTaskResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
-  UpstreamChannelsResponse,
-  UpstreamRatiosResponse,
 } from './types'
 
 export async function getSystemOptions() {
@@ -90,17 +87,3 @@ export async function resetModelRatios() {
   return res.data
 }
 
-export async function getUpstreamChannels() {
-  const res = await api.get<UpstreamChannelsResponse>(
-    '/api/ratio_sync/channels'
-  )
-  return res.data
-}
-
-export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
-  const res = await api.post<UpstreamRatiosResponse>(
-    '/api/ratio_sync/fetch',
-    request
-  )
-  return res.data
-}

@@ -18,8 +18,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import { DescriptionDialog } from './dialogs/description-dialog'
 import { MissingModelsDialog } from './dialogs/missing-models-dialog'
 import { PrefillGroupManagement } from './dialogs/prefill-group-management'
-import { SyncWizardDialog } from './dialogs/sync-wizard-dialog'
-import { UpstreamConflictDialog } from './dialogs/upstream-conflict-dialog'
 import { VendorMutateDialog } from './dialogs/vendor-mutate-dialog'
 import { ModelMutateDrawer } from './drawers/model-mutate-drawer'
 import { useModels } from './models-provider'
@@ -53,18 +51,6 @@ export function ModelsDialogs() {
       {/* Missing Models Dialog */}
       <MissingModelsDialog
         open={open === 'missing-models'}
-        onOpenChange={(v) => !v && setOpen(null)}
-      />
-
-      {/* Sync Wizard Dialog */}
-      <SyncWizardDialog
-        open={open === 'sync-wizard'}
-        onOpenChange={(v) => !v && setOpen(null)}
-      />
-
-      {/* Upstream Conflict Dialog */}
-      <UpstreamConflictDialog
-        open={open === 'upstream-conflict'}
         onOpenChange={(v) => !v && setOpen(null)}
       />
 
