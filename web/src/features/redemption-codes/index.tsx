@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout } from '@/components/layout'
+import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
 
 import { RedemptionsDialogs } from './components/redemptions-dialogs'
 import { RedemptionsPrimaryButtons } from './components/redemptions-primary-buttons'
@@ -36,7 +36,9 @@ export function Redemptions() {
           <RedemptionsPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <RedemptionsTable />
+          <ConsoleDataTableContainer fixedHeader>
+            <RedemptionsTable />
+          </ConsoleDataTableContainer>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

@@ -20,7 +20,7 @@ import { Link } from '@tanstack/react-router'
 import { Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout } from '@/components/layout'
+import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
@@ -96,7 +96,9 @@ export function Channels() {
           <ChannelsPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <ChannelsTable />
+          <ConsoleDataTableContainer fixedHeader>
+            <ChannelsTable />
+          </ConsoleDataTableContainer>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

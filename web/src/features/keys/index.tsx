@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout } from '@/components/layout'
+import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
 
 import { ApiKeysDialogs } from './components/api-keys-dialogs'
 import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
@@ -34,7 +34,9 @@ export function ApiKeys() {
           <ApiKeysPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <ApiKeysTable />
+          <ConsoleDataTableContainer fixedHeader>
+            <ApiKeysTable />
+          </ConsoleDataTableContainer>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

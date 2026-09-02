@@ -19,7 +19,7 @@ import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout } from '@/components/layout'
+import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
@@ -151,7 +151,9 @@ function UsageLogsContent() {
               </Tabs>
             )}
             <div className='min-h-0 flex-1'>
-              <UsageLogsTable logCategory={activeCategory} />
+              <ConsoleDataTableContainer fixedHeader>
+                <UsageLogsTable logCategory={activeCategory} />
+              </ConsoleDataTableContainer>
             </div>
           </div>
         </SectionPageLayout.Content>

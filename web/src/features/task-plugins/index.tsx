@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { SectionPageLayout } from '@/components/layout'
+import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -145,10 +145,12 @@ export function TaskPlugins() {
               <TabsTrigger value='marketplace'>{t('Marketplace')}</TabsTrigger>
             </TabsList>
             <TabsContent value='installed' className='min-h-0 flex-1'>
-              <PluginsTable
-                onDetails={setDetail}
-                onUpload={(key) => openUpload(key)}
-              />
+              <ConsoleDataTableContainer fixedHeader>
+                <PluginsTable
+                  onDetails={setDetail}
+                  onUpload={(key) => openUpload(key)}
+                />
+              </ConsoleDataTableContainer>
             </TabsContent>
             <TabsContent value='marketplace' className='min-h-0 flex-1'>
               <MarketplacePanel />

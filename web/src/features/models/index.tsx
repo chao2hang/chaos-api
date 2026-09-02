@@ -21,7 +21,7 @@ import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout } from '@/components/layout'
+import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -60,10 +60,8 @@ function ModelsContent() {
   const activeSection = (params.section ??
     MODELS_DEFAULT_SECTION) as ModelsSectionId
 
-  // Deployment create dialog state
   const [createDeploymentOpen, setCreateDeploymentOpen] = useState(false)
 
-  // keep context state in sync (for components that rely on it)
   useEffect(() => {
     if (tabCategory !== activeSection) {
       setTabCategory(activeSection)
@@ -109,9 +107,13 @@ function ModelsContent() {
             </Tabs>
             <div className='min-h-0 flex-1'>
               {activeSection === 'metadata' ? (
-                <ModelsTable />
+                <ConsoleDataTableContainer fixedHeader>
+                  <ModelsTable />
+                </ConsoleDataTableContainer>
               ) : (
-                <DeploymentsSection />
+                <ConsoleDataTableContainer fixedHeader>
+                  <DeploymentsSection />
+                </ConsoleDataTableContainer>
               )}
             </div>
           </div>
@@ -139,7 +141,6 @@ function DeploymentsSection() {
     testConnection,
   } = useModelDeploymentSettings()
 
-  // Prefetch deployments list while connection check is in progress.
   useEffect(() => {
     if (isIoNetEnabled && loadingPhase === 'connection') {
       const defaultParams = { p: 1, page_size: 10 }

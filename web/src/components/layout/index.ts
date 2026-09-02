@@ -27,6 +27,8 @@ export { PublicNavigation } from './components/public-navigation'
 export { HeaderLogo } from './components/header-logo'
 export { PageFooterPortal } from './components/page-footer'
 export { SectionPageLayout } from './components/section-page-layout'
+export { ConsoleBulkActionsBar } from './components/console-bulk-actions-bar'
+export { ConsoleDataTableContainer } from './components/console-data-table-container'
 export { SystemBrand } from './components/system-brand'
 
 // Configuration

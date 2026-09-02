@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout } from '@/components/layout'
+import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
 
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
@@ -37,7 +37,9 @@ function UsersContent() {
           <UsersPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <UsersTable />
+          <ConsoleDataTableContainer fixedHeader>
+            <UsersTable />
+          </ConsoleDataTableContainer>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 
