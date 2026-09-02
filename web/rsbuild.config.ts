@@ -60,6 +60,11 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        // `@chaos_team/chaos-ui/layout` imports `next/link` at module scope for
+        // its optional Next.js adapter. This app always passes its own
+        // `linkComponent` (TanStack Router), so the adapter is never rendered
+        // and resolves to a no-op stub instead of pulling in Next.js.
+        'next/link': path.resolve(__dirname, './src/lib/next-link-stub.tsx'),
       },
     },
     html: {

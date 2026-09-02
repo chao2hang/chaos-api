@@ -15,22 +15,17 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { cn } from '@/lib/utils'
+import type { ComponentProps } from 'react'
 
-type MainProps = React.HTMLAttributes<HTMLElement> & {
-  fluid?: boolean
-}
-
-export function Main({ className, fluid = true, ...props }: MainProps) {
-  return (
-    <main
-      className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden',
-        !fluid &&
-          '@7xl/content:mx-auto @7xl/content:w-full @7xl/content:max-w-7xl',
-        className
-      )}
-      {...props}
-    />
-  )
+/**
+ * Build-time stub for `next/link`, which `@chaos_team/chaos-ui/layout`
+ * imports at module scope for its optional Next.js adapter.
+ *
+ * This app always passes its own `linkComponent` (TanStack Router Link)
+ * to chaos-ui layout components, so the Next adapter is never rendered.
+ * The alias exists only so bundlers can resolve the import without
+ * installing the Next.js framework.
+ */
+export default function NextLinkStub(props: ComponentProps<'a'>) {
+  return <a {...props} />
 }

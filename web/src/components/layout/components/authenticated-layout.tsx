@@ -17,43 +17,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
-import { getCookie } from '@/lib/cookies'
-import { cn } from '@/lib/utils'
 
-import { AppHeader } from './app-header'
-import { AppSidebar } from './app-sidebar'
+import { AdminConsoleShell } from './admin-console-shell'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
 }
 
+/**
+ * Authenticated console layout.
+ *
+ * The shell (header, sidebar, content frame) is chaos-ui's `AdminShell`
+ * via {@link AdminConsoleShell}; global search (⌘K) and the command menu
+ * are provided by `SearchProvider`.
+ */
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
-  const defaultOpen = getCookie('sidebar_state') !== 'false'
-
   return (
-    <LayoutProvider>
-      <SearchProvider>
-        <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
-          <SkipToMain />
-          <AppHeader />
-          <div className='flex min-h-0 w-full flex-1'>
-            <AppSidebar />
-            <SidebarInset
-              className={cn(
-                '@container/content',
-                'h-[calc(100svh-var(--app-header-height,0px))]',
-                'min-h-0 overflow-hidden',
-                'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
-              )}
-            >
-              {props.children ?? <AnimatedOutlet />}
-            </SidebarInset>
-          </div>
-        </SidebarProvider>
-      </SearchProvider>
-    </LayoutProvider>
+    <SearchProvider>
+      <SkipToMain />
+      <AdminConsoleShell>
+        {props.children ?? <AnimatedOutlet />}
+      </AdminConsoleShell>
+    </SearchProvider>
   )
 }

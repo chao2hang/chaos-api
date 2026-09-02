@@ -16,6 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 import {
+  PageContainer,
+  PageContent,
+  PageHeader,
+} from '@chaos_team/chaos-ui/ui'
+import {
   Children,
   isValidElement,
   useState,
@@ -23,7 +28,8 @@ import {
   type ReactNode,
 } from 'react'
 
-import { Main } from './main'
+import { cn } from '@/lib/utils'
+
 import { PageFooterProvider } from './page-footer'
 
 type SlotProps = { children?: ReactNode }
@@ -53,6 +59,13 @@ export type SectionPageLayoutProps = {
   fixedContent?: boolean
 }
 
+/**
+ * Page scaffold for console routes, built on chaos-ui's
+ * `PageContainer` / `PageHeader` / `PageContent`.
+ *
+ * The slot API (`.Title`, `.Actions`, `.Content`, `.Breadcrumb`) is
+ * unchanged so existing call sites keep working.
+ */
 export function SectionPageLayout(props: SectionPageLayoutProps) {
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(
     null
@@ -66,51 +79,50 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
   Children.forEach(props.children, (node) => {
     if (!isValidElement(node)) return
     const child = node as ReactElement<SlotProps>
-    if (child.type === SectionPageLayoutTitle) title = child.props.children
-    else if (child.type === SectionPageLayoutActions)
+    if (child.type === SectionPageLayoutTitle) {
+      title = child.props.children
+    } else if (child.type === SectionPageLayoutActions) {
       actions = child.props.children
-    else if (child.type === SectionPageLayoutContent)
+    } else if (child.type === SectionPageLayoutContent) {
       content = child.props.children
-    else if (child.type === SectionPageLayoutBreadcrumb)
+    } else if (child.type === SectionPageLayoutBreadcrumb) {
       breadcrumb = child.props.children
+    }
   })
 
   return (
     <PageFooterProvider container={footerContainer}>
-      <Main>
-        <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'>
-          {breadcrumb != null && (
-            <div className='mb-2 sm:mb-3'>{breadcrumb}</div>
-          )}
-          <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4'>
-            <div className='min-w-0 flex-1'>
-              <h2 className='truncate text-base font-bold tracking-tight sm:text-lg'>
-                {title}
-              </h2>
-            </div>
-            {actions != null && (
-              <div className='flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-x-4'>
-                {actions}
-              </div>
-            )}
-          </div>
-        </div>
+      <PageContainer
+        size='full'
+        padding='none'
+        center={false}
+        className='flex min-h-0 flex-1 flex-col'
+      >
+        <PageHeader
+          // chaos-ui types `title` as string, but it renders any ReactNode;
+          // call sites pass `t('...')` strings or small inline elements.
+          title={(title ?? '') as unknown as string}
+          breadcrumb={breadcrumb ?? undefined}
+          actions={actions ?? undefined}
+          size='sm'
+          className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'
+        />
 
-        <div
-          className={
-            props.fixedContent
-              ? 'min-h-0 flex-1 overflow-hidden px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
-              : 'min-h-0 flex-1 overflow-auto px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
-          }
+        <PageContent
+          density='compact'
+          className={cn(
+            'min-h-0 flex-1 px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4',
+            props.fixedContent ? 'overflow-hidden' : 'overflow-auto'
+          )}
         >
           {content}
-        </div>
+        </PageContent>
 
         <div
           ref={setFooterContainer}
           className='bg-background shrink-0 border-t px-3 py-2.5 empty:hidden sm:px-4 sm:py-3'
         />
-      </Main>
+      </PageContainer>
     </PageFooterProvider>
   )
 }

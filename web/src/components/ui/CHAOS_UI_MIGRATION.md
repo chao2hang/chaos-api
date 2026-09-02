@@ -43,6 +43,33 @@ React Context 互不相通，因此**同一 primitive 家族不可混用两份�
 结论：单个组件家族要么整体使用 chaos-ui re-export，要么整体保留本地实现。
 后续新增组件时沿用此规则。
 
+## 后台 shell（AdminShell）
+
+已认证控制台的 shell 已重构到 chaos-ui 布局系统上：
+
+- `components/layout/components/admin-console-shell.tsx` — 用 chaos-ui `AdminShell`
+  （AdminHeader + AdminSider）组装；搜索、通知、语言、配置抽屉、用户菜单通过 slot 注入；
+  导航数据仍来自 URL 驱动的 `useSidebarView`（根导航 vs 嵌套 workspace，含返回项）。
+  菜单转换逻辑在 `admin-console-menu.tsx`（纯函数，带测试）。
+- `section-page-layout.tsx` — 基于 chaos-ui `PageContainer` / `PageHeader` / `PageContent`
+  重建，slot API（`.Title` `.Actions` `.Content` `.Breadcrumb`）不变。
+- 侧栏导航经 `AdminSiderLinkComponent` 适配 TanStack Router Link（`RouterLink`），
+  `selectedMatch='prefix'` 支持深层路由高亮。
+
+### `next/link` 构建别名
+
+`@chaos_team/chaos-ui/layout` 在模块顶层 `import from "next/link"`（其可选的 Next.js
+适配器）。本项目未安装 Next.js，且始终传入自己的 `linkComponent`，因此
+`rsbuild.config.ts` 与 `vitest.config.ts` 将 `next/link` 别名到
+`src/lib/next-link-stub.tsx`（无操作 `<a>`，从不渲染）。测试需要
+`server.deps.inline: ['@chaos_team/chaos-ui']` 才能让别名作用于包内部 import。
+
+### 随之移除的本地组件
+
+app-header、app-sidebar、nav-group、nav-link-item、sidebar-view-header、header、
+top-nav、main、mobile-drawer、constants、`context/layout-provider`（及其在
+ConfigDrawer 中的 Sidebar/Layout 偏好项——AdminShell 自持折叠模型，偏好不再适用）。
+
 ## 后续建议
 
 1. chaos-ui 补齐 `AlertAction` / collision props / 移动端 Select 行为后，可继续收敛保留项。

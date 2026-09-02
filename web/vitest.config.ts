@@ -26,6 +26,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // See rsbuild.config.ts: chaos-ui's layout chunk imports `next/link`
+      // at module scope; stub it so tests can load that chunk.
+      'next/link': path.resolve(__dirname, './src/lib/next-link-stub.tsx'),
     },
   },
   test: {
@@ -34,5 +37,12 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Inline chaos-ui so the `next/link` alias above also applies to imports
+    // inside the package's own chunks (externalized deps bypass aliases).
+    server: {
+      deps: {
+        inline: ['@chaos_team/chaos-ui'],
+      },
+    },
   },
 })
