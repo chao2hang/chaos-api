@@ -62,9 +62,6 @@ vi.mock('@/components/notification-popover', () => ({
 vi.mock('@/components/profile-dropdown', () => ({
   ProfileDropdown: () => <div data-testid='console-profile' />,
 }))
-vi.mock('@/components/search', () => ({
-  Search: () => <div data-testid='console-search' />,
-}))
 vi.mock('@/components/language-switcher', () => ({
   LanguageSwitcher: () => <div data-testid='console-language' />,
 }))
@@ -105,7 +102,6 @@ describe('AdminConsoleShell composition', () => {
       '/wallet'
     )
 
-    expect(screen.getByTestId('console-search')).toBeInTheDocument()
     expect(screen.getByTestId('console-notifications')).toBeInTheDocument()
     expect(screen.getByTestId('console-profile')).toBeInTheDocument()
     expect(screen.getByTestId('console-config')).toBeInTheDocument()

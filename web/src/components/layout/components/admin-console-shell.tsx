@@ -27,10 +27,8 @@ import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSidebarView } from '@/hooks/use-sidebar-view'
-import { useSystemConfig } from '@/hooks/use-system-config'
 import { getCookie } from '@/lib/cookies'
 
 import { buildConsoleMenuItems } from './admin-console-menu'
@@ -57,15 +55,11 @@ const RouterLink: AdminSiderLinkComponent = (props) => {
 }
 
 function SiderBrandLogo() {
-  const { t } = useTranslation()
-  const { logo } = useSystemConfig()
 
   return (
-    <img
-      src={logo}
-      alt={t('Logo')}
-      className='size-8 shrink-0 rounded-lg object-cover'
-    />
+    <span className='font-bold text-lg select-none'>
+      Chaos
+    </span>
   )
 }
 
@@ -75,7 +69,7 @@ type AdminConsoleShellProps = {
 
 /**
  * Authenticated console shell built on chaos-ui's `AdminShell`
- * (AdminHeader + AdminSider). Business chrome — search, notifications,
+ * (AdminHeader + AdminSider). Business chrome — notifications,
  * language, config drawer, profile — is injected through AdminShell's
  * slots; navigation data still comes from the URL-driven
  * `useSidebarView` (root nav vs. nested workspace views).
@@ -102,7 +96,11 @@ export function AdminConsoleShell(props: AdminConsoleShellProps) {
       selectedMatch='prefix'
       linkComponent={RouterLink}
       logo={<SiderBrandLogo />}
-      logoCollapsed={<SiderBrandLogo />}
+      logoCollapsed={
+        <span className='font-bold select-none'>
+          C
+        </span>
+      }
       userMenu={<ProfileDropdown />}
       notification={
         <NotificationPopover
@@ -118,7 +116,6 @@ export function AdminConsoleShell(props: AdminConsoleShellProps) {
       }
       headerActions={
         <>
-          <Search />
           <LanguageSwitcher />
           <ConfigDrawer />
         </>
