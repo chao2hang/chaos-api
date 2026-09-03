@@ -17,6 +17,8 @@ import {
 } from "react";
 import { registerAdminElements } from "@chaos_team/admin-ui-core/register";
 import type {
+  AdminAvatarSize,
+  AdminBadgeVariant,
   AdminButtonSize,
   AdminButtonVariant,
   AdminStatus,
@@ -94,6 +96,30 @@ function useCustomEvent<T>(
 
 function renderSlot(name: string, content: ReactNode): ReactNode {
   return content ? createElement("span", { slot: name, key: name }, content) : null;
+}
+
+export interface AdminBadgeProps extends ElementProps {
+  variant?: AdminBadgeVariant;
+  dot?: boolean;
+}
+export function AdminBadge(props: AdminBadgeProps) {
+  const { children, className, variant, dot, ...rest } = props;
+  const { setRef, element } = useAdminElement(undefined);
+  useElementProperties(element as RefObject<CustomElement | null>, { variant, dot });
+  return createElement("aui-badge", { ...rest, className, ref: setRef }, children);
+}
+
+export interface AdminAvatarProps extends ElementProps {
+  src?: string;
+  alt?: string;
+  initials?: string;
+  size?: AdminAvatarSize;
+}
+export function AdminAvatar(props: AdminAvatarProps) {
+  const { children, className, src, alt, initials, size, ...rest } = props;
+  const { setRef, element } = useAdminElement(undefined);
+  useElementProperties(element as RefObject<CustomElement | null>, { src, alt, initials, size });
+  return createElement("aui-avatar", { ...rest, className, ref: setRef }, children);
 }
 
 export interface AdminButtonProps extends ElementProps {
@@ -595,3 +621,80 @@ export function AdminShell(props: AdminShellProps) {
     children,
   ]);
 }
+
+export {
+  AdminAccordion,
+  AdminAlert,
+  AdminCalendar,
+  AdminCalendarGrid,
+  AdminChartContainer,
+  AdminCombobox,
+  AdminCommand,
+  AdminDataGrid,
+  AdminDataList,
+  AdminDateRange,
+  AdminDropdown,
+  AdminDrawer,
+  AdminField,
+  AdminFileUpload,
+  AdminGrid,
+  AdminIconButton,
+  AdminInputGroup,
+  AdminJsonViewer,
+  AdminKanban,
+  AdminKbd,
+  AdminList,
+  AdminLogViewer,
+  AdminMultiSelect,
+  AdminPasswordInput,
+  AdminPopover,
+  AdminProgress,
+  AdminRadioGroup,
+  AdminRating,
+  AdminResult,
+  AdminSearch,
+  AdminSegmented,
+  AdminSlider,
+  AdminStack,
+  AdminStepper,
+  AdminTagInput,
+  AdminTimeline,
+  AdminToast,
+  AdminTooltip,
+  AdminTree,
+} from "./advanced";
+export type {
+  AdminAccordionProps,
+  AdminAlertProps,
+  AdminCalendarGridProps,
+  AdminCalendarProps,
+  AdminChartContainerProps,
+  AdminComboboxProps,
+  AdminDataGridProps,
+  AdminDataListProps,
+  AdminDateRangeProps,
+  AdminDropdownProps,
+  AdminDrawerProps,
+  AdminFieldProps,
+  AdminFileUploadProps,
+  AdminIconButtonProps,
+  AdminKanbanProps,
+  AdminListProps,
+  AdminLogViewerProps,
+  AdminMultiSelectProps,
+  AdminPasswordInputProps,
+  AdminPopoverProps,
+  AdminProgressProps,
+  AdminRadioGroupProps,
+  AdminRatingProps,
+  AdminResultProps,
+  AdminSearchProps,
+  AdminSegmentedProps,
+  AdminSliderProps,
+  AdminStepperProps,
+  AdminTagInputProps,
+  AdminTimelineProps,
+  AdminToastProps,
+  AdminTooltipProps,
+  AdminTreeProps,
+} from "./advanced";

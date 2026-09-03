@@ -87,3 +87,66 @@ describe("industrial admin core", () => {
     expect(table.shadowRoot?.querySelector(".loading-state")?.textContent).toContain("Loading");
   });
 });
+
+describe("expanded component contracts", () => {
+  it("filters combobox options and emits the chosen value", async () => {
+    const combobox = document.createElement("aui-combobox") as HTMLElement & {
+      options: Array<{ value: string; label: string }>;
+      updateComplete: Promise<boolean>;
+    };
+    combobox.options = [
+      { value: "openai", label: "OpenAI" },
+      { value: "anthropic", label: "Anthropic" },
+    ];
+    document.body.append(combobox);
+    await combobox.updateComplete;
+
+    let selected = "";
+    combobox.addEventListener("aui-change", (event) => {
+      selected = (event as CustomEvent<{ value: string }>).detail.value;
+    });
+    const input = combobox.shadowRoot?.querySelector("input");
+    if (!input) throw new Error("Combobox input was not rendered");
+    input.value = "anth";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await combobox.updateComplete;
+    combobox.shadowRoot?.querySelector<HTMLButtonElement>(".option")?.click();
+
+    expect(selected).toBe("anthropic");
+    expect((combobox as unknown as { open: boolean }).open).toBe(false);
+  });
+
+  it("keeps a progress value within its accessible range", async () => {
+    const progress = document.createElement("aui-progress") as HTMLElement & {
+      value: number;
+      max: number;
+      updateComplete: Promise<boolean>;
+    };
+    progress.value = 120;
+    progress.max = 100;
+    document.body.append(progress);
+    await progress.updateComplete;
+    const bar = progress.shadowRoot?.querySelector('[role="progressbar"]');
+
+    expect(bar?.getAttribute("aria-valuenow")).toBe("120");
+    expect(progress.shadowRoot?.querySelector<HTMLElement>(".indicator")?.style.width).toBe("100%");
+  });
+
+  it("emits a menu selection from a dropdown item", async () => {
+    const dropdown = document.createElement("aui-dropdown") as HTMLElement & {
+      items: Array<{ id: string; label: string }>;
+      updateComplete: Promise<boolean>;
+    };
+    dropdown.items = [{ id: "refresh", label: "Refresh" }];
+    document.body.append(dropdown);
+    await dropdown.updateComplete;
+
+    let selected = "";
+    dropdown.addEventListener("aui-menu-select", (event) => {
+      selected = (event as CustomEvent<{ id: string }>).detail.id;
+    });
+    dropdown.shadowRoot?.querySelector<HTMLElement>(".menu button")?.click();
+
+    expect(selected).toBe("refresh");
+  });
+});

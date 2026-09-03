@@ -76,6 +76,14 @@ declare global {
     "aui-log-viewer": import("./system").AdminLogViewerElement;
     "aui-data-grid": import("./system").AdminDataGridElement;
     "aui-kanban": import("./system").AdminKanbanElement;
+    "aui-toggle": import("./common").AdminToggleElement;
+    "aui-toggle-group": import("./common").AdminToggleGroupElement;
+    "aui-collapsible": import("./common").AdminCollapsibleElement;
+    "aui-aspect-ratio": import("./common").AdminAspectRatioElement;
+    "aui-scroll-area": import("./common").AdminScrollAreaElement;
+    "aui-number-input": import("./common").AdminNumberInputElement;
+    "aui-code-block": import("./common").AdminCodeBlockElement;
+    "aui-color-tag": import("./common").AdminColorTagElement;
   }
 }
 

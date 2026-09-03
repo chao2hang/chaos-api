@@ -22,3 +22,4 @@ export * from "./primitives";
 export { registerAdminElements } from "./register";
 export * from "./controls";
 export * from "./system";
+export * from "./common";

@@ -4,9 +4,12 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License.
 */
 
+import { catalog, categoryLabels, type CatalogItem } from "./catalog";
+
 type SectionId =
   | "overview"
   | "tokens"
+  | "components"
   | "button"
   | "form"
   | "feedback"
@@ -22,6 +25,7 @@ type Example = { id: SectionId; title: string; description: string; render: () =
 const sections: Section[] = [
   { id: "overview", label: "Overview", eyebrow: "START HERE" },
   { id: "tokens", label: "Design Tokens", eyebrow: "FOUNDATION" },
+  { id: "components", label: "Component Index", eyebrow: "LIBRARY" },
   { id: "button", label: "Button", eyebrow: "PRIMITIVES" },
   { id: "form", label: "Form Controls", eyebrow: "PRIMITIVES" },
   { id: "feedback", label: "Feedback", eyebrow: "PRIMITIVES" },
@@ -84,6 +88,7 @@ root.innerHTML = `
       <span class="brand-copy"><strong>CHAOS_API</strong><small>ADMIN UI / DOCS</small></span>
     </a>
     <div class="sidebar-rule"></div>
+    <label class="docs-search"><span aria-hidden="true">⌕</span><input id="docs-search" type="search" placeholder="SEARCH COMPONENTS" aria-label="Search components" /></label>
     <nav class="docs-nav" aria-label="Documentation navigation"></nav>
     <div class="sidebar-footer"><span class="pulse"></span><span>CORE STATUS / STABLE</span><span class="version">v0.1.0</span></div>
   </aside>
@@ -98,16 +103,38 @@ root.innerHTML = `
         <h1>ADMIN UI<br><em>DOCUMENTATION</em></h1>
         <p class="hero-lede">A sharp, data-first component system for operational interfaces. Built once for the web, React, Vue and Svelte.</p>
         <div class="hero-actions"><aui-button variant="primary" id="hero-explore">EXPLORE COMPONENTS</aui-button><a class="text-link" href="#frameworks">VIEW FRAMEWORKS <span>→</span></a></div>
-        <div class="hero-grid" aria-label="Library facts"><div><small>RENDERER</small><strong>WEB COMPONENTS</strong></div><div><small>ADAPTERS</small><strong>REACT · VUE · SVELTE</strong></div><div><small>DESIGN LANGUAGE</small><strong>OBSIDIAN / INDUSTRIAL</strong></div></div>
+        <div class="hero-grid" aria-label="Library facts"><div><small>RENDERER</small><strong>WEB COMPONENTS</strong></div><div><small>ADAPTERS</small><strong>REACT · VUE · SVELTE</strong></div><div><small>DESIGN LANGUAGE</small><strong>OBSIDIAN / INDUSTRIAL</strong></div></div><div class="hero-count"><strong>${catalog.length}</strong><span>COMPONENTS CATALOGUED / 7 SYSTEM LAYERS / 3 FRAMEWORK ADAPTERS</span></div>
       </section>
       <section class="content-section" id="tokens"><div class="section-heading"><span class="section-index">01</span><div><p class="eyebrow">FOUNDATION</p><h2>Design tokens</h2></div></div><div class="token-layout"><div class="token-copy"><p>Every component inherits a compact, semantic token layer. Override variables at your application root to create a controlled variant without forking component CSS.</p><code>:root { --aui-bg: #0a0a0a; --aui-border: #262626; }</code></div><div class="token-grid">${tokenCards()}</div></div></section>
-      <section class="content-section" id="components"><div class="section-heading"><span class="section-index">02</span><div><p class="eyebrow">COMPONENTS</p><h2>Built for the console</h2></div></div><div class="component-grid">${examples.map((example) => `<article class="component-card" id="${example.id}"><div class="component-card-heading"><span class="component-slug">AUI / ${example.id.toUpperCase()}</span><span class="component-status">READY</span></div><h3>${example.title}</h3><p>${example.description}</p><div class="playground">${example.render()}</div><div class="component-card-footer"><button class="code-toggle" type="button" data-code="${example.id}">VIEW USAGE <span>⌄</span></button><a href="#accessibility">A11Y NOTES →</a></div><pre class="code-block" data-code-block="${example.id}" hidden></pre></article>`).join("")}</div></section>
+      <section class="content-section" id="components"><div class="section-heading"><span class="section-index">02</span><div><p class="eyebrow">LIBRARY INDEX</p><h2>Every building block</h2></div></div><p class="section-intro catalog-intro">A searchable inventory of the real registered Custom Elements. Primitive, framework-neutral and ready to compose across admin, ERP, CRM, analytics and operations products.</p><div class="catalog-toolbar"><div class="catalog-total"><strong id="catalog-visible-count">${catalog.length}</strong><span>VISIBLE / ${catalog.length} TOTAL</span></div><div class="category-filters" role="group" aria-label="Filter component category"><button type="button" class="category-filter is-active" data-category="all">ALL</button>${Object.entries(
+        categoryLabels,
+      )
+        .map(
+          ([id, label]) =>
+            `<button type="button" class="category-filter" data-category="${id}">${label.toUpperCase()}</button>`,
+        )
+        .join(
+          "",
+        )}</div></div><div class="catalog-grid" id="catalog-grid">${catalogMarkup()}</div><div class="showcase-heading"><p class="eyebrow">LIVE SHOWCASE</p><span>INTERACTIVE REFERENCES / REAL CORE ELEMENTS</span></div><div class="component-grid" id="showcase-grid">${examples.map((example) => `<article class="component-card" id="showcase-${example.id}"><div class="component-card-heading"><span class="component-slug">AUI / ${example.id.toUpperCase()}</span><span class="component-status">READY</span></div><h3>${example.title}</h3><p>${example.description}</p><div class="playground">${example.render()}</div><div class="component-card-footer"><button class="code-toggle" type="button" data-code="${example.id}">VIEW USAGE <span>⌄</span></button><a href="#accessibility">A11Y NOTES →</a></div><pre class="code-block" data-code-block="${example.id}" hidden></pre></article>`).join("")}</div><div class="advanced-lab"><div class="showcase-heading"><p class="eyebrow">ADVANCED LAB</p><span>NEW IN CORE / FILTERS, WORKFLOWS, INSPECTORS</span></div>${advancedLabMarkup()}</div></section>
       <section class="content-section framework-section" id="frameworks"><div class="section-heading"><span class="section-index">03</span><div><p class="eyebrow">INTEGRATION</p><h2>One system. Your stack.</h2></div></div><p class="section-intro">The core owns behavior and visual language. Thin adapters make the same components feel native in every supported framework.</p><div class="framework-tabs" role="tablist" aria-label="Framework examples">${["react", "vue", "svelte", "web"].map((framework, index) => `<button type="button" role="tab" aria-selected="${index === 0}" data-framework="${framework}">${framework === "web" ? "WEB COMPONENTS" : framework.toUpperCase()}</button>`).join("")}</div><pre class="framework-code" aria-live="polite"></pre><div class="install-row"><span>INSTALL</span><code>bun add @chaos_team/admin-ui-react @chaos_team/admin-ui-core</code><button type="button" class="copy-install">COPY</button></div></section>
       <section class="content-section accessibility-section" id="accessibility"><div class="section-heading"><span class="section-index">04</span><div><p class="eyebrow">QUALITY BAR</p><h2>Accessible by default</h2></div></div><div class="a11y-list"><div><strong>01</strong><span>Native elements first</span><p>Buttons, inputs, select, table and dialog preserve browser semantics.</p></div><div><strong>02</strong><span>State has meaning</span><p>Active, selected, disabled, loading and error states expose ARIA semantics.</p></div><div><strong>03</strong><span>Motion is optional</span><p>Transitions and shimmer respect <code>prefers-reduced-motion</code>.</p></div></div></section>
     </main>
     <footer class="docs-footer"><span>CHAOS ADMIN UI / DOCUMENTATION</span><span>BUILT FOR OPERATORS, NOT DECORATION.</span></footer>
   </div>
 `;
+
+function catalogMarkup(items: CatalogItem[] = catalog): string {
+  return items
+    .map(
+      (entry) =>
+        `<article class="catalog-card" data-catalog-id="${entry.id}" data-category="${entry.category}" data-search="${`${entry.name} ${entry.tag} ${entry.description} ${entry.category}`.toLowerCase()}"><div class="catalog-card-top"><span class="component-slug">${entry.tag}</span><span class="catalog-status catalog-status-${entry.status}">${entry.status.toUpperCase()}</span></div><h3>${entry.name}</h3><p>${entry.description}</p><div class="catalog-meta"><span>${categoryLabels[entry.category].toUpperCase()}</span><span>${entry.props.length} PROPS</span></div><div class="catalog-api"><code>${entry.props.length ? entry.props.join(" · ") : "SLOT / NATIVE"}</code>${entry.events?.length ? `<small>${entry.events.join(" · ")}</small>` : ""}</div></article>`,
+    )
+    .join("");
+}
+
+function advancedLabMarkup(): string {
+  return `<div class="lab-grid"><article class="lab-card"><span class="component-slug">PRIMITIVES / MIX</span><h3>Operational markers</h3><div class="lab-preview"><aui-badge variant="primary" dot>PRIMARY</aui-badge><aui-badge variant="success" dot>HEALTHY</aui-badge><aui-avatar initials="CA" size="lg"></aui-avatar><aui-progress value="72" max="100" label="CAPACITY" show-value></aui-progress></div></article><article class="lab-card"><span class="component-slug">INPUT / SEARCH</span><h3>Searchable selection</h3><div class="lab-preview"><aui-combobox id="docs-combobox" options='[{"value":"openai","label":"OpenAI","description":"Primary provider route"},{"value":"anthropic","label":"Anthropic","description":"Failover provider route"},{"value":"gemini","label":"Gemini","description":"Edge provider route"}]' placeholder="SEARCH PROVIDER"></aui-combobox><aui-tag-input values='["production","eu-west"]' placeholder="ADD FILTER"></aui-tag-input></div></article><article class="lab-card"><span class="component-slug">LAYOUT / INSPECTOR</span><h3>System composition</h3><div class="lab-preview"><aui-grid columns="3"><aui-stat label="REQUESTS" value="12.8K" unit="RPM"></aui-stat><aui-stat label="LATENCY" value="184" unit="MS"></aui-stat><aui-stat label="ERRORS" value="0.04" unit="%"></aui-stat></aui-grid></div></article><article class="lab-card"><span class="component-slug">DATA / OPERATIONS</span><h3>Queue board</h3><div class="lab-preview"><aui-kanban columns='[{"id":"todo","title":"TODO","items":[{"id":"1","title":"Rotate provider key","meta":"SECURITY"}]},{"id":"doing","title":"IN PROGRESS","items":[{"id":"2","title":"Review latency spike","meta":"OPS"}]},{"id":"done","title":"DONE","items":[{"id":"3","title":"Deploy fallback route","meta":"RELEASE"}]}]'></aui-kanban></div></article></div>`;
+}
 
 function tokenCards(): string {
   const tokens = [
@@ -183,6 +210,39 @@ for (const section of sections) {
   nav.append(link);
 }
 
+function setProperty(selector: string, name: string, value: unknown): void {
+  const element = root.querySelector(selector) as (HTMLElement & Record<string, unknown>) | null;
+  if (element) element[name] = value;
+}
+
+setProperty("#showcase-form aui-select", "options", [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+]);
+setProperty("#docs-combobox", "options", [
+  { value: "openai", label: "OpenAI", description: "Primary provider route" },
+  { value: "anthropic", label: "Anthropic", description: "Failover provider route" },
+  { value: "gemini", label: "Gemini", description: "Edge provider route" },
+]);
+setProperty("#showcase-form aui-tag-input", "values", ["production", "eu-west"]);
+setProperty("#showcase-data aui-kanban", "columns", [
+  {
+    id: "todo",
+    title: "TODO",
+    items: [{ id: "1", title: "Rotate provider key", meta: "SECURITY" }],
+  },
+  {
+    id: "doing",
+    title: "IN PROGRESS",
+    items: [{ id: "2", title: "Review latency spike", meta: "OPS" }],
+  },
+  {
+    id: "done",
+    title: "DONE",
+    items: [{ id: "3", title: "Deploy fallback route", meta: "RELEASE" }],
+  },
+]);
+
 root
   .querySelectorAll<HTMLElement>("[data-nav]")
   .forEach((link) =>
@@ -198,6 +258,34 @@ root
   ?.addEventListener("click", () =>
     root.querySelector(".docs-sidebar")?.classList.toggle("is-open"),
   );
+
+const catalogCount = root.querySelector<HTMLElement>("#catalog-visible-count");
+let selectedCategory = "all";
+function filterCatalog(): void {
+  const query = (root.querySelector<HTMLInputElement>("#docs-search")?.value ?? "")
+    .trim()
+    .toLowerCase();
+  let visible = 0;
+  root.querySelectorAll<HTMLElement>(".catalog-card").forEach((card) => {
+    const matchesCategory =
+      selectedCategory === "all" || card.dataset.category === selectedCategory;
+    const matchesQuery = !query || (card.dataset.search ?? "").includes(query);
+    const show = matchesCategory && matchesQuery;
+    card.hidden = !show;
+    if (show) visible += 1;
+  });
+  if (catalogCount) catalogCount.textContent = String(visible);
+}
+root.querySelector("#docs-search")?.addEventListener("input", filterCatalog);
+root.querySelectorAll<HTMLButtonElement>(".category-filter").forEach((button) =>
+  button.addEventListener("click", () => {
+    selectedCategory = button.dataset.category ?? "all";
+    root
+      .querySelectorAll(".category-filter")
+      .forEach((item) => item.classList.toggle("is-active", item === button));
+    filterCatalog();
+  }),
+);
 
 root.querySelectorAll<HTMLButtonElement>(".code-toggle").forEach((button) => {
   button.addEventListener("click", () => {

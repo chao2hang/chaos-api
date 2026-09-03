@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-当前版本为 `0.1.0`，已经提供无框架 Web Components 核心和 React/Vue/Svelte 适配入口：
+当前版本为 `0.1.0`，已经提供 78 个已注册的无框架 Web Components，以及 React/Vue/Svelte 适配入口：
 
 | 包                            | 用途                                              |
 | ----------------------------- | ------------------------------------------------- |
@@ -20,7 +20,8 @@
 - 布局：`Shell`、`Page`、`PageHeader`、`Stat`、`FilterBar`
 - 数据：`Table`、`Pagination`、`Tabs`
 - 导航：`Nav`、`Breadcrumb`
-- 叠加层：`Dialog`、`ConfirmDialog`
+- 叠加层：`Dialog`、`ConfirmDialog`、`Tooltip`、`Popover`、`Dropdown`、`Command`、`Drawer`、`Toast`
+- 高级通用：`Combobox`、`MultiSelect`、`DateRange`、`Tree`、`Timeline`、`Kanban`、`DataGrid`、`JSONViewer`、`LogViewer`、`CodeBlock`
 
 ## 设计原则
 
@@ -141,6 +142,13 @@ Core 事件使用 `aui-*` 前缀并通过 `CustomEvent.detail` 传递结构化�
 | `aui-nav-change`  | `{ id: string }`    |
 
 React/Vue 绑定会将这些事件映射为 `onValueChange`、`@value-change`、`onPageChange`、`@page-change` 等框架惯用 API。
+
+## 组件矩阵与业务扩展
+
+完整的 Core / Business 分层、参考 `chaos-ui` 的组件矩阵和后续 ERP/CRM/图表/CRUD 组件路线见：
+
+- `docs/roadmap.md`
+- `docs/architecture.md`
 
 ## 迁移策略
 

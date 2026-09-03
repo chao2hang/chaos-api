@@ -65,6 +65,16 @@ import {
   AdminToastElement,
 } from "./overlays-advanced";
 import {
+  AdminToggleElement,
+  AdminToggleGroupElement,
+  AdminCollapsibleElement,
+  AdminAspectRatioElement,
+  AdminScrollAreaElement,
+  AdminNumberInputElement,
+  AdminCodeBlockElement,
+  AdminColorTagElement,
+} from "./common";
+import {
   AdminContainerElement,
   AdminStackElement,
   AdminGridElement,
@@ -164,4 +174,12 @@ export function registerAdminElements(): void {
   defineOnce("aui-log-viewer", AdminLogViewerElement);
   defineOnce("aui-data-grid", AdminDataGridElement);
   defineOnce("aui-kanban", AdminKanbanElement);
+  defineOnce("aui-toggle", AdminToggleElement);
+  defineOnce("aui-toggle-group", AdminToggleGroupElement);
+  defineOnce("aui-collapsible", AdminCollapsibleElement);
+  defineOnce("aui-aspect-ratio", AdminAspectRatioElement);
+  defineOnce("aui-scroll-area", AdminScrollAreaElement);
+  defineOnce("aui-number-input", AdminNumberInputElement);
+  defineOnce("aui-code-block", AdminCodeBlockElement);
+  defineOnce("aui-color-tag", AdminColorTagElement);
 }

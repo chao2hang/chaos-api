@@ -62,8 +62,8 @@ export class AdminPageElement extends AdminElement {
       }
     }
   `;
-  title = "";
-  description = "";
+  declare title: string;
+  declare description: string;
   render() {
     return html`<div class="page">
       <header class="header">
@@ -120,8 +120,8 @@ export class AdminPageHeaderElement extends AdminElement {
       }
     }
   `;
-  title = "";
-  description = "";
+  declare title: string;
+  declare description: string;
   render() {
     return html`<header class="header">
       <div class="copy">
