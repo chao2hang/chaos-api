@@ -16,6 +16,22 @@
         "vue": "^3.5.0",
       },
     },
+    "business": {
+      "name": "@chaos_team/admin-ui-business",
+      "version": "0.1.0",
+      "peerDependencies": {
+        "@chaos_team/admin-ui-core": "^0.1.0",
+        "lit": ">=3.0.0",
+      },
+    },
+    "business-react": {
+      "name": "@chaos_team/admin-ui-business-react",
+      "version": "0.1.0",
+      "peerDependencies": {
+        "@chaos_team/admin-ui-business": "^0.1.0",
+        "react": ">=18.0.0",
+      },
+    },
     "core": {
       "name": "@chaos_team/admin-ui-core",
       "version": "0.1.0",
@@ -27,6 +43,7 @@
       "name": "@chaos_team/admin-ui-docs",
       "version": "0.1.0",
       "dependencies": {
+        "@chaos_team/admin-ui-business": "workspace:*",
         "@chaos_team/admin-ui-core": "workspace:*",
         "lit": "^3.3.0",
         "vite": "^8.0.0",
@@ -78,6 +95,10 @@
     "@babel/types": ["@babel/types@7.29.8", "https://registry.npmmirror.com/@babel/types/-/types-7.29.8.tgz", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg=="],
 
     "@bramus/specificity": ["@bramus/specificity@2.4.2", "https://registry.npmmirror.com/@bramus/specificity/-/specificity-2.4.2.tgz", { "dependencies": { "css-tree": "^3.0.0" }, "bin": { "specificity": "bin/cli.js" } }, "sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw=="],
+
+    "@chaos_team/admin-ui-business": ["@chaos_team/admin-ui-business@workspace:business"],
+
+    "@chaos_team/admin-ui-business-react": ["@chaos_team/admin-ui-business-react@workspace:business-react"],
 
     "@chaos_team/admin-ui-core": ["@chaos_team/admin-ui-core@workspace:core"],
 

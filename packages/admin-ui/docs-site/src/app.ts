@@ -95,7 +95,7 @@ root.innerHTML = `
   <div class="docs-main">
     <header class="docs-header">
       <div class="header-path"><span>DOCS:</span> CHAOS ADMIN UI <b>/</b> COMPONENT SYSTEM</div>
-      <div class="header-tools"><a href="https://github.com" target="_blank" rel="noreferrer">GITHUB ↗</a><button type="button" class="header-menu" aria-label="Open navigation">MENU</button></div>
+      <div class="header-tools"><a href="https://github.com/chao2hang/chaos-api" target="_blank" rel="noreferrer">GITHUB ↗</a><button type="button" class="header-menu" aria-label="Open navigation">MENU</button></div>
     </header>
     <main class="docs-content">
       <section class="docs-hero" id="overview">
@@ -103,7 +103,7 @@ root.innerHTML = `
         <h1>ADMIN UI<br><em>DOCUMENTATION</em></h1>
         <p class="hero-lede">A sharp, data-first component system for operational interfaces. Built once for the web, React, Vue and Svelte.</p>
         <div class="hero-actions"><aui-button variant="primary" id="hero-explore">EXPLORE COMPONENTS</aui-button><a class="text-link" href="#frameworks">VIEW FRAMEWORKS <span>→</span></a></div>
-        <div class="hero-grid" aria-label="Library facts"><div><small>RENDERER</small><strong>WEB COMPONENTS</strong></div><div><small>ADAPTERS</small><strong>REACT · VUE · SVELTE</strong></div><div><small>DESIGN LANGUAGE</small><strong>OBSIDIAN / INDUSTRIAL</strong></div></div><div class="hero-count"><strong>${catalog.length}</strong><span>COMPONENTS CATALOGUED / 7 SYSTEM LAYERS / 3 FRAMEWORK ADAPTERS</span></div>
+        <div class="hero-grid" aria-label="Library facts"><div><small>RENDERER</small><strong>WEB COMPONENTS</strong></div><div><small>ADAPTERS</small><strong>REACT · VUE · SVELTE</strong></div><div><small>DESIGN LANGUAGE</small><strong>OBSIDIAN / INDUSTRIAL</strong></div></div><div class="hero-count"><strong>${catalog.length}</strong><span>COMPONENTS CATALOGUED / 8 SYSTEM LAYERS / 3 FRAMEWORK ADAPTERS</span></div>
       </section>
       <section class="content-section" id="tokens"><div class="section-heading"><span class="section-index">01</span><div><p class="eyebrow">FOUNDATION</p><h2>Design tokens</h2></div></div><div class="token-layout"><div class="token-copy"><p>Every component inherits a compact, semantic token layer. Override variables at your application root to create a controlled variant without forking component CSS.</p><code>:root { --aui-bg: #0a0a0a; --aui-border: #262626; }</code></div><div class="token-grid">${tokenCards()}</div></div></section>
       <section class="content-section" id="components"><div class="section-heading"><span class="section-index">02</span><div><p class="eyebrow">LIBRARY INDEX</p><h2>Every building block</h2></div></div><p class="section-intro catalog-intro">A searchable inventory of the real registered Custom Elements. Primitive, framework-neutral and ready to compose across admin, ERP, CRM, analytics and operations products.</p><div class="catalog-toolbar"><div class="catalog-total"><strong id="catalog-visible-count">${catalog.length}</strong><span>VISIBLE / ${catalog.length} TOTAL</span></div><div class="category-filters" role="group" aria-label="Filter component category"><button type="button" class="category-filter is-active" data-category="all">ALL</button>${Object.entries(
@@ -224,8 +224,8 @@ setProperty("#docs-combobox", "options", [
   { value: "anthropic", label: "Anthropic", description: "Failover provider route" },
   { value: "gemini", label: "Gemini", description: "Edge provider route" },
 ]);
-setProperty("#showcase-form aui-tag-input", "values", ["production", "eu-west"]);
-setProperty("#showcase-data aui-kanban", "columns", [
+setProperty(".advanced-lab aui-tag-input", "values", ["production", "eu-west"]);
+setProperty(".advanced-lab aui-kanban", "columns", [
   {
     id: "todo",
     title: "TODO",

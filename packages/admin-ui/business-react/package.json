@@ -1,7 +1,7 @@
 {
-  "name": "@chaos_team/admin-ui-vue",
+  "name": "@chaos_team/admin-ui-business-react",
   "version": "0.1.0",
-  "description": "Vue 3 bindings for the Chaos industrial admin component library.",
+  "description": "React bindings for Chaos Admin UI business components.",
   "license": "AGPL-3.0-or-later",
   "files": [
     "dist",
@@ -12,10 +12,10 @@
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./src/index.tsx",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./src/index.tsx",
       "import": "./dist/index.js"
     }
   },
@@ -23,7 +23,7 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@chaos_team/admin-ui-core": "^0.1.0",
-    "vue": "^3.5.0"
+    "@chaos_team/admin-ui-business": "^0.1.0",
+    "react": ">=18.0.0"
   }
 }

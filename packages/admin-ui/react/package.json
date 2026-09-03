@@ -2,12 +2,25 @@
   "name": "@chaos_team/admin-ui-react",
   "version": "0.1.0",
   "description": "React bindings for the Chaos industrial admin component library.",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./src/index.tsx",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./src/index.tsx",
+      "import": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "peerDependencies": {
     "@chaos_team/admin-ui-core": "^0.1.0",

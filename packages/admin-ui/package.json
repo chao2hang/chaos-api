@@ -8,7 +8,9 @@
     "react",
     "vue",
     "svelte",
-    "docs-site"
+    "docs-site",
+    "business",
+    "business-react"
   ],
   "type": "module",
   "scripts": {
@@ -19,10 +21,18 @@
     "format": "oxfmt --write core/src react/src vue/src svelte/src",
     "typecheck:vue": "../../web/node_modules/.bin/tsgo -p vue/tsconfig.json",
     "check:svelte": "node scripts/check-svelte.mjs",
-    "typecheck": "bun run typecheck:core && bun run typecheck:react && bun run typecheck:vue",
-    "docs:dev": "bun --cwd docs-site run dev",
-    "docs:build": "bun --cwd docs-site run build",
-    "docs:preview": "bun --cwd docs-site run preview"
+    "typecheck": "bun run typecheck:core && bun run typecheck:react && bun run typecheck:vue && bun run typecheck:business && bun run typecheck:business-react && bun run typecheck:docs",
+    "docs:dev": "cd docs-site && bun run dev",
+    "docs:build": "cd docs-site && bun run build",
+    "docs:preview": "cd docs-site && bun run preview",
+    "typecheck:business": "../../web/node_modules/.bin/tsgo -p business/tsconfig.json",
+    "typecheck:business-react": "../../web/node_modules/.bin/tsgo -p business-react/tsconfig.json",
+    "docs:check": "cd docs-site && bun run test:smoke",
+    "build:packages": "bun scripts/build-packages.mjs",
+    "pack:check": "bun run build:packages && npm pack --dry-run --workspaces --if-present",
+    "typecheck:docs": "../../web/node_modules/.bin/tsgo -p docs-site/tsconfig.json",
+    "catalog:check": "node scripts/check-catalog.mjs",
+    "release:check": "bun run catalog:check && bun run typecheck && bun run check:svelte && bun run docs:check && bun run build:packages"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

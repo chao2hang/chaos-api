@@ -1,7 +1,4 @@
 {
   "files": [],
-  "references": [
-    { "path": "./core/tsconfig.json" },
-    { "path": "./react/tsconfig.json" }
-  ]
+  "references": [{ "path": "./core/tsconfig.json" }, { "path": "./react/tsconfig.json" }]
 }

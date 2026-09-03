@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
@@ -16,18 +12,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "paths": {
-      "@chaos_team/admin-ui-core": [
-        "../core/src/index.ts"
-      ],
-      "@chaos_team/admin-ui-core/*": [
-        "../core/src/*"
-      ],
-      "react": [
-        "../../../web/node_modules/@types/react/index.d.ts"
-      ]
+      "@chaos_team/admin-ui-core": ["../core/src/index.ts"],
+      "@chaos_team/admin-ui-core/*": ["../core/src/*"],
+      "react": ["../../../web/node_modules/@types/react/index.d.ts"]
     }
   },
-  "include": [
-    "src/**/*"
-  ]
+  "include": ["src/**/*"]
 }

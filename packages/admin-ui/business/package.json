@@ -1,7 +1,7 @@
 {
-  "name": "@chaos_team/admin-ui-core",
+  "name": "@chaos_team/admin-ui-business",
   "version": "0.1.0",
-  "description": "Framework-agnostic industrial admin components based on Web Components.",
+  "description": "Framework-neutral business components for CRUD, analytics and enterprise workflows.",
   "license": "AGPL-3.0-or-later",
   "files": [
     "dist",
@@ -29,16 +29,13 @@
     "./styles.css": {
       "types": "./dist/styles.css.d.ts",
       "default": "./dist/styles.css"
-    },
-    "./tokens.css": {
-      "types": "./dist/tokens.css.d.ts",
-      "default": "./dist/tokens.css"
     }
   },
   "publishConfig": {
     "access": "public"
   },
   "peerDependencies": {
+    "@chaos_team/admin-ui-core": "^0.1.0",
     "lit": ">=3.0.0"
   }
 }
