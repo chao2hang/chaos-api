@@ -36,7 +36,6 @@ const AdminHeaderActionContext = createContext<AdminHeaderActionContextValue>({
 
 export function useAdminHeaderAction(actionNode: ReactNode | null) {
   const ctx = useContext(AdminHeaderActionContext)
-  // Register action node
   useMemo(() => {
     ctx.setHeaderAction(actionNode)
   }, [actionNode, ctx])
@@ -74,23 +73,26 @@ export function AdminLayout(props: AdminLayoutProps) {
     <AdminHeaderActionContext.Provider value={{ setHeaderAction }}>
       <div className="flex h-screen overflow-hidden bg-[#0a0a0a] text-[#e5e5e5] select-text">
         {/* 侧边栏：极致简约工业风 */}
-        <aside className="w-60 border-r border-[#262626] flex flex-col p-6 bg-[#0a0a0a] shrink-0 select-none">
-          <div className="mb-12">
-            <Link to="/admin" className="block group">
-              <div className="text-white font-bold text-lg tracking-tighter mono">
-                CHAOS<span className="text-zinc-600">_API</span>
-              </div>
-              <div className="text-[10px] text-zinc-500 mt-1 tracking-[0.2em] uppercase">
-                Enterprise Core
-              </div>
-            </Link>
+        <aside className="w-64 border-r border-[#262626] flex flex-col p-6 bg-[#0a0a0a] shrink-0 select-none">
+          <div className="flex items-center space-x-3 mb-10">
+            <div className="w-5 h-5 bg-white flex items-center justify-center shrink-0">
+              <div className="w-2.5 h-2.5 bg-black" />
+            </div>
+            <div>
+              <span className="text-xs font-black tracking-widest block text-white mono">
+                CHAOS_API
+              </span>
+              <span className="text-[9px] text-zinc-500 tracking-wider block mono uppercase">
+                {t('Enterprise Core')}
+              </span>
+            </div>
           </div>
 
           <nav className="flex-1 space-y-6 overflow-y-auto admin-no-scrollbar">
             {navSections.map((section) => (
               <div key={section.groupKey}>
-                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-4">
-                  {section.groupTitle}
+                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-4 mono">
+                  {t(section.groupTitle)}
                 </p>
                 <ul className="space-y-3 text-sm">
                   {section.items.map((item) => {
@@ -103,15 +105,17 @@ export function AdminLayout(props: AdminLayoutProps) {
                         : pathname.startsWith(item.pathPrefix)
                     return (
                       <li key={item.key}>
-                        <a
-                          href={item.href}
+                        <Link
+                          to={item.href as any}
                           className={cn(
-                            'nav-item flex items-center',
-                            isActive && 'active text-white'
+                            'nav-item block py-1 text-xs tracking-wide transition-colors cursor-pointer',
+                            isActive
+                              ? 'active text-white font-medium'
+                              : 'text-zinc-500 hover:text-white'
                           )}
                         >
-                          {item.label}
-                        </a>
+                          {t(item.label)}
+                        </Link>
                       </li>
                     )
                   })}
@@ -126,7 +130,7 @@ export function AdminLayout(props: AdminLayoutProps) {
                 {userInitial}
               </div>
               <div className="text-xs min-w-0">
-                <p className="text-white font-medium truncate">{username}</p>
+                <p className="text-white font-medium truncate mono">{username}</p>
                 <p className="text-zinc-500 mono text-[10px]">v2.4.0-stable</p>
               </div>
             </div>
@@ -134,7 +138,7 @@ export function AdminLayout(props: AdminLayoutProps) {
             <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-900">
               <Link
                 to="/dashboard"
-                className="text-zinc-500 hover:text-white mono text-[10px] tracking-wider uppercase transition-colors"
+                className="text-zinc-500 hover:text-white mono text-[10px] tracking-wider uppercase transition-colors cursor-pointer"
               >
                 ← {t('Back to Console')}
               </Link>
@@ -149,23 +153,26 @@ export function AdminLayout(props: AdminLayoutProps) {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0a0a0a]">
           {/* 顶栏：硬分割 */}
           <header className="h-16 border-b border-[#262626] flex items-center justify-between px-8 bg-[#0a0a0a] shrink-0">
-            <div className="text-xs mono text-zinc-500">
-              PATH: <span className="text-zinc-300">{breadcrumb.section} / {breadcrumb.page}</span>
+            <div className="text-xs mono text-zinc-500 uppercase">
+              PATH: <span className="text-zinc-300">{t(breadcrumb.sectionKey)} / {t(breadcrumb.pageKey)}</span>
             </div>
             <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-2">
-                <span className="w-1.5 h-1.5 bg-green-500 inline-block"></span>
-                <span className="text-[10px] mono uppercase tracking-wider text-zinc-300">Server: Optimal</span>
+                <span className="w-1.5 h-1.5 bg-emerald-500 inline-block" />
+                <span className="text-[10px] mono uppercase tracking-wider text-zinc-300">
+                  {t('Server: Optimal')}
+                </span>
               </div>
               {headerAction ? (
                 headerAction
               ) : (
-                <a
-                  href="/admin/channels"
-                  className="bg-white text-black px-3 py-1 text-xs font-bold uppercase tracking-tight hover:bg-zinc-200 transition-colors mono"
+                <Link
+                  to="/admin/channels"
+                  search={{ page: 1, pageSize: 10, filter: '', status: [], type: [], group: '' }}
+                  className="bg-white text-black px-3 py-1 text-xs font-bold uppercase tracking-tight hover:bg-zinc-200 transition-colors mono cursor-pointer"
                 >
-                  Deploy New
-                </a>
+                  {t('Deploy New')}
+                </Link>
               )}
             </div>
           </header>

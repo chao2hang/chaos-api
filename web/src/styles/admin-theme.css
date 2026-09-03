@@ -26,7 +26,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 }
 
 .mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+/* 全局深黑工业风滚动条 */
+* {
+  scrollbar-color: #262626 #0a0a0a;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
 }
 
 /* 极细边框 */

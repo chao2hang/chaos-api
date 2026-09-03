@@ -15,88 +15,127 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@chaos_team/chaos-ui'
+import { RotateCcwIcon, SearchIcon } from 'lucide-react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { USER_ROLE_OPTIONS, USER_STATUS_OPTIONS } from '../constants'
+import {
+  USER_ROLE_OPTIONS,
+  USER_STATUS_OPTIONS,
+} from '../constants'
+import type {
+  UserRoleFilterValue,
+  UserStatusFilterValue,
+} from '../types'
 
-const ALL_VALUE = '__all__'
-
-type FilterPatch = {
-  filter?: string
-  status?: ('1' | '2')[]
-  role?: ('1' | '10' | '100')[]
+export type FilterPatch = {
+  keyword?: string
+  status?: UserStatusFilterValue[]
+  role?: UserRoleFilterValue[]
   group?: string
 }
 
-type UsersFilterBarProps = {
+export type UsersFilterBarProps = {
   keyword: string
-  status: string
-  role: string
+  status: UserStatusFilterValue
+  role: UserRoleFilterValue
   group: string
   groupOptions: string[]
   onFilterChange: (patch: FilterPatch) => void
 }
 
+const ALL_VALUE = '__all__'
+
 export function UsersFilterBar(props: UsersFilterBarProps) {
   const { t } = useTranslation()
-  const [keyword, setKeyword] = useState(props.keyword)
-  const [lastPropKeyword, setLastPropKeyword] = useState(props.keyword)
-  if (props.keyword !== lastPropKeyword) {
-    setLastPropKeyword(props.keyword)
-    setKeyword(props.keyword)
-  }
+  const [keywordInput, setKeywordInput] = useState(props.keyword)
 
   const commitKeyword = () => {
-    const next = keyword.trim()
-    if (next !== props.keyword) {
-      props.onFilterChange({ filter: next })
+    if (keywordInput !== props.keyword) {
+      props.onFilterChange({ keyword: keywordInput.trim() })
     }
   }
 
-  const handleStatusChange = (value: string) => {
+  const handleStatusChange = (val: string) => {
     props.onFilterChange({
-      status: value === ALL_VALUE ? [] : [value as '1' | '2'],
+      status: val === ALL_VALUE ? [] : [val as UserStatusFilterValue],
     })
   }
 
-  const handleRoleChange = (value: string) => {
+  const handleRoleChange = (val: string) => {
     props.onFilterChange({
-      role: value === ALL_VALUE ? [] : [value as '1' | '10' | '100'],
+      role: val === ALL_VALUE ? [] : [val as UserRoleFilterValue],
     })
   }
 
-  const handleGroupChange = (value: string) => {
-    props.onFilterChange({ group: value === ALL_VALUE ? '' : value })
+  const handleGroupChange = (val: string) => {
+    props.onFilterChange({ group: val === ALL_VALUE ? '' : val })
   }
+
+  const handleReset = () => {
+    setKeywordInput('')
+    props.onFilterChange({
+      keyword: '',
+      status: [],
+      role: [],
+      group: '',
+    })
+  }
+
+  const hasActiveFilters = Boolean(
+    props.keyword || props.status || props.role || props.group
+  )
+
+  const statusLabel =
+    props.status === '1'
+      ? t('Active')
+      : props.status === '2'
+        ? t('Disabled')
+        : t('All statuses')
+
+  const roleOption = USER_ROLE_OPTIONS.find((opt) => opt.value === props.role)
+  const roleLabel = roleOption ? t(roleOption.label) : t('All roles')
+  const groupLabel = props.group ? props.group : t('All groups')
 
   return (
-    <div className="sharp-card p-4 flex flex-wrap items-center gap-3">
-      <input
-        type="text"
-        className="w-64 bg-[#0a0a0a] border border-zinc-800 text-white text-xs mono px-3 py-1.5 focus:border-zinc-500 focus:outline-none placeholder:text-zinc-600 rounded-none"
-        placeholder={t('Search username or display name')}
-        value={keyword}
-        onChange={(e) => setKeyword(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commitKeyword()
-        }}
-        onBlur={commitKeyword}
-      />
+    <div className="flex flex-wrap items-center gap-3 p-4 bg-[#0a0a0a] border border-zinc-800 sharp-card">
+      <div className="relative flex-1 min-w-[200px]">
+        <Input
+          placeholder={t('Search users by username, email, display name...')}
+          value={keywordInput}
+          onChange={(e) => setKeywordInput(e.target.value)}
+          className="bg-[#0a0a0a] border-zinc-800 text-zinc-200 placeholder:text-zinc-600 text-xs mono rounded-none h-9"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitKeyword()
+          }}
+          onBlur={commitKeyword}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={commitKeyword}
+        className="btn-industrial-secondary mono text-xs h-9 cursor-pointer"
+      >
+        <SearchIcon className="size-3.5" />
+        {t('Search')}
+      </button>
+
       <Select
         value={props.status || ALL_VALUE}
         onValueChange={(value) => handleStatusChange(String(value))}
       >
-        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
-          <SelectValue placeholder={t('Status')} />
+        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
+          <SelectValue>{statusLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All statuses')}</SelectItem>
@@ -107,12 +146,13 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
           ))}
         </SelectContent>
       </Select>
+
       <Select
         value={props.role || ALL_VALUE}
         onValueChange={(value) => handleRoleChange(String(value))}
       >
-        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
-          <SelectValue placeholder={t('Role')} />
+        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
+          <SelectValue>{roleLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All roles')}</SelectItem>
@@ -123,37 +163,32 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
           ))}
         </SelectContent>
       </Select>
+
       <Select
         value={props.group || ALL_VALUE}
         onValueChange={(value) => handleGroupChange(String(value))}
       >
-        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
-          <SelectValue placeholder={t('Group')} />
+        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
+          <SelectValue>{groupLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
           <SelectItem value={ALL_VALUE}>{t('All groups')}</SelectItem>
-          {props.groupOptions.map((g) => (
-            <SelectItem key={g} value={g}>
-              {g}
+          {props.groupOptions.map((group) => (
+            <SelectItem key={group} value={group}>
+              {group}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {(keyword !== '' || props.status || props.role || props.group) && (
+
+      {hasActiveFilters && (
         <button
           type="button"
-          onClick={() => {
-            setKeyword('')
-            props.onFilterChange({
-              filter: '',
-              status: [],
-              role: [],
-              group: '',
-            })
-          }}
-          className="text-zinc-500 hover:text-zinc-300 mono text-xs underline ml-auto transition-colors"
+          onClick={handleReset}
+          className="btn-industrial-secondary text-xs mono text-zinc-400 hover:text-white h-9 cursor-pointer"
         >
-          {t('Clear')}
+          <RotateCcwIcon className="size-3.5" />
+          {t('Reset')}
         </button>
       )}
     </div>

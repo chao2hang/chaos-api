@@ -19,7 +19,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import { useTranslation } from 'react-i18next'
 
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
-import { getRoleLabel } from '@/lib/roles'
+import { getRoleLabelKey } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 
 import { USER_STATUS } from '../constants'
@@ -92,7 +92,7 @@ export function UsersTable(props: UsersTableProps) {
                       {user.display_name || '-'}
                     </td>
                     <td className="py-3.5 px-4 text-zinc-300">
-                      {getRoleLabel(Number(user.role))}
+                      {t(getRoleLabelKey(Number(user.role)))}
                     </td>
                     <td className="py-3.5 px-4 text-zinc-400">
                       {user.group || 'default'}

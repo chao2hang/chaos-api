@@ -16,24 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-import { SearchIcon } from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@chaos_team/chaos-ui'
+import { RotateCcwIcon, SearchIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { CHANNEL_TYPES } from '../constants'
 import type { ChannelsSearch } from '../types'
 
-const ALL_VALUE = '__all__'
-
-export interface ChannelFilterBarProps {
+type ChannelFilterBarProps = {
   keyword: string
   status: string[]
   type: string[]
@@ -42,31 +40,57 @@ export interface ChannelFilterBarProps {
   onFilterChange: (patch: Partial<ChannelsSearch>) => void
 }
 
-/** Keyword + status/type/group filter selects driving the URL search params. */
+const ALL_VALUE = '__all__'
+
+/**
+ * Hardcore industrial monospace filter bar for channels.
+ */
 export function ChannelFilterBar(props: ChannelFilterBarProps) {
   const { t } = useTranslation()
   const [keywordDraft, setKeywordDraft] = useState(props.keyword)
-  const [lastPropKeyword, setLastPropKeyword] = useState(props.keyword)
-  if (props.keyword !== lastPropKeyword) {
-    setLastPropKeyword(props.keyword)
+
+  useEffect(() => {
     setKeywordDraft(props.keyword)
-  }
+  }, [props.keyword])
 
   const applyKeyword = () => {
-    props.onFilterChange({ filter: keywordDraft.trim() })
+    const trimmed = keywordDraft.trim()
+    if (trimmed !== props.keyword) {
+      props.onFilterChange({ filter: trimmed })
+    }
   }
 
+  const resetAll = () => {
+    setKeywordDraft('')
+    props.onFilterChange({
+      filter: '',
+      status: [],
+      type: [],
+      group: '',
+    })
+  }
+
+  const statusLabel =
+    props.status[0] === 'enabled'
+      ? t('Enabled')
+      : props.status[0] === 'disabled'
+        ? t('Disabled')
+        : t('All statuses')
+
+  const selectedTypeOption = CHANNEL_TYPES.find((opt) => opt.value === props.type[0])
+  const typeLabel = selectedTypeOption ? selectedTypeOption.label : t('All types')
+  const groupLabel = props.group !== '' ? props.group : t('All groups')
+
   return (
-    <div className="sharp-card p-4 flex flex-wrap items-center gap-3">
-      <div className="relative">
-        <input
-          type="text"
-          className="w-56 bg-[#0a0a0a] border border-zinc-800 text-white text-xs mono px-3 py-1.5 focus:border-zinc-500 focus:outline-none placeholder:text-zinc-600 rounded-none"
-          placeholder={t('Search channels')}
+    <div className="flex flex-wrap items-center gap-3 p-4 bg-[#0a0a0a] border border-zinc-800 sharp-card">
+      <div className="relative flex-1 min-w-[200px]">
+        <Input
           value={keywordDraft}
-          onChange={(event) => setKeywordDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
+          onChange={(e) => setKeywordDraft(e.target.value)}
+          placeholder={t('Search by channel name or keyword...')}
+          className="bg-[#0a0a0a] border-zinc-800 text-zinc-200 placeholder:text-zinc-600 text-xs mono rounded-none h-9"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
               applyKeyword()
             }
           }}
@@ -76,7 +100,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
       <button
         type="button"
         onClick={applyKeyword}
-        className="btn-industrial-secondary mono text-xs"
+        className="btn-industrial-secondary mono text-xs h-9 cursor-pointer"
       >
         <SearchIcon className="size-3.5" />
         {t('Search')}
@@ -90,8 +114,8 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-32 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none" aria-label={t('Status')}>
-          <SelectValue placeholder={t('All statuses')} />
+        <SelectTrigger size="sm" className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Status')}>
+          <SelectValue>{statusLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All statuses')}</SelectItem>
@@ -108,10 +132,10 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-40 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none" aria-label={t('Type')}>
-          <SelectValue placeholder={t('All types')} />
+        <SelectTrigger size="sm" className="w-44 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Type')}>
+          <SelectValue>{typeLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
           <SelectItem value={ALL_VALUE}>{t('All types')}</SelectItem>
           {CHANNEL_TYPES.map((option) => (
             <SelectItem key={option.value} value={option.value}>
@@ -129,10 +153,10 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none" aria-label={t('Group')}>
-          <SelectValue placeholder={t('All groups')} />
+        <SelectTrigger size="sm" className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Group')}>
+          <SelectValue>{groupLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
           <SelectItem value={ALL_VALUE}>{t('All groups')}</SelectItem>
           {props.groups.map((group) => (
             <SelectItem key={group} value={group}>
@@ -148,18 +172,11 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
         props.group !== '') && (
         <button
           type="button"
-          onClick={() => {
-            setKeywordDraft('')
-            props.onFilterChange({
-              filter: '',
-              status: [],
-              type: [],
-              group: '',
-            })
-          }}
-          className="text-zinc-500 hover:text-zinc-300 mono text-xs underline ml-auto transition-colors"
+          onClick={resetAll}
+          className="btn-industrial-secondary text-xs mono text-zinc-400 hover:text-white h-9 cursor-pointer"
         >
-          {t('Clear')}
+          <RotateCcwIcon className="size-3.5" />
+          {t('Reset')}
         </button>
       )}
     </div>

@@ -161,46 +161,46 @@ export function getAdminNavSections(role: number | undefined): AdminNavSection[]
 }
 
 /**
- * Get path breadcrumb string based on the current pathname.
+ * Get path breadcrumb i18n keys based on the current pathname.
  */
-export function getAdminPathBreadcrumb(pathname: string): { section: string; page: string } {
+export function getAdminPathBreadcrumb(pathname: string): { sectionKey: string; pageKey: string } {
   if (
     pathname === '/dashboard' ||
     pathname.startsWith('/dashboard') ||
     pathname === '/admin' ||
     pathname === '/admin/'
   ) {
-    return { section: 'SYSTEM', page: 'DASHBOARD' }
+    return { sectionKey: 'System', pageKey: 'Dashboard' }
   }
   if (pathname.startsWith('/keys')) {
-    return { section: 'MANAGEMENT', page: 'ACCESS KEYS' }
+    return { sectionKey: 'Management', pageKey: 'Access Keys' }
   }
   if (pathname.startsWith('/admin/channels')) {
-    return { section: 'MANAGEMENT', page: 'DISTRIBUTION' }
+    return { sectionKey: 'Management', pageKey: 'Distribution' }
   }
   if (pathname.startsWith('/admin/users')) {
-    return { section: 'MANAGEMENT', page: 'USERS' }
+    return { sectionKey: 'Management', pageKey: 'Users' }
   }
   if (pathname.startsWith('/admin/models')) {
-    return { section: 'MANAGEMENT', page: 'MODELS' }
+    return { sectionKey: 'Management', pageKey: 'Models' }
   }
   if (pathname.startsWith('/admin/subscriptions')) {
-    return { section: 'MANAGEMENT', page: 'SUBSCRIPTIONS' }
+    return { sectionKey: 'Management', pageKey: 'Subscriptions' }
   }
   if (pathname.startsWith('/admin/redemption-codes')) {
-    return { section: 'MANAGEMENT', page: 'REDEMPTIONS' }
+    return { sectionKey: 'Management', pageKey: 'Redemptions' }
   }
   if (pathname.startsWith('/admin/usage-logs') || pathname.startsWith('/usage-logs')) {
-    return { section: 'ANALYSIS', page: 'TRAFFIC LOGS' }
+    return { sectionKey: 'Analysis', pageKey: 'Traffic Logs' }
   }
   if (pathname.startsWith('/admin/system-info')) {
-    return { section: 'ANALYSIS', page: 'SYSTEM INFO' }
+    return { sectionKey: 'Analysis', pageKey: 'System Info' }
   }
   if (pathname.startsWith('/admin/system-settings')) {
-    return { section: 'SYSTEM', page: 'SETTINGS' }
+    return { sectionKey: 'System', pageKey: 'System Settings' }
   }
   if (pathname.startsWith('/admin/task-plugins')) {
-    return { section: 'SYSTEM', page: 'TASK PLUGINS' }
+    return { sectionKey: 'System', pageKey: 'Task Plugins' }
   }
-  return { section: 'SYSTEM', page: 'CONSOLE' }
+  return { sectionKey: 'System', pageKey: 'Console' }
 }

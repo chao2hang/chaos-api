@@ -33,51 +33,52 @@ type ChartTab = 'volume' | 'latency' | 'errors'
 interface BarData {
   height: string
   active?: boolean
+  label?: string
 }
 
 const VOLUME_BARS: BarData[] = [
-  { height: '20%' },
-  { height: '35%' },
-  { height: '25%' },
-  { height: '45%' },
-  { height: '85%', active: true },
-  { height: '60%' },
-  { height: '55%' },
-  { height: '70%' },
-  { height: '40%' },
-  { height: '30%' },
-  { height: '45%' },
-  { height: '50%' },
+  { height: '20%', label: '2.4k' },
+  { height: '35%', label: '4.1k' },
+  { height: '25%', label: '3.0k' },
+  { height: '45%', label: '5.2k' },
+  { height: '85%', active: true, label: '9.8k' },
+  { height: '60%', label: '6.9k' },
+  { height: '55%', label: '6.3k' },
+  { height: '70%', label: '8.1k' },
+  { height: '40%', label: '4.6k' },
+  { height: '30%', label: '3.5k' },
+  { height: '45%', label: '5.2k' },
+  { height: '50%', label: '5.8k' },
 ]
 
 const LATENCY_BARS: BarData[] = [
-  { height: '40%' },
-  { height: '25%' },
-  { height: '30%' },
-  { height: '60%' },
-  { height: '45%' },
-  { height: '75%', active: true },
-  { height: '35%' },
-  { height: '50%' },
-  { height: '65%' },
-  { height: '40%' },
-  { height: '30%' },
-  { height: '45%' },
+  { height: '40%', label: '18ms' },
+  { height: '25%', label: '12ms' },
+  { height: '30%', label: '14ms' },
+  { height: '60%', label: '28ms' },
+  { height: '45%', label: '21ms' },
+  { height: '75%', active: true, label: '35ms' },
+  { height: '35%', label: '16ms' },
+  { height: '50%', label: '23ms' },
+  { height: '65%', label: '30ms' },
+  { height: '40%', label: '19ms' },
+  { height: '30%', label: '14ms' },
+  { height: '45%', label: '21ms' },
 ]
 
 const ERROR_BARS: BarData[] = [
-  { height: '10%' },
-  { height: '15%' },
-  { height: '5%' },
-  { height: '20%' },
-  { height: '10%' },
-  { height: '55%', active: true },
-  { height: '15%' },
-  { height: '10%' },
-  { height: '5%' },
-  { height: '8%' },
-  { height: '12%' },
-  { height: '6%' },
+  { height: '10%', label: '0.1%' },
+  { height: '15%', label: '0.2%' },
+  { height: '5%', label: '0.0%' },
+  { height: '20%', label: '0.3%' },
+  { height: '10%', label: '0.1%' },
+  { height: '55%', active: true, label: '0.8%' },
+  { height: '15%', label: '0.2%' },
+  { height: '10%', label: '0.1%' },
+  { height: '5%', label: '0.0%' },
+  { height: '8%', label: '0.1%' },
+  { height: '12%', label: '0.2%' },
+  { height: '6%', label: '0.1%' },
 ]
 
 export function AdminDashboardView() {
@@ -170,7 +171,7 @@ export function AdminDashboardView() {
         <div className="lg:col-span-3 border-t border-zinc-800 pt-6">
           <div className="flex justify-between items-end mb-8">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mono">
-              Traffic Distribution
+              {t('Traffic Distribution')}
             </h3>
             <div className="flex space-x-4 text-[10px] mono text-zinc-500 uppercase">
               <button
@@ -183,7 +184,7 @@ export function AdminDashboardView() {
                     : 'hover:text-zinc-300'
                 )}
               >
-                Volume
+                {t('Volume')}
               </button>
               <button
                 type="button"
@@ -195,7 +196,7 @@ export function AdminDashboardView() {
                     : 'hover:text-zinc-300'
                 )}
               >
-                Latency
+                {t('Latency')}
               </button>
               <button
                 type="button"
@@ -207,30 +208,44 @@ export function AdminDashboardView() {
                     : 'hover:text-zinc-300'
                 )}
               >
-                Errors
+                {t('Errors')}
               </button>
             </div>
           </div>
-          <div className="h-48 w-full flex items-end space-x-1.5">
+          <div className="h-48 w-full flex items-end space-x-2">
             {bars.map((bar, idx) => (
               <div
                 key={idx}
+                title={bar.label}
                 className={cn(
-                  'flex-1 transition-all duration-300',
-                  bar.active
-                    ? 'bg-white'
-                    : 'bg-zinc-800 hover:bg-zinc-700'
+                  'flex-1 transition-all duration-300 cursor-pointer group relative',
+                  bar.active ? 'bg-white' : 'bg-zinc-800 hover:bg-zinc-700'
                 )}
                 style={{ height: bar.height }}
-              />
+              >
+                {bar.label && (
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] mono bg-zinc-900 border border-zinc-700 text-zinc-300 px-1 py-0.5 whitespace-nowrap z-10 pointer-events-none">
+                    {bar.label}
+                  </span>
+                )}
+              </div>
             ))}
+          </div>
+          <div className="flex justify-between text-[9px] mono text-zinc-600 mt-3 pt-2 border-t border-zinc-900 uppercase">
+            <span>00:00</span>
+            <span>04:00</span>
+            <span>08:00</span>
+            <span>12:00</span>
+            <span>16:00</span>
+            <span>20:00</span>
+            <span>NOW</span>
           </div>
         </div>
 
         {/* 侧边状态：硬核节点列表 */}
         <div className="lg:col-span-1 space-y-6">
           <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 mono">
-            Node Status
+            {t('Node Status')}
           </h3>
           <div className="space-y-4">
             {channelItems.length > 0 ? (
@@ -253,7 +268,11 @@ export function AdminDashboardView() {
                         !isEnabled && !isAutoDisabled && 'text-zinc-500'
                       )}
                     >
-                      {isEnabled ? 'Active' : isAutoDisabled ? 'Down' : 'Disabled'}
+                      {isEnabled
+                        ? t('Active')
+                        : isAutoDisabled
+                          ? t('Down')
+                          : t('Disabled')}
                     </span>
                   </div>
                 )
@@ -262,15 +281,15 @@ export function AdminDashboardView() {
               <>
                 <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
                   <span className="text-xs mono text-zinc-300">US-EAST-1</span>
-                  <span className="status-tag text-emerald-500">Active</span>
+                  <span className="status-tag text-emerald-500">{t('Active')}</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
                   <span className="text-xs mono text-zinc-300">HK-GCP-02</span>
-                  <span className="status-tag text-emerald-500">Active</span>
+                  <span className="status-tag text-emerald-500">{t('Active')}</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
                   <span className="text-xs mono text-zinc-300">EU-WEST-1</span>
-                  <span className="status-tag text-red-500">Down</span>
+                  <span className="status-tag text-red-500">{t('Down')}</span>
                 </div>
               </>
             )}
@@ -281,18 +300,18 @@ export function AdminDashboardView() {
         <div className="lg:col-span-4 mt-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mono">
-              Live Execution Log
+              {t('Live Execution Log')}
             </h3>
           </div>
           <div className="w-full overflow-hidden border border-zinc-800 bg-[#0a0a0a]">
             <table className="w-full text-left text-xs mono">
               <thead className="bg-zinc-900 text-zinc-500 uppercase">
                 <tr>
-                  <th className="py-3 px-4 font-medium">Timestamp</th>
-                  <th className="py-3 px-4 font-medium">Method</th>
-                  <th className="py-3 px-4 font-medium">Endpoint</th>
-                  <th className="py-3 px-4 font-medium">Status</th>
-                  <th className="py-3 px-4 font-medium text-right">Cost</th>
+                  <th className="py-3 px-4 font-medium">{t('Timestamp')}</th>
+                  <th className="py-3 px-4 font-medium">{t('Method')}</th>
+                  <th className="py-3 px-4 font-medium">{t('Endpoint')}</th>
+                  <th className="py-3 px-4 font-medium">{t('Status')}</th>
+                  <th className="py-3 px-4 font-medium text-right">{t('Cost')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-900">
