@@ -19,14 +19,14 @@ const legacyOrigin = 'https://legacy-route.invalid'
 
 const legacyConsoleRoutes: Record<string, string> = {
   '/console': '/dashboard',
-  '/console/models': '/models',
-  '/console/deployment': '/models/deployments',
-  '/console/subscription': '/subscriptions',
-  '/console/channel': '/channels',
+  '/console/models': '/admin/models',
+  '/console/deployment': '/admin/models',
+  '/console/subscription': '/admin/subscriptions',
+  '/console/channel': '/admin/channels',
   '/console/token': '/keys',
   '/console/playground': '/dashboard',
-  '/console/redemption': '/redemption-codes',
-  '/console/user': '/users',
+  '/console/redemption': '/admin/redemption-codes',
+  '/console/user': '/admin/users',
   '/console/personal': '/profile',
   '/console/log': '/usage-logs',
   '/console/midjourney': '/usage-logs/drawing',
@@ -34,18 +34,18 @@ const legacyConsoleRoutes: Record<string, string> = {
 }
 
 const legacySettingsTabs: Record<string, string> = {
-  operation: '/system-settings/operations/behavior',
-  dashboard: '/system-settings/content/dashboard',
-  chats: '/system-settings/content/dashboard',
-  drawing: '/system-settings/content/drawing',
-  payment: '/system-settings/billing/payment',
-  ratio: '/system-settings/billing/model-pricing',
-  ratelimit: '/system-settings/security/rate-limit',
-  models: '/system-settings/models/global',
-  'model-deployment': '/system-settings/models/model-deployment',
-  performance: '/system-settings/operations/performance',
-  system: '/system-settings/site/system-info',
-  other: '/system-settings/site/system-info',
+  operation: '/admin/system-settings',
+  dashboard: '/admin/system-settings',
+  chats: '/admin/system-settings',
+  drawing: '/admin/system-settings',
+  payment: '/admin/system-settings',
+  ratio: '/admin/system-settings',
+  ratelimit: '/admin/system-settings',
+  models: '/admin/system-settings',
+  'model-deployment': '/admin/system-settings',
+  performance: '/admin/system-settings',
+  system: '/admin/system-settings',
+  other: '/admin/system-settings',
 }
 
 function normalizeLegacyPath(pathname: string): string {
@@ -82,7 +82,7 @@ export function resolveLegacyRoute(rawHref: string): string | null {
   }
   if (pathname === '/console/setting') {
     const tab = source.searchParams.get('tab') ?? ''
-    const target = legacySettingsTabs[tab] ?? '/system-settings'
+    const target = legacySettingsTabs[tab] ?? '/admin/system-settings'
     return buildTargetHref(target, source)
   }
   if (pathname === '/console/chat' || pathname.startsWith('/console/chat/')) {

@@ -115,12 +115,7 @@ export function ProfileDropdown() {
 
           {isSuperAdmin && (
             <DropdownMenuItem
-              onClick={() =>
-                navigate({
-                  to: '/system-settings/site/$section',
-                  params: { section: 'system-info' },
-                })
-              }
+              onClick={() => navigate({ to: '/admin/system-info' })}
             >
               <Settings className='size-4' />
               {t('System Settings')}

@@ -15,112 +15,78 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { api, type ApiRequestConfig } from '@/lib/api'
+import { api } from '@/lib/api'
 
-import { buildQueryParams } from './lib/query-params'
-import { parseTaskArtifactsResponse } from './lib/task-artifacts'
 import type {
-  GetLogsParams,
-  GetLogsResponse,
-  GetLogStatsParams,
-  GetLogStatsResponse,
-  GetMidjourneyLogsParams,
-  GetTaskLogsParams,
-  TaskArtifactsResponse,
-  UserInfo,
+  ApiEnvelope,
+  MidjourneyLog,
+  PaginatedData,
+  TaskLog,
+  UsageLog,
+  UsageLogStat,
 } from './types'
+import type { UsageLogQueryParams } from './lib/query-params'
 
-// ============================================================================
-// Generic API Helpers
-// ============================================================================
-
-function buildApiPath(endpoint: string, isAdmin: boolean): string {
-  return isAdmin ? endpoint : `${endpoint}/self`
+const EMPTY_PAGE: PaginatedData<never> = {
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 20,
 }
 
-async function fetchLogs<T>(
-  endpoint: string,
-  params: T,
-  isAdmin: boolean
-): Promise<GetLogsResponse> {
-  const paramRecord = params as unknown as Record<string, unknown>
-  const queryParams = buildQueryParams({
-    p: paramRecord.p || 1,
-    page_size: paramRecord.page_size || 20,
-    ...params,
-  })
-  const path = buildApiPath(endpoint, isAdmin)
-  const res = await api.get(`${path}?${queryParams}`)
-  return res.data
+function toPaginated<T>(
+  data: PaginatedData<T> | undefined
+): PaginatedData<T> {
+  if (data == null) {
+    return EMPTY_PAGE as PaginatedData<T>
+  }
+  return data
 }
 
-async function fetchLogStats<T>(
-  endpoint: string,
-  params: T,
-  isAdmin: boolean
-): Promise<GetLogStatsResponse> {
-  const queryParams = buildQueryParams(
-    params as unknown as Record<string, unknown>
+/** Fetch common usage logs. Admin sees all logs, otherwise the self view. */
+export async function fetchUsageLogs(
+  admin: boolean,
+  params: UsageLogQueryParams
+): Promise<PaginatedData<UsageLog>> {
+  const res = await api.get<ApiEnvelope<PaginatedData<UsageLog>>>(
+    admin ? '/api/log' : '/api/log/self',
+    { params }
   )
-  const path = buildApiPath(endpoint, isAdmin)
-  const res = await api.get(`${path}/stat?${queryParams}`)
-  return res.data
+  return toPaginated(res.data.data)
 }
 
-// ============================================================================
-// Common Log APIs
-// ============================================================================
-
-export const getAllLogs = (params: GetLogsParams = {}) =>
-  fetchLogs('/api/log', params, true)
-
-export const getUserLogs = (
-  params: Omit<GetLogsParams, 'username' | 'channel'> = {}
-) => fetchLogs('/api/log', params, false)
-
-export const getLogStats = (params: GetLogStatsParams = {}) =>
-  fetchLogStats('/api/log', params, true)
-
-export const getUserLogStats = (
-  params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
-) => fetchLogStats('/api/log', params, false)
-
-export async function getUserInfo(
-  userId: number
-): Promise<{ success: boolean; message?: string; data?: UserInfo }> {
-  const res = await api.get(`/api/user/${userId}`)
-  return res.data
-}
-
-// ============================================================================
-// MjProxy (Drawing) Logs API
-// ============================================================================
-
-export const getAllMidjourneyLogs = (params: GetMidjourneyLogsParams) =>
-  fetchLogs('/api/mj', params, true)
-
-export const getUserMidjourneyLogs = (params: GetMidjourneyLogsParams) =>
-  fetchLogs('/api/mj', params, false)
-
-// ============================================================================
-// Task Logs API
-// ============================================================================
-
-export const getAllTaskLogs = (params: GetTaskLogsParams) =>
-  fetchLogs('/api/task', params, true)
-
-export const getUserTaskLogs = (params: GetTaskLogsParams) =>
-  fetchLogs('/api/task', params, false)
-
-const taskArtifactRequestConfig = {
-  skipBusinessError: true,
-  skipErrorHandler: true,
-} satisfies ApiRequestConfig
-
-export async function getTaskArtifacts(taskId: string) {
-  const response = await api.get<TaskArtifactsResponse>(
-    `/api/task/${encodeURIComponent(taskId)}/artifacts`,
-    taskArtifactRequestConfig
+/** Fetch quota / RPM / TPM stat summary for the current log filters. */
+export async function fetchUsageLogStat(
+  admin: boolean,
+  params: UsageLogQueryParams
+): Promise<UsageLogStat> {
+  const res = await api.get<ApiEnvelope<UsageLogStat>>(
+    admin ? '/api/log/stat' : '/api/log/self/stat',
+    { params }
   )
-  return parseTaskArtifactsResponse(response.data)
+  return res.data.data ?? { quota: 0, rpm: 0, tpm: 0 }
+}
+
+/** Fetch drawing (Midjourney) logs. Admin sees all, otherwise the self view. */
+export async function fetchMjLogs(
+  admin: boolean,
+  params: UsageLogQueryParams
+): Promise<PaginatedData<MidjourneyLog>> {
+  const res = await api.get<ApiEnvelope<PaginatedData<MidjourneyLog>>>(
+    admin ? '/api/mj' : '/api/mj/self',
+    { params }
+  )
+  return toPaginated(res.data.data)
+}
+
+/** Fetch async task logs. Admin sees all, otherwise the self view. */
+export async function fetchTaskLogs(
+  admin: boolean,
+  params: UsageLogQueryParams
+): Promise<PaginatedData<TaskLog>> {
+  const res = await api.get<ApiEnvelope<PaginatedData<TaskLog>>>(
+    admin ? '/api/task' : '/api/task/self',
+    { params }
+  )
+  return toPaginated(res.data.data)
 }

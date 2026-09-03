@@ -82,7 +82,7 @@ const SETUP_GUIDE_CODE_PATTERN = [
 type DashboardActionPath =
   | '/keys'
   | '/wallet'
-  | '/channels'
+  | '/admin/channels'
   | '/usage-logs'
 
 interface StartStep {
@@ -531,7 +531,7 @@ export function OverviewDashboard() {
       {
         title: t('Channels'),
         description: t('Configure upstream providers and routing.'),
-        to: '/channels',
+        to: '/admin/channels',
         icon: RadioTower,
         adminOnly: true,
       },

@@ -32,14 +32,7 @@ export { ConsoleDataTableContainer } from './components/console-data-table-conta
 export { SystemBrand } from './components/system-brand'
 
 // Configuration
-export { SYSTEM_SETTINGS_VIEW } from './config/system-settings.config'
 export { defaultTopNavLinks } from './config/top-nav.config'
-
-// Sidebar view registry
-export {
-  getNavGroupsForPath,
-  resolveSidebarView,
-} from './lib/sidebar-view-registry'
 
 // Type exports (type-only to avoid conflicts with components above)
 export type {

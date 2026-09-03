@@ -16,37 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import z from 'zod'
 
 import { UsageLogs } from '@/features/usage-logs'
+import {
+  usageLogsSearchSchema,
+  type UsageLogsSearch,
+} from '@/features/usage-logs/lib/search-schema'
 import {
   isUsageLogsSectionId,
   USAGE_LOGS_DEFAULT_SECTION,
 } from '@/features/usage-logs/section-registry'
 
-const logTypeValues = ['0', '1', '2', '3', '4', '5', '6', '7'] as const
-const logTypeSearchSchema = z
-  .preprocess((value) => {
-    if (value == null || value === '') return undefined
-    return Array.isArray(value) ? value : [value]
-  }, z.array(z.enum(logTypeValues)).optional())
-  .catch([])
-
-const usageLogsSearchSchema = z.object({
-  page: z.number().optional().catch(1),
-  pageSize: z.number().optional().catch(undefined),
-  type: logTypeSearchSchema.optional(),
-  filter: z.string().optional().catch(''),
-  model: z.string().optional().catch(''),
-  token: z.string().optional().catch(''),
-  channel: z.string().optional().catch(''),
-  group: z.string().optional().catch(''),
-  username: z.string().optional().catch(''),
-  requestId: z.string().optional().catch(''),
-  upstreamRequestId: z.string().optional().catch(''),
-  startTime: z.number().optional(),
-  endTime: z.number().optional(),
-})
+function UsageLogsSectionPage() {
+  const params = Route.useParams()
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const patchSearch = (build: (prev: UsageLogsSearch) => UsageLogsSearch) => {
+    void navigate({ search: (prev) => ({ ...prev, ...build(prev) }) })
+  }
+  const section = isUsageLogsSectionId(params.section)
+    ? params.section
+    : USAGE_LOGS_DEFAULT_SECTION
+  return <UsageLogs section={section} search={search} patchSearch={patchSearch} />
+}
 
 export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
   beforeLoad: ({ params, search }) => {
@@ -70,5 +62,5 @@ export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
     }
   },
   validateSearch: usageLogsSearchSchema,
-  component: UsageLogs,
+  component: UsageLogsSectionPage,
 })
