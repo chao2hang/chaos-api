@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { AuthenticatedLayout } from '@/components/layout'
+import { AdminLayout } from '@/components/admin/admin-layout'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated')({
@@ -31,5 +31,5 @@ export const Route = createFileRoute('/_authenticated')({
       })
     }
   },
-  component: AuthenticatedLayout,
+  component: AdminLayout,
 })

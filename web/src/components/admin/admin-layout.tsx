@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-import { Link, useLocation } from '@tanstack/react-router'
+import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -95,8 +95,11 @@ export function AdminLayout(props: AdminLayoutProps) {
                 <ul className="space-y-3 text-sm">
                   {section.items.map((item) => {
                     const isActive =
-                      item.href === '/admin'
-                        ? pathname === '/admin' || pathname === '/admin/'
+                      item.href === '/dashboard' || item.href === '/admin'
+                        ? pathname === '/dashboard' ||
+                          pathname.startsWith('/dashboard') ||
+                          pathname === '/admin' ||
+                          pathname === '/admin/'
                         : pathname.startsWith(item.pathPrefix)
                     return (
                       <li key={item.key}>
@@ -170,7 +173,7 @@ export function AdminLayout(props: AdminLayoutProps) {
           {/* 页面内容注入 */}
           <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
             <div className="p-8 max-w-7xl mx-auto w-full">
-              {props.children}
+              {props.children ?? <Outlet />}
             </div>
           </main>
         </div>

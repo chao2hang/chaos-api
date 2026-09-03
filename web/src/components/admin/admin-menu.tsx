@@ -53,38 +53,49 @@ const ADMIN_SECTIONS_CONFIG: NavSectionConfig[] = [
       {
         key: 'console',
         label: 'Console',
-        href: '/admin',
-        pathPrefix: '/admin',
+        href: '/dashboard',
+        pathPrefix: '/dashboard',
       },
       {
         key: 'distribution',
         label: 'Distribution',
         href: '/admin/channels',
         pathPrefix: '/admin/channels',
+        requiredRole: ROLE.ADMIN,
+      },
+      {
+        key: 'access-keys',
+        label: 'Access Keys',
+        href: '/keys',
+        pathPrefix: '/keys',
       },
       {
         key: 'users',
         label: 'Users',
         href: '/admin/users',
         pathPrefix: '/admin/users',
+        requiredRole: ROLE.ADMIN,
       },
       {
         key: 'models',
         label: 'Models',
         href: '/admin/models',
         pathPrefix: '/admin/models',
+        requiredRole: ROLE.ADMIN,
       },
       {
         key: 'subscriptions',
         label: 'Subscriptions',
         href: '/admin/subscriptions',
         pathPrefix: '/admin/subscriptions',
+        requiredRole: ROLE.ADMIN,
       },
       {
         key: 'redemptions',
         label: 'Redemptions',
         href: '/admin/redemption-codes',
         pathPrefix: '/admin/redemption-codes',
+        requiredRole: ROLE.ADMIN,
       },
     ],
   },
@@ -97,6 +108,12 @@ const ADMIN_SECTIONS_CONFIG: NavSectionConfig[] = [
         label: 'Traffic Logs',
         href: '/admin/usage-logs',
         pathPrefix: '/admin/usage-logs',
+      },
+      {
+        key: 'usage-report',
+        label: 'Usage Report',
+        href: '/dashboard',
+        pathPrefix: '/dashboard',
       },
       {
         key: 'system-info',
@@ -147,8 +164,16 @@ export function getAdminNavSections(role: number | undefined): AdminNavSection[]
  * Get path breadcrumb string based on the current pathname.
  */
 export function getAdminPathBreadcrumb(pathname: string): { section: string; page: string } {
-  if (pathname === '/admin' || pathname === '/admin/') {
+  if (
+    pathname === '/dashboard' ||
+    pathname.startsWith('/dashboard') ||
+    pathname === '/admin' ||
+    pathname === '/admin/'
+  ) {
     return { section: 'SYSTEM', page: 'DASHBOARD' }
+  }
+  if (pathname.startsWith('/keys')) {
+    return { section: 'MANAGEMENT', page: 'ACCESS KEYS' }
   }
   if (pathname.startsWith('/admin/channels')) {
     return { section: 'MANAGEMENT', page: 'DISTRIBUTION' }
@@ -165,7 +190,7 @@ export function getAdminPathBreadcrumb(pathname: string): { section: string; pag
   if (pathname.startsWith('/admin/redemption-codes')) {
     return { section: 'MANAGEMENT', page: 'REDEMPTIONS' }
   }
-  if (pathname.startsWith('/admin/usage-logs')) {
+  if (pathname.startsWith('/admin/usage-logs') || pathname.startsWith('/usage-logs')) {
     return { section: 'ANALYSIS', page: 'TRAFFIC LOGS' }
   }
   if (pathname.startsWith('/admin/system-info')) {
@@ -177,5 +202,5 @@ export function getAdminPathBreadcrumb(pathname: string): { section: string; pag
   if (pathname.startsWith('/admin/task-plugins')) {
     return { section: 'SYSTEM', page: 'TASK PLUGINS' }
   }
-  return { section: 'SYSTEM', page: 'ADMIN' }
+  return { section: 'SYSTEM', page: 'CONSOLE' }
 }

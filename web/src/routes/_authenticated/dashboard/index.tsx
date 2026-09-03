@@ -15,15 +15,10 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 
-import { DASHBOARD_DEFAULT_SECTION } from '@/features/dashboard/section-registry'
+import { AdminDashboardView } from '@/features/admin/dashboard/admin-dashboard-view'
 
 export const Route = createFileRoute('/_authenticated/dashboard/')({
-  beforeLoad: () => {
-    throw redirect({
-      to: '/dashboard/$section',
-      params: { section: DASHBOARD_DEFAULT_SECTION },
-    })
-  },
+  component: AdminDashboardView,
 })
