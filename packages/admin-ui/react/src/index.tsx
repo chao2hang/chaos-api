@@ -385,7 +385,13 @@ export function AdminPage(props: AdminPageProps) {
   const { element, setRef } = useAdminElement(undefined);
   const { children, className, title, description, actions, ...rest } = props;
   useElementProperties(element as RefObject<CustomElement | null>, { title, description });
-  return createElement("aui-page", { ...rest, className, ref: setRef }, [
+  return createElement("aui-page", {
+    ...rest,
+    title,
+    description,
+    className,
+    ref: setRef,
+  }, [
     renderSlot("actions", actions),
     children,
   ]);
@@ -403,7 +409,7 @@ export function AdminPageHeader(props: AdminPageHeaderProps) {
   useElementProperties(element as RefObject<CustomElement | null>, { title, description });
   return createElement(
     "aui-page-header",
-    { ...rest, className, ref: setRef },
+    { ...rest, title, description, className, ref: setRef },
     renderSlot("actions", actions),
   );
 }
