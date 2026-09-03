@@ -15,10 +15,11 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { SearchTable, type SearchTableProps } from '@chaos_team/chaos-ui/business'
+
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { formatTimestampToDate } from '@/lib/format'
 
 import { fetchTaskLogs } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
@@ -27,7 +28,6 @@ import type { UsageLogsSearch } from '../lib/search-schema'
 import type { TaskLog, UsageLogsSearchPatcher } from '../types'
 import { CopyableText } from './copyable-text'
 import { LogStatusTag } from './log-status-tag'
-import { formatTimestampToDate } from '@/lib/format'
 
 type TaskLogsTableProps = {
   search: UsageLogsSearch
@@ -35,9 +35,7 @@ type TaskLogsTableProps = {
   patchSearch: UsageLogsSearchPatcher
 }
 
-type TaskColumns = SearchTableProps<TaskLog>['columns']
-
-/** Server-paginated table for async task logs (`/api/task[/self]`). */
+/** Server-paginated industrial table for async task logs (`/api/task[/self]`). */
 export function TaskLogsTable(props: TaskLogsTableProps) {
   const { t } = useTranslation()
 
@@ -48,95 +46,112 @@ export function TaskLogsTable(props: TaskLogsTableProps) {
     placeholderData: (previous) => previous,
   })
 
-  const columns = useMemo<TaskColumns>(() => {
-    const columns: TaskColumns = [
-      {
-        key: 'time',
-        title: t('Time'),
-        width: 160,
-        render: (_value, record) => (
-          <span className='text-xs'>{formatTimestampToDate(record.submit_time)}</span>
-        ),
-      },
-      {
-        key: 'task_id',
-        title: t('Task ID'),
-        width: 180,
-        render: (_value, record) => (
-          <CopyableText text={record.task_id} displayLength={10} />
-        ),
-      },
-    ]
-    if (props.admin) {
-      columns.push(
-        {
-          key: 'username',
-          title: t('User'),
-          width: 120,
-          ellipsis: true,
-          render: (_value, record) =>
-            record.username ? record.username : `#${record.user_id}`,
-        },
-        {
-          key: 'channel_id',
-          title: t('Channel'),
-          width: 100,
-          render: (_value, record) => (record.channel_id > 0 ? `#${record.channel_id}` : '-'),
-        }
-      )
-    }
-    columns.push(
-      {
-        key: 'platform',
-        title: t('Platform'),
-        width: 110,
-        ellipsis: true,
-        render: (_value, record) => record.platform || '-',
-      },
-      {
-        key: 'action',
-        title: t('Action'),
-        width: 110,
-        ellipsis: true,
-        render: (_value, record) => record.action || '-',
-      },
-      {
-        key: 'status',
-        title: t('Status'),
-        width: 120,
-        render: (_value, record) => <LogStatusTag status={record.status} />,
-      },
-      {
-        key: 'finish_time',
-        title: t('Finish Time'),
-        width: 160,
-        render: (_value, record) => (
-          <span className='text-xs'>{formatTimestampToDate(record.finish_time)}</span>
-        ),
-      }
-    )
-    return columns
-  }, [props.admin, t])
+  const items: TaskLog[] = data?.items ?? []
+  const total = data?.total ?? 0
+  const currentPage = props.search.page ?? 1
+  const pageSize = props.search.pageSize ?? DEFAULT_PAGE_SIZE
+  const totalPages = Math.ceil(total / pageSize)
+
+  const handlePageChange = (nextPage: number) => {
+    props.patchSearch((prev) => ({
+      ...prev,
+      page: nextPage <= 1 ? undefined : nextPage,
+    }))
+  }
 
   return (
-    <SearchTable
-      columns={columns}
-      dataSource={data?.items ?? []}
-      rowKey='id'
-      loading={isPending}
-      emptyText={t('No task logs found')}
-      pagination={{
-        current: props.search.page ?? 1,
-        pageSize: props.search.pageSize ?? DEFAULT_PAGE_SIZE,
-        total: data?.total ?? 0,
-        onChange: (nextPage, nextPageSize) => {
-          props.patchSearch((prev) => ({
-            ...prev,
-            page: nextPage <= 1 ? undefined : nextPage,
-            pageSize: nextPageSize,
-          }))
-        },
-      }}
-    />
+    <div className="w-full border border-zinc-800 bg-[#0a0a0a] overflow-hidden">
+      <div className="w-full overflow-x-auto admin-no-scrollbar">
+        <table className="w-full text-left text-xs mono whitespace-nowrap">
+          <thead className="bg-zinc-900 text-zinc-500 uppercase border-b border-zinc-800">
+            <tr>
+              <th className="py-3 px-4 font-medium">{t('Time')}</th>
+              <th className="py-3 px-4 font-medium">{t('Task ID')}</th>
+              {props.admin && (
+                <th className="py-3 px-4 font-medium">{t('User')}</th>
+              )}
+              <th className="py-3 px-4 font-medium">{t('Action')}</th>
+              <th className="py-3 px-4 font-medium">{t('Status')}</th>
+              <th className="py-3 px-4 font-medium">{t('Progress')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-900 text-zinc-300">
+            {isPending ? (
+              <tr>
+                <td
+                  colSpan={props.admin ? 6 : 5}
+                  className="py-12 text-center text-zinc-600 mono"
+                >
+                  {t('Loading...')}
+                </td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={props.admin ? 6 : 5}
+                  className="py-12 text-center text-zinc-600 mono"
+                >
+                  {t('No task logs found')}
+                </td>
+              </tr>
+            ) : (
+              items.map((record) => (
+                <tr
+                  key={record.id}
+                  className="hover:bg-zinc-900/50 transition-colors"
+                >
+                  <td className="py-3.5 px-4 text-zinc-500">
+                    {formatTimestampToDate(record.submit_time)}
+                  </td>
+                  <td className="py-3.5 px-4 text-zinc-400">
+                    <CopyableText text={record.task_id} displayLength={10} />
+                  </td>
+                  {props.admin && (
+                    <td className="py-3.5 px-4 text-zinc-300">
+                      {record.username ? record.username : `#${record.user_id}`}
+                    </td>
+                  )}
+                  <td className="py-3.5 px-4 font-medium text-white">
+                    {record.action || '-'}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <LogStatusTag status={record.status} />
+                  </td>
+                  <td className="py-3.5 px-4 text-zinc-400">
+                    {record.progress || '-'}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 极简工业风底部分页 */}
+      <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-zinc-800 bg-[#0c0c0c] text-xs mono text-zinc-500 gap-3">
+        <div>
+          PAGE <span className="text-white">{currentPage}</span> OF{' '}
+          <span className="text-white">{totalPages || 1}</span> ({total} TOTAL)
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            disabled={currentPage <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          >
+            PREV
+          </button>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          >
+            NEXT
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

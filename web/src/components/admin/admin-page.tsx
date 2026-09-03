@@ -15,7 +15,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { PageHeader } from '@chaos_team/chaos-ui/business'
 import type { ReactNode } from 'react'
 
 type AdminPageProps = {
@@ -26,20 +25,28 @@ type AdminPageProps = {
 }
 
 /**
- * Standard admin console page scaffold: a padded content frame with a
- * chaos-ui `PageHeader` followed by the page body. All admin pages use
- * this to keep spacing, heading hierarchy and action placement uniform.
+ * Industrial admin page wrapper:
+ * Hard horizontal border, monospace title, sub-label, and top action buttons.
  */
 export function AdminPage(props: AdminPageProps) {
   return (
-    <div className='flex min-h-0 flex-1 flex-col gap-6 p-4 md:p-6'>
-      <PageHeader
-        title={props.title}
-        description={props.description}
-        actions={props.actions}
-        size='sm'
-      />
-      <div className='flex min-h-0 flex-1 flex-col gap-4'>{props.children}</div>
+    <div className="flex min-h-0 flex-1 flex-col space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-800 pb-4">
+        <div>
+          <h1 className="text-lg font-bold uppercase tracking-tight text-white mono">
+            {props.title}
+          </h1>
+          {props.description && (
+            <p className="text-xs text-zinc-500 mt-1 mono">
+              {props.description}
+            </p>
+          )}
+        </div>
+        {props.actions && (
+          <div className="flex items-center space-x-3 shrink-0">{props.actions}</div>
+        )}
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-6">{props.children}</div>
     </div>
   )
 }

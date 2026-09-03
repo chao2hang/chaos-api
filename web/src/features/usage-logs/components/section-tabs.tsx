@@ -15,9 +15,10 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { Tabs, TabsList, TabsTrigger } from '@chaos_team/chaos-ui'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@/lib/utils'
 
 import { USAGE_LOGS_SECTIONS } from '../section-registry'
 import type { UsageLogsSectionId } from '../types'
@@ -29,8 +30,7 @@ type SectionTabsProps = {
 }
 
 /**
- * Section switcher for the usage logs page. Switching sections resets the
- * search params so each section starts from its default filter state.
+ * Industrial section switcher for the usage logs page.
  */
 export function SectionTabs(props: SectionTabsProps) {
   const { t } = useTranslation()
@@ -48,14 +48,25 @@ export function SectionTabs(props: SectionTabsProps) {
   }
 
   return (
-    <Tabs value={props.section} onValueChange={handleValueChange}>
-      <TabsList variant='default'>
-        {USAGE_LOGS_SECTIONS.map((section) => (
-          <TabsTrigger key={section.id} value={section.id}>
+    <div className="flex space-x-6 border-b border-zinc-800 pb-2 text-xs mono uppercase">
+      {USAGE_LOGS_SECTIONS.map((section) => {
+        const active = section.id === props.section
+        return (
+          <button
+            key={section.id}
+            type="button"
+            onClick={() => handleValueChange(section.id)}
+            className={cn(
+              'pb-2 transition-colors cursor-pointer',
+              active
+                ? 'text-white border-b-2 border-white font-bold'
+                : 'text-zinc-500 hover:text-zinc-300'
+            )}
+          >
             {t(section.labelKey)}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+          </button>
+        )
+      })}
+    </div>
   )
 }

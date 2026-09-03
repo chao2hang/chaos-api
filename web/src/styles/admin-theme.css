@@ -1,0 +1,152 @@
+/*
+Copyright (C) 2023-2026 Chaos
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --admin-bg-color: #0a0a0a;
+  --admin-border-color: #262626;
+  --admin-accent-color: #ffffff;
+  --admin-text-secondary: #737373;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* 极细边框 */
+.border-thin {
+  border: 1px solid var(--admin-border-color);
+}
+
+/* 移除圆角或使用极小圆角 */
+.sharp-card {
+  background: #0f0f0f;
+  border: 1px solid var(--admin-border-color);
+  transition: border-color 0.3s ease;
+}
+
+.sharp-card:hover {
+  border-color: #404040;
+}
+
+/* 侧边栏激活项：纯色块线条 */
+.nav-item {
+  position: relative;
+  color: var(--admin-text-secondary);
+  transition: all 0.2s;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  color: #ffffff;
+}
+
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -1.5rem;
+  width: 2px;
+  height: 100%;
+  background: var(--admin-accent-color);
+}
+
+/* 工业级状态标签 */
+.status-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  border: 0.5px solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* 工业级按钮 */
+.btn-industrial-primary {
+  background-color: #ffffff;
+  color: #000000;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.btn-industrial-primary:hover {
+  background-color: #e4e4e7;
+}
+
+.btn-industrial-secondary {
+  background-color: transparent;
+  color: #d4d4d8;
+  border: 1px solid #27272a;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.btn-industrial-secondary:hover {
+  border-color: #52525b;
+  color: #ffffff;
+}
+
+.btn-industrial-danger {
+  background-color: transparent;
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.btn-industrial-danger:hover {
+  border-color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+
+/* 隐藏滚动条 */
+.admin-no-scrollbar::-webkit-scrollbar {
+  width: 0px;
+  display: none;
+}
+.admin-no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

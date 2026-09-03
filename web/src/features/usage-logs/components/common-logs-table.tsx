@@ -15,11 +15,16 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { Tag } from '@chaos_team/chaos-ui'
-import { SearchTable, type SearchTableProps } from '@chaos_team/chaos-ui/business'
+
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  formatLogQuota,
+  formatNumber,
+  formatTimestampToDate,
+  formatUseTime,
+} from '@/lib/format'
 
 import { fetchUsageLogs } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
@@ -28,13 +33,6 @@ import type { UsageLogsSearch } from '../lib/search-schema'
 import type { UsageLog, UsageLogsSearchPatcher } from '../types'
 import { CopyableText } from './copyable-text'
 import { LogTypeBadge } from './log-type-badge'
-import { TruncatedText } from './truncated-text'
-import {
-  formatLogQuota,
-  formatNumber,
-  formatTimestampToDate,
-  formatUseTime,
-} from '@/lib/format'
 
 type CommonLogsTableProps = {
   search: UsageLogsSearch
@@ -42,29 +40,7 @@ type CommonLogsTableProps = {
   patchSearch: UsageLogsSearchPatcher
 }
 
-type LogColumns = SearchTableProps<UsageLog>['columns']
-
-function renderStreamTag(
-  isStream: boolean,
-  t: (key: string) => string
-): ReactNode {
-  if (isStream) {
-    return <Tag color='primary'>{t('Stream')}</Tag>
-  }
-  return <Tag color='default'>{t('Non-Stream')}</Tag>
-}
-
-function renderChannelCell(record: UsageLog): ReactNode {
-  if (record.channel_name) {
-    return `#${record.channel} ${record.channel_name}`
-  }
-  if (record.channel > 0) {
-    return `#${record.channel}`
-  }
-  return '-'
-}
-
-/** Server-paginated table for common usage logs (`/api/log[/self]`). */
+/** Server-paginated industrial table for common usage logs (`/api/log[/self]`). */
 export function CommonLogsTable(props: CommonLogsTableProps) {
   const { t } = useTranslation()
 
@@ -75,138 +51,140 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
     placeholderData: (previous) => previous,
   })
 
-  const columns = useMemo<LogColumns>(() => {
-    const columns: LogColumns = [
-      {
-        key: 'time',
-        title: t('Time'),
-        width: 160,
-        render: (_value, record) => (
-          <span className='text-xs'>{formatTimestampToDate(record.created_at)}</span>
-        ),
-      },
-    ]
-    if (props.admin) {
-      columns.push({
-        key: 'username',
-        title: t('Username'),
-        width: 120,
-        ellipsis: true,
-        render: (_value, record) => record.username || '-',
-      })
-    }
-    columns.push(
-      {
-        key: 'token_name',
-        title: t('Token Name'),
-        width: 130,
-        ellipsis: true,
-        render: (_value, record) => record.token_name || '-',
-      },
-      {
-        key: 'model_name',
-        title: t('Model'),
-        width: 160,
-        render: (_value, record) => (
-          <TruncatedText text={record.model_name} displayLength={24} />
-        ),
-      },
-      {
-        key: 'prompt_tokens',
-        title: t('Prompt Tokens'),
-        width: 100,
-        align: 'right',
-        render: (_value, record) => formatNumber(record.prompt_tokens),
-      },
-      {
-        key: 'completion_tokens',
-        title: t('Completion Tokens'),
-        width: 100,
-        align: 'right',
-        render: (_value, record) => formatNumber(record.completion_tokens),
-      },
-      {
-        key: 'quota',
-        title: t('Quota'),
-        width: 110,
-        align: 'right',
-        render: (_value, record) => formatLogQuota(record.quota),
-      },
-      {
-        key: 'use_time',
-        title: t('Use Time'),
-        width: 90,
-        align: 'right',
-        render: (_value, record) => formatUseTime(record.use_time),
-      },
-      {
-        key: 'is_stream',
-        title: t('Stream'),
-        width: 100,
-        render: (_value, record) => renderStreamTag(record.is_stream, t),
-      },
-      {
-        key: 'type',
-        title: t('Type'),
-        width: 90,
-        render: (_value, record) => <LogTypeBadge log={record} />,
-      },
-      {
-        key: 'content',
-        title: t('Content'),
-        width: 240,
-        render: (_value, record) => (
-          <TruncatedText text={record.content} displayLength={40} />
-        ),
-      },
-      {
-        key: 'request_id',
-        title: t('Request ID'),
-        width: 180,
-        render: (_value, record) => (
-          <CopyableText text={record.request_id} displayLength={10} />
-        ),
-      }
-    )
-    if (props.admin) {
-      columns.push(
-        {
-          key: 'channel',
-          title: t('Channel'),
-          width: 140,
-          render: (_value, record) => renderChannelCell(record),
-        },
-        {
-          key: 'group',
-          title: t('Group'),
-          width: 100,
-          ellipsis: true,
-          render: (_value, record) => record.group || '-',
-        }
-      )
-    }
-    return columns
-  }, [props.admin, t])
+  const items: UsageLog[] = data?.items ?? []
+  const total = data?.total ?? 0
+  const currentPage = props.search.page ?? 1
+  const pageSize = props.search.pageSize ?? DEFAULT_PAGE_SIZE
+  const totalPages = Math.ceil(total / pageSize)
+
+  const handlePageChange = (nextPage: number) => {
+    props.patchSearch((prev) => ({
+      ...prev,
+      page: nextPage <= 1 ? undefined : nextPage,
+    }))
+  }
 
   return (
-    <SearchTable
-      columns={columns}
-      dataSource={data?.items ?? []}
-      rowKey='id'
-      loading={isPending}
-      emptyText={t('No logs found')}
-      pagination={{
-        current: props.search.page ?? 1,
-        pageSize: props.search.pageSize ?? DEFAULT_PAGE_SIZE,
-        total: data?.total ?? 0,
-        onChange: (nextPage, nextPageSize) => {
-          props.patchSearch((prev) => ({
-            ...prev,
-            page: nextPage <= 1 ? undefined : nextPage,
-            pageSize: nextPageSize,
-          }))
-        },
-      }}
-    />
+    <div className="w-full border border-zinc-800 bg-[#0a0a0a] overflow-hidden">
+      <div className="w-full overflow-x-auto admin-no-scrollbar">
+        <table className="w-full text-left text-xs mono whitespace-nowrap">
+          <thead className="bg-zinc-900 text-zinc-500 uppercase border-b border-zinc-800">
+            <tr>
+              <th className="py-3 px-4 font-medium">{t('Time')}</th>
+              {props.admin && (
+                <>
+                  <th className="py-3 px-4 font-medium">{t('Channel')}</th>
+                  <th className="py-3 px-4 font-medium">{t('Username')}</th>
+                </>
+              )}
+              <th className="py-3 px-4 font-medium">{t('Token Name')}</th>
+              <th className="py-3 px-4 font-medium">{t('Type')}</th>
+              <th className="py-3 px-4 font-medium">{t('Model')}</th>
+              <th className="py-3 px-4 font-medium">{t('Use Time')}</th>
+              <th className="py-3 px-4 font-medium">{t('Prompt Tokens')}</th>
+              <th className="py-3 px-4 font-medium">{t('Completion Tokens')}</th>
+              <th className="py-3 px-4 font-medium">{t('Quota')}</th>
+              <th className="py-3 px-4 font-medium">{t('Request ID')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-900 text-zinc-300">
+            {isPending ? (
+              <tr>
+                <td
+                  colSpan={props.admin ? 11 : 9}
+                  className="py-12 text-center text-zinc-600 mono"
+                >
+                  {t('Loading...')}
+                </td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={props.admin ? 11 : 9}
+                  className="py-12 text-center text-zinc-600 mono"
+                >
+                  {t('No logs found')}
+                </td>
+              </tr>
+            ) : (
+              items.map((record) => (
+                <tr
+                  key={record.id}
+                  className="hover:bg-zinc-900/50 transition-colors"
+                >
+                  <td className="py-3.5 px-4 text-zinc-500">
+                    {formatTimestampToDate(record.created_at)}
+                  </td>
+                  {props.admin && (
+                    <>
+                      <td className="py-3.5 px-4 text-zinc-300">
+                        {record.channel_name
+                          ? `#${record.channel} ${record.channel_name}`
+                          : record.channel > 0
+                            ? `#${record.channel}`
+                            : '-'}
+                      </td>
+                      <td className="py-3.5 px-4 text-zinc-300">
+                        {record.username || '-'}
+                      </td>
+                    </>
+                  )}
+                  <td className="py-3.5 px-4 text-zinc-400">
+                    {record.token_name || '-'}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <LogTypeBadge log={record} />
+                  </td>
+                  <td className="py-3.5 px-4 font-medium text-white max-w-[180px] truncate">
+                    {record.model_name || '-'}
+                  </td>
+                  <td className="py-3.5 px-4 text-zinc-400">
+                    {formatUseTime(record.use_time)}
+                  </td>
+                  <td className="py-3.5 px-4 text-zinc-400">
+                    {formatNumber(record.prompt_tokens)}
+                  </td>
+                  <td className="py-3.5 px-4 text-zinc-400">
+                    {formatNumber(record.completion_tokens)}
+                  </td>
+                  <td className="py-3.5 px-4 text-zinc-300 font-medium">
+                    {formatLogQuota(record.quota)}
+                  </td>
+                  <td className="py-3.5 px-4 text-zinc-500">
+                    <CopyableText text={record.request_id} displayLength={10} />
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 极简工业风底部分页 */}
+      <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-zinc-800 bg-[#0c0c0c] text-xs mono text-zinc-500 gap-3">
+        <div>
+          PAGE <span className="text-white">{currentPage}</span> OF{' '}
+          <span className="text-white">{totalPages || 1}</span> ({total} TOTAL)
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            disabled={currentPage <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          >
+            PREV
+          </button>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          >
+            NEXT
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

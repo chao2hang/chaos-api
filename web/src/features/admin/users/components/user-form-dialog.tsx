@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -119,9 +118,9 @@ export function UserFormDialog(props: UserFormDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='sm:max-w-lg bg-[#0f0f0f] border-zinc-800 text-white rounded-none'>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className='mono text-base text-white'>
             {isEdit ? t('Edit user') : t('Create user')}
           </DialogTitle>
         </DialogHeader>
@@ -139,17 +138,21 @@ export function UserFormDialog(props: UserFormDialogProps) {
             className='flex flex-col gap-4'
           >
             <UserFormFields form={form} groupOptions={groupOptions} isEdit={isEdit} />
-            <DialogFooter>
-              <Button
+            <DialogFooter className='gap-2 pt-2 border-t border-zinc-900'>
+              <button
                 type='button'
-                variant='outline'
                 onClick={() => props.onOpenChange(false)}
+                className='btn-industrial-secondary mono text-xs'
               >
                 {t('Cancel')}
-              </Button>
-              <Button type='submit' loading={saveMutation.isPending}>
+              </button>
+              <button
+                type='submit'
+                disabled={saveMutation.isPending}
+                className='btn-industrial-primary mono text-xs'
+              >
                 {t('Save')}
-              </Button>
+              </button>
             </DialogFooter>
           </form>
         </Form>

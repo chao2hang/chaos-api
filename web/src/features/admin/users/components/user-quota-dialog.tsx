@@ -23,7 +23,6 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -110,9 +109,9 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
         if (!open) props.onOpenChange(false)
       }}
     >
-      <DialogContent className='sm:max-w-md'>
+      <DialogContent className='sm:max-w-md bg-[#0f0f0f] border-zinc-800 text-white rounded-none'>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className='mono text-base text-white'>
             {t('Adjust quota')} — {props.user.username}
           </DialogTitle>
         </DialogHeader>
@@ -129,14 +128,14 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
               name='mode'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Mode')}</FormLabel>
+                  <FormLabel className='mono text-xs text-zinc-400'>{t('Mode')}</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className='bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none'>
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className='bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none'>
                       {QUOTA_ADJUST_MODES.map((mode) => (
                         <SelectItem key={mode} value={mode}>
                           {t(MODE_LABELS[mode])}
@@ -153,12 +152,13 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
               name='value'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Quota')}</FormLabel>
+                  <FormLabel className='mono text-xs text-zinc-400'>{t('Quota')}</FormLabel>
                   <FormControl>
                     <InputNumber
                       min={0}
                       value={field.value}
                       onChange={(value) => field.onChange(value ?? 0)}
+                      className='bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none'
                     />
                   </FormControl>
                   <FormMessage />
@@ -166,17 +166,21 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
               )}
             />
           </div>
-            <DialogFooter>
-              <Button
+            <DialogFooter className='gap-2 pt-2 border-t border-zinc-900'>
+              <button
                 type='button'
-                variant='outline'
                 onClick={() => props.onOpenChange(false)}
+                className='btn-industrial-secondary mono text-xs'
               >
                 {t('Cancel')}
-              </Button>
-              <Button type='submit' loading={adjustMutation.isPending}>
+              </button>
+              <button
+                type='submit'
+                disabled={adjustMutation.isPending}
+                className='btn-industrial-primary mono text-xs'
+              >
                 {t('Save')}
-              </Button>
+              </button>
             </DialogFooter>
           </form>
         </Form>

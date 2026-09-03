@@ -21,8 +21,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Button,
-  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -59,23 +57,30 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
   }
 
   return (
-    <div className='flex flex-wrap items-center gap-2'>
-      <Input
-        size='sm'
-        className='w-56'
-        placeholder={t('Search channels')}
-        value={keywordDraft}
-        onChange={(event) => setKeywordDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            applyKeyword()
-          }
-        }}
-      />
-      <Button size='sm' variant='outline' onClick={applyKeyword}>
-        <SearchIcon />
+    <div className="sharp-card p-4 flex flex-wrap items-center gap-3">
+      <div className="relative">
+        <input
+          type="text"
+          className="w-56 bg-[#0a0a0a] border border-zinc-800 text-white text-xs mono px-3 py-1.5 focus:border-zinc-500 focus:outline-none placeholder:text-zinc-600 rounded-none"
+          placeholder={t('Search channels')}
+          value={keywordDraft}
+          onChange={(event) => setKeywordDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              applyKeyword()
+            }
+          }}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={applyKeyword}
+        className="btn-industrial-secondary mono text-xs"
+      >
+        <SearchIcon className="size-3.5" />
         {t('Search')}
-      </Button>
+      </button>
 
       <Select
         value={props.status[0] ?? ALL_VALUE}
@@ -85,13 +90,13 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size='sm' className='w-32' aria-label={t('Status')}>
+        <SelectTrigger size="sm" className="w-32 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none" aria-label={t('Status')}>
           <SelectValue placeholder={t('All statuses')} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All statuses')}</SelectItem>
-          <SelectItem value='enabled'>{t('Enabled')}</SelectItem>
-          <SelectItem value='disabled'>{t('Disabled')}</SelectItem>
+          <SelectItem value="enabled">{t('Enabled')}</SelectItem>
+          <SelectItem value="disabled">{t('Disabled')}</SelectItem>
         </SelectContent>
       </Select>
 
@@ -103,10 +108,10 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size='sm' className='w-40' aria-label={t('Type')}>
+        <SelectTrigger size="sm" className="w-40 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none" aria-label={t('Type')}>
           <SelectValue placeholder={t('All types')} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All types')}</SelectItem>
           {CHANNEL_TYPES.map((option) => (
             <SelectItem key={option.value} value={option.value}>
@@ -124,10 +129,10 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size='sm' className='w-36' aria-label={t('Group')}>
+        <SelectTrigger size="sm" className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none" aria-label={t('Group')}>
           <SelectValue placeholder={t('All groups')} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All groups')}</SelectItem>
           {props.groups.map((group) => (
             <SelectItem key={group} value={group}>
@@ -137,16 +142,26 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
         </SelectContent>
       </Select>
 
-      <Button
-        size='sm'
-        variant='ghost'
-        onClick={() => {
-          setKeywordDraft('')
-          props.onFilterChange({ filter: '', status: [], type: [], group: '' })
-        }}
-      >
-        {t('Reset')}
-      </Button>
+      {(keywordDraft !== '' ||
+        props.status.length > 0 ||
+        props.type.length > 0 ||
+        props.group !== '') && (
+        <button
+          type="button"
+          onClick={() => {
+            setKeywordDraft('')
+            props.onFilterChange({
+              filter: '',
+              status: [],
+              type: [],
+              group: '',
+            })
+          }}
+          className="text-zinc-500 hover:text-zinc-300 mono text-xs underline ml-auto transition-colors"
+        >
+          {t('Clear')}
+        </button>
+      )}
     </div>
   )
 }

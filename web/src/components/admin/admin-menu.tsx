@@ -15,105 +15,167 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import {
-  BoxesIcon,
-  CreditCardIcon,
-  FileClockIcon,
-  PlugZapIcon,
-  RadioTowerIcon,
-  ServerCogIcon,
-  SettingsIcon,
-  TicketIcon,
-  UsersIcon,
-} from 'lucide-react'
-import type { MenuItem } from '@chaos_team/chaos-ui/layout'
-
 import { ROLE } from '@/lib/roles'
 
-type AdminMenuItemConfig = {
+export interface AdminNavSection {
+  groupKey: string
+  groupTitle: string
+  items: AdminNavItem[]
+}
+
+export interface AdminNavItem {
   key: string
-  labelKey: string
+  label: string
   href: string
-  icon: React.ReactNode
+  pathPrefix: string
   requiredRole?: number
 }
 
-const ADMIN_MENU_CONFIG: AdminMenuItemConfig[] = [
+interface NavItemConfig {
+  key: string
+  label: string
+  href: string
+  pathPrefix: string
+  requiredRole?: number
+}
+
+interface NavSectionConfig {
+  groupKey: string
+  groupTitle: string
+  items: NavItemConfig[]
+}
+
+const ADMIN_SECTIONS_CONFIG: NavSectionConfig[] = [
   {
-    key: '/admin/channels',
-    labelKey: 'Channels',
-    href: '/admin/channels',
-    icon: <RadioTowerIcon className='size-4' aria-hidden='true' />,
+    groupKey: 'management',
+    groupTitle: 'Management',
+    items: [
+      {
+        key: 'console',
+        label: 'Console',
+        href: '/admin',
+        pathPrefix: '/admin',
+      },
+      {
+        key: 'distribution',
+        label: 'Distribution',
+        href: '/admin/channels',
+        pathPrefix: '/admin/channels',
+      },
+      {
+        key: 'users',
+        label: 'Users',
+        href: '/admin/users',
+        pathPrefix: '/admin/users',
+      },
+      {
+        key: 'models',
+        label: 'Models',
+        href: '/admin/models',
+        pathPrefix: '/admin/models',
+      },
+      {
+        key: 'subscriptions',
+        label: 'Subscriptions',
+        href: '/admin/subscriptions',
+        pathPrefix: '/admin/subscriptions',
+      },
+      {
+        key: 'redemptions',
+        label: 'Redemptions',
+        href: '/admin/redemption-codes',
+        pathPrefix: '/admin/redemption-codes',
+      },
+    ],
   },
   {
-    key: '/admin/users',
-    labelKey: 'Users',
-    href: '/admin/users',
-    icon: <UsersIcon className='size-4' aria-hidden='true' />,
+    groupKey: 'analysis',
+    groupTitle: 'Analysis',
+    items: [
+      {
+        key: 'traffic-logs',
+        label: 'Traffic Logs',
+        href: '/admin/usage-logs',
+        pathPrefix: '/admin/usage-logs',
+      },
+      {
+        key: 'system-info',
+        label: 'System Info',
+        href: '/admin/system-info',
+        pathPrefix: '/admin/system-info',
+        requiredRole: ROLE.SUPER_ADMIN,
+      },
+    ],
   },
   {
-    key: '/admin/usage-logs',
-    labelKey: 'Usage Logs',
-    href: '/admin/usage-logs/common',
-    icon: <FileClockIcon className='size-4' aria-hidden='true' />,
-  },
-  {
-    key: '/admin/models',
-    labelKey: 'Models',
-    href: '/admin/models',
-    icon: <BoxesIcon className='size-4' aria-hidden='true' />,
-  },
-  {
-    key: '/admin/redemption-codes',
-    labelKey: 'Redemption Codes',
-    href: '/admin/redemption-codes',
-    icon: <TicketIcon className='size-4' aria-hidden='true' />,
-  },
-  {
-    key: '/admin/subscriptions',
-    labelKey: 'Subscriptions',
-    href: '/admin/subscriptions',
-    icon: <CreditCardIcon className='size-4' aria-hidden='true' />,
-  },
-  {
-    key: '/admin/system-settings',
-    labelKey: 'System Settings',
-    href: '/admin/system-settings',
-    icon: <SettingsIcon className='size-4' aria-hidden='true' />,
-    requiredRole: ROLE.SUPER_ADMIN,
-  },
-  {
-    key: '/admin/task-plugins',
-    labelKey: 'Task Plugins',
-    href: '/admin/task-plugins',
-    icon: <PlugZapIcon className='size-4' aria-hidden='true' />,
-    requiredRole: ROLE.SUPER_ADMIN,
-  },
-  {
-    key: '/admin/system-info',
-    labelKey: 'System Info',
-    href: '/admin/system-info',
-    icon: <ServerCogIcon className='size-4' aria-hidden='true' />,
-    requiredRole: ROLE.SUPER_ADMIN,
+    groupKey: 'system',
+    groupTitle: 'System',
+    items: [
+      {
+        key: 'system-settings',
+        label: 'System Settings',
+        href: '/admin/system-settings',
+        pathPrefix: '/admin/system-settings',
+        requiredRole: ROLE.SUPER_ADMIN,
+      },
+      {
+        key: 'task-plugins',
+        label: 'Task Plugins',
+        href: '/admin/task-plugins',
+        pathPrefix: '/admin/task-plugins',
+        requiredRole: ROLE.SUPER_ADMIN,
+      },
+    ],
   },
 ]
 
 /**
- * Build the admin console sidebar menu, filtered by the current user's
- * role. Each entry links into the dedicated `/admin` route section.
+ * Build the categorized admin sections, filtered by user role.
  */
-export function buildAdminMenuItems(
-  role: number | undefined,
-  t: (key: string) => string
-): MenuItem[] {
+export function getAdminNavSections(role: number | undefined): AdminNavSection[] {
   const effectiveRole = role ?? ROLE.GUEST
-  return ADMIN_MENU_CONFIG.filter(
-    (item) =>
-      item.requiredRole === undefined || effectiveRole >= item.requiredRole
-  ).map((item) => ({
-    key: item.key,
-    label: t(item.labelKey),
-    icon: item.icon,
-    href: item.href,
-  }))
+  return ADMIN_SECTIONS_CONFIG.map((section) => ({
+    groupKey: section.groupKey,
+    groupTitle: section.groupTitle,
+    items: section.items.filter(
+      (item) => item.requiredRole === undefined || effectiveRole >= item.requiredRole
+    ),
+  })).filter((section) => section.items.length > 0)
+}
+
+/**
+ * Get path breadcrumb string based on the current pathname.
+ */
+export function getAdminPathBreadcrumb(pathname: string): { section: string; page: string } {
+  if (pathname === '/admin' || pathname === '/admin/') {
+    return { section: 'SYSTEM', page: 'DASHBOARD' }
+  }
+  if (pathname.startsWith('/admin/channels')) {
+    return { section: 'MANAGEMENT', page: 'DISTRIBUTION' }
+  }
+  if (pathname.startsWith('/admin/users')) {
+    return { section: 'MANAGEMENT', page: 'USERS' }
+  }
+  if (pathname.startsWith('/admin/models')) {
+    return { section: 'MANAGEMENT', page: 'MODELS' }
+  }
+  if (pathname.startsWith('/admin/subscriptions')) {
+    return { section: 'MANAGEMENT', page: 'SUBSCRIPTIONS' }
+  }
+  if (pathname.startsWith('/admin/redemption-codes')) {
+    return { section: 'MANAGEMENT', page: 'REDEMPTIONS' }
+  }
+  if (pathname.startsWith('/admin/usage-logs')) {
+    return { section: 'ANALYSIS', page: 'TRAFFIC LOGS' }
+  }
+  if (pathname.startsWith('/admin/system-info')) {
+    return { section: 'ANALYSIS', page: 'SYSTEM INFO' }
+  }
+  if (pathname.startsWith('/admin/system-settings')) {
+    return { section: 'SYSTEM', page: 'SETTINGS' }
+  }
+  if (pathname.startsWith('/admin/task-plugins')) {
+    return { section: 'SYSTEM', page: 'TASK PLUGINS' }
+  }
+  return { section: 'SYSTEM', page: 'ADMIN' }
 }

@@ -22,7 +22,6 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AdminPage } from '@/components/admin/admin-page'
-import { Button } from '@chaos_team/chaos-ui'
 
 import { fetchUsers, getUserGroups } from './api'
 import { UserFormDialog } from './components/user-form-dialog'
@@ -105,15 +104,17 @@ export function AdminUsers() {
         title={t('Users')}
         description={t('Manage users, roles, groups and quota.')}
         actions={
-          <Button
-            icon={<Plus className='size-4' />}
+          <button
+            type='button'
             onClick={() => {
               setEditingUser(null)
               setFormOpen(true)
             }}
+            className='btn-industrial-primary mono text-xs cursor-pointer'
           >
+            <Plus className='size-3.5' />
             {t('Create user')}
-          </Button>
+          </button>
         }
       >
         <UsersFilterBar

@@ -15,15 +15,15 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { KPICard } from '@chaos_team/chaos-ui'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+
+import { formatLogQuota } from '@/lib/format'
 
 import { fetchUsageLogStat } from '../api'
 import { buildUsageLogStatQueryParams } from '../lib/query-params'
 import type { UsageLogsSearch } from '../lib/search-schema'
 import { formatRateStat } from '../lib/stat-format'
-import { formatLogQuota } from '@/lib/format'
 
 type LogStatPanelProps = {
   search: UsageLogsSearch
@@ -41,19 +41,37 @@ export function LogStatPanel(props: LogStatPanelProps) {
   })
 
   return (
-    <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
-      <KPICard
-        size='sm'
-        item={{ label: t('Total Quota'), value: isPending ? '…' : formatLogQuota(data?.quota ?? 0) }}
-      />
-      <KPICard
-        size='sm'
-        item={{ label: t('RPM'), value: isPending ? '…' : formatRateStat(data?.rpm) }}
-      />
-      <KPICard
-        size='sm'
-        item={{ label: t('TPM'), value: isPending ? '…' : formatRateStat(data?.tpm) }}
-      />
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-6 sharp-card border-zinc-800">
+      <div>
+        <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2 mono">
+          {t('Total Quota')}
+        </p>
+        <div className="flex items-baseline space-x-2">
+          <span className="text-3xl font-light text-white mono">
+            {isPending ? '…' : formatLogQuota(data?.quota ?? 0)}
+          </span>
+        </div>
+      </div>
+      <div>
+        <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2 mono">
+          {t('RPM')}
+        </p>
+        <div className="flex items-baseline space-x-2">
+          <span className="text-3xl font-light text-white mono">
+            {isPending ? '…' : formatRateStat(data?.rpm)}
+          </span>
+        </div>
+      </div>
+      <div>
+        <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2 mono">
+          {t('TPM')}
+        </p>
+        <div className="flex items-baseline space-x-2">
+          <span className="text-3xl font-light text-white mono">
+            {isPending ? '…' : formatRateStat(data?.tpm)}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }

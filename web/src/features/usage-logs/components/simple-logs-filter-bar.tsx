@@ -114,11 +114,13 @@ export function SimpleLogsFilterBar(props: SimpleLogsFilterBarProps) {
   }
 
   return (
-    <FilterBar
-      key={JSON.stringify(search)}
-      fields={fields}
-      onSearch={handleSearch}
-      onReset={handleReset}
-    />
+    <div className='sharp-card p-4 border border-zinc-800'>
+      <FilterBar
+        key={JSON.stringify(search)}
+        fields={fields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+      />
+    </div>
   )
 }

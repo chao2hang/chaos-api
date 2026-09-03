@@ -23,7 +23,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -121,12 +120,12 @@ export function ChannelDialog(props: ChannelDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-lg'>
+      <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-lg bg-[#0f0f0f] border-zinc-800 text-white rounded-none'>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className='mono text-base text-white'>
             {editing ? t('Edit channel') : t('Create channel')}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className='mono text-xs text-zinc-500'>
             {editing
               ? t('Update the channel configuration. Leave the key empty to keep it.')
               : t('Add a new upstream provider channel.')}
@@ -140,15 +139,17 @@ export function ChannelDialog(props: ChannelDialogProps) {
               fetching={fetchModels.isPending}
               onFetchModels={() => fetchModels.mutate()}
             />
-            <DialogFooter>
-              <Button
+            <DialogFooter className='gap-2 pt-2 border-t border-zinc-900'>
+              <button
                 type='button'
-                variant='outline'
                 onClick={() => props.onOpenChange(false)}
+                className='btn-industrial-secondary mono text-xs'
               >
                 {t('Cancel')}
-              </Button>
-              <Button type='submit'>{t('Save')}</Button>
+              </button>
+              <button type='submit' className='btn-industrial-primary mono text-xs'>
+                {t('Save')}
+              </button>
             </DialogFooter>
           </form>
         </Form>

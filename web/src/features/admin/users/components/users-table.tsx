@@ -15,21 +15,18 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { Tag } from '@chaos_team/chaos-ui'
-import {
-  SearchTable,
-  type SearchTableProps,
-} from '@chaos_team/chaos-ui/business'
+
 import { useTranslation } from 'react-i18next'
 
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
+import { cn } from '@/lib/utils'
 
 import { USER_STATUS } from '../constants'
 import type { User } from '../types'
 import { UserRowActions } from './user-row-actions'
 
-type UsersTableProps = {
+export type UsersTableProps = {
   items: User[]
   loading: boolean
   total: number
@@ -40,97 +37,125 @@ type UsersTableProps = {
   onQuota: (user: User) => void
 }
 
-type UserCellValue = User[keyof User]
-
+/**
+ * Hardcore industrial users table matching the terminal prototype:
+ * sharp borders, monospace typography, uppercase headers, and .status-tag tags.
+ */
 export function UsersTable(props: UsersTableProps) {
   const { t } = useTranslation()
-
-  const columns: SearchTableProps<User>['columns'] = [
-    { key: 'id', title: t('ID'), dataIndex: 'id', width: 70 },
-    { key: 'username', title: t('Username'), dataIndex: 'username' },
-    {
-      key: 'display_name',
-      title: t('Display Name'),
-      dataIndex: 'display_name',
-      hideOnMobile: true,
-    },
-    {
-      key: 'role',
-      title: t('Role'),
-      dataIndex: 'role',
-      width: 100,
-      render: (value: UserCellValue) => getRoleLabel(Number(value)),
-    },
-    { key: 'group', title: t('Group'), dataIndex: 'group', width: 110 },
-    {
-      key: 'status',
-      title: t('Status'),
-      dataIndex: 'status',
-      width: 90,
-      render: (value: UserCellValue) =>
-        value === USER_STATUS.ENABLED ? (
-          <Tag color='green'>{t('Enabled')}</Tag>
-        ) : (
-          <Tag color='gray'>{t('Disabled')}</Tag>
-        ),
-    },
-    {
-      key: 'quota',
-      title: t('Quota'),
-      dataIndex: 'quota',
-      align: 'right',
-      render: (value: UserCellValue) => formatQuota(Number(value)),
-    },
-    {
-      key: 'used_quota',
-      title: t('Used Quota'),
-      dataIndex: 'used_quota',
-      align: 'right',
-      hideOnMobile: true,
-      render: (value: UserCellValue) => formatQuota(Number(value)),
-    },
-    {
-      key: 'request_count',
-      title: t('Request Count'),
-      dataIndex: 'request_count',
-      align: 'right',
-      hideOnMobile: true,
-    },
-    {
-      key: 'last_login_at',
-      title: t('Last Login'),
-      dataIndex: 'last_login_at',
-      hideOnMobile: true,
-      render: (value: UserCellValue) => formatTimestampToDate(Number(value)),
-    },
-    {
-      key: 'actions',
-      title: t('Actions'),
-      width: 170,
-      align: 'right',
-      render: (_value: UserCellValue, record: User) => (
-        <UserRowActions
-          user={record}
-          onEdit={props.onEdit}
-          onQuota={props.onQuota}
-        />
-      ),
-    },
-  ]
+  const totalPages = Math.ceil(props.total / props.pageSize)
 
   return (
-    <SearchTable<User>
-      columns={columns}
-      dataSource={props.items}
-      rowKey='id'
-      loading={props.loading}
-      emptyText={t('No users found')}
-      pagination={{
-        current: props.page,
-        pageSize: props.pageSize,
-        total: props.total,
-        onChange: props.onPageChange,
-      }}
-    />
+    <div className="w-full border border-zinc-800 bg-[#0a0a0a] overflow-hidden">
+      <div className="w-full overflow-x-auto admin-no-scrollbar">
+        <table className="w-full text-left text-xs mono whitespace-nowrap">
+          <thead className="bg-zinc-900 text-zinc-500 uppercase border-b border-zinc-800">
+            <tr>
+              <th className="py-3 px-4 font-medium">{t('ID')}</th>
+              <th className="py-3 px-4 font-medium">{t('Username')}</th>
+              <th className="py-3 px-4 font-medium">{t('Display Name')}</th>
+              <th className="py-3 px-4 font-medium">{t('Role')}</th>
+              <th className="py-3 px-4 font-medium">{t('Group')}</th>
+              <th className="py-3 px-4 font-medium">{t('Status')}</th>
+              <th className="py-3 px-4 font-medium">{t('Quota')}</th>
+              <th className="py-3 px-4 font-medium">{t('Used Quota')}</th>
+              <th className="py-3 px-4 font-medium">{t('Created At')}</th>
+              <th className="py-3 px-4 font-medium text-right">{t('Actions')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-900 text-zinc-300">
+            {props.loading ? (
+              <tr>
+                <td colSpan={10} className="py-12 text-center text-zinc-600 mono">
+                  {t('Loading...')}
+                </td>
+              </tr>
+            ) : props.items.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="py-12 text-center text-zinc-600 mono">
+                  {t('No users found')}
+                </td>
+              </tr>
+            ) : (
+              props.items.map((user) => {
+                const isEnabled = user.status === USER_STATUS.ENABLED
+                return (
+                  <tr
+                    key={user.id}
+                    className="hover:bg-zinc-900/50 transition-colors"
+                  >
+                    <td className="py-3.5 px-4 text-zinc-500">{user.id}</td>
+                    <td className="py-3.5 px-4 font-medium text-white max-w-[180px] truncate">
+                      {user.username}
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-400 max-w-[180px] truncate">
+                      {user.display_name || '-'}
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-300">
+                      {getRoleLabel(Number(user.role))}
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-400">
+                      {user.group || 'default'}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={cn(
+                          'status-tag',
+                          isEnabled ? 'text-emerald-500' : 'text-zinc-500'
+                        )}
+                      >
+                        {isEnabled ? t('Enabled') : t('Disabled')}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-300">
+                      {formatQuota(user.quota)}
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-500">
+                      {formatQuota(user.used_quota)}
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-500">
+                      {user.created_at ? formatTimestampToDate(user.created_at) : '-'}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <UserRowActions
+                        user={user}
+                        onEdit={props.onEdit}
+                        onQuota={props.onQuota}
+                      />
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 极简工业风底部分页 */}
+      <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-zinc-800 bg-[#0c0c0c] text-xs mono text-zinc-500 gap-3">
+        <div>
+          PAGE <span className="text-white">{props.page}</span> OF{' '}
+          <span className="text-white">{totalPages || 1}</span> ({props.total} TOTAL)
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            disabled={props.page <= 1 || props.loading}
+            onClick={() => props.onPageChange(props.page - 1, props.pageSize)}
+            className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          >
+            PREV
+          </button>
+          <button
+            type="button"
+            disabled={props.page >= totalPages || props.loading}
+            onClick={() => props.onPageChange(props.page + 1, props.pageSize)}
+            className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          >
+            NEXT
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

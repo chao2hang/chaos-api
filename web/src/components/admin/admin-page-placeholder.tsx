@@ -15,7 +15,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { ConstructionIcon } from 'lucide-react'
+import { TerminalIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { AdminPage } from './admin-page'
@@ -26,28 +26,32 @@ type AdminPagePlaceholderProps = {
 }
 
 /**
- * Placeholder page for admin modules that have not been rebuilt on the
- * new admin console yet. Renders a clear "under reconstruction" state
- * instead of resurrecting legacy UI code.
+ * Industrial placeholder page for admin modules pending reconstruction.
  */
 export function AdminPagePlaceholder(props: AdminPagePlaceholderProps) {
   const { t } = useTranslation()
   return (
     <AdminPage title={t(props.titleKey)} description={t(props.descriptionKey)}>
-      <div className='bg-background flex flex-1 items-center justify-center rounded-xl border border-dashed p-10'>
-        <div className='flex flex-col items-center gap-3 text-center'>
-          <ConstructionIcon
-            className='text-muted-foreground size-10'
-            aria-hidden='true'
-          />
-          <p className='text-foreground text-base font-medium'>
-            {t('This module is being rebuilt on the new admin console.')}
-          </p>
-          <p className='text-muted-foreground max-w-md text-sm'>
-            {t(
-              'The legacy implementation was removed. Functionality will return page by page.'
-            )}
-          </p>
+      <div className="sharp-card flex flex-1 items-center justify-center p-16 text-center">
+        <div className="flex flex-col items-center gap-4 text-center max-w-md">
+          <div className="w-12 h-12 bg-zinc-900 border border-zinc-800 flex items-center justify-center mono text-zinc-400">
+            <TerminalIcon className="size-6" aria-hidden="true" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-bold uppercase tracking-widest text-white mono">
+              {t('This module is being rebuilt on the new admin console.')}
+            </p>
+            <p className="text-xs text-zinc-500 mono leading-relaxed">
+              {t(
+                'The legacy implementation was removed. Functionality will return page by page.'
+              )}
+            </p>
+          </div>
+          <div className="pt-2">
+            <span className="status-tag text-zinc-500 border-zinc-700">
+              STATUS // IN_PROGRESS
+            </span>
+          </div>
         </div>
       </div>
     </AdminPage>

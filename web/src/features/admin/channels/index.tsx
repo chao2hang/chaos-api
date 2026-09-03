@@ -21,8 +21,6 @@ import { PlusIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@chaos_team/chaos-ui'
-
 import { AdminPage } from '@/components/admin/admin-page'
 
 import { getChannelGroups, getChannelList } from './api'
@@ -108,10 +106,14 @@ export function ChannelsPage(props: ChannelsPageProps) {
       title={t('Channels')}
       description={t('Manage upstream provider channels.')}
       actions={
-        <Button onClick={openCreate}>
-          <PlusIcon />
+        <button
+          type="button"
+          onClick={openCreate}
+          className="btn-industrial-primary mono text-xs cursor-pointer"
+        >
+          <PlusIcon className="size-3.5" />
           {t('Create channel')}
-        </Button>
+        </button>
       }
     >
       <ChannelFilterBar

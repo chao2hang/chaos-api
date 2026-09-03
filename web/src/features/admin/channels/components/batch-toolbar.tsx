@@ -19,7 +19,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@chaos_team/chaos-ui'
 import { ConfirmDialog } from '@chaos_team/chaos-ui/business'
 
 export interface BatchToolbarProps {
@@ -39,37 +38,41 @@ export function BatchToolbar(props: BatchToolbarProps) {
   }
 
   return (
-    <div className='flex flex-wrap items-center gap-2'>
-      <span className='text-muted-foreground text-sm'>
+    <div className="sharp-card p-3 flex flex-wrap items-center gap-3 mono text-xs">
+      <span className="text-zinc-400 font-medium">
         {t('{{count}} selected', { count: props.selectedIds.length })}
       </span>
-      <Button
-        size='sm'
-        variant='outline'
+      <button
+        type="button"
         disabled={props.disabled}
         onClick={() => props.onBatchStatus(props.selectedIds, 1)}
+        className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer"
       >
         {t('Enable')}
-      </Button>
-      <Button
-        size='sm'
-        variant='outline'
+      </button>
+      <button
+        type="button"
         disabled={props.disabled}
         onClick={() => props.onBatchStatus(props.selectedIds, 2)}
+        className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer"
       >
         {t('Disable')}
-      </Button>
-      <Button
-        size='sm'
-        variant='destructive'
+      </button>
+      <button
+        type="button"
         disabled={props.disabled}
         onClick={() => setDeleteOpen(true)}
+        className="btn-industrial-danger text-xs disabled:opacity-30 cursor-pointer"
       >
         {t('Delete')}
-      </Button>
-      <Button size='sm' variant='ghost' onClick={props.onClear}>
+      </button>
+      <button
+        type="button"
+        onClick={props.onClear}
+        className="text-zinc-500 hover:text-zinc-300 underline transition-colors cursor-pointer ml-auto"
+      >
         {t('Clear selection')}
-      </Button>
+      </button>
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -79,10 +82,10 @@ export function BatchToolbar(props: BatchToolbarProps) {
         })}
         confirmText={t('Delete')}
         cancelText={t('Cancel')}
-        variant='destructive'
+        variant="destructive"
         onConfirm={() => {
-          setDeleteOpen(false)
           props.onBatchDelete(props.selectedIds)
+          setDeleteOpen(false)
         }}
       />
     </div>

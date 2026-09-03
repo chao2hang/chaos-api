@@ -19,7 +19,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -80,9 +79,10 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
   }
 
   return (
-    <div className='flex flex-wrap items-center gap-3'>
-      <Input
-        className='w-64'
+    <div className="sharp-card p-4 flex flex-wrap items-center gap-3">
+      <input
+        type="text"
+        className="w-64 bg-[#0a0a0a] border border-zinc-800 text-white text-xs mono px-3 py-1.5 focus:border-zinc-500 focus:outline-none placeholder:text-zinc-600 rounded-none"
         placeholder={t('Search username or display name')}
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
@@ -95,14 +95,14 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
         value={props.status || ALL_VALUE}
         onValueChange={(value) => handleStatusChange(String(value))}
       >
-        <SelectTrigger className='w-36'>
+        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectValue placeholder={t('Status')} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All statuses')}</SelectItem>
-          {USER_STATUS_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {t(option.label)}
+          {USER_STATUS_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {t(opt.label)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -111,14 +111,14 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
         value={props.role || ALL_VALUE}
         onValueChange={(value) => handleRoleChange(String(value))}
       >
-        <SelectTrigger className='w-36'>
+        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectValue placeholder={t('Role')} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All roles')}</SelectItem>
-          {USER_ROLE_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {t(option.label)}
+          {USER_ROLE_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {t(opt.label)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -127,18 +127,35 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
         value={props.group || ALL_VALUE}
         onValueChange={(value) => handleGroupChange(String(value))}
       >
-        <SelectTrigger className='w-40'>
+        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectValue placeholder={t('Group')} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All groups')}</SelectItem>
-          {props.groupOptions.map((group) => (
-            <SelectItem key={group} value={group}>
-              {group}
+          {props.groupOptions.map((g) => (
+            <SelectItem key={g} value={g}>
+              {g}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+      {(keyword !== '' || props.status || props.role || props.group) && (
+        <button
+          type="button"
+          onClick={() => {
+            setKeyword('')
+            props.onFilterChange({
+              filter: '',
+              status: [],
+              role: [],
+              group: '',
+            })
+          }}
+          className="text-zinc-500 hover:text-zinc-300 mono text-xs underline ml-auto transition-colors"
+        >
+          {t('Clear')}
+        </button>
+      )}
     </div>
   )
 }

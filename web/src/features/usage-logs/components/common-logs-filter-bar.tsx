@@ -152,12 +152,14 @@ export function CommonLogsFilterBar(props: CommonLogsFilterBarProps) {
   // Remount the bar when the URL state changes so its draft values mirror
   // the applied filters (including back/forward navigation).
   return (
-    <FilterBar
-      key={JSON.stringify(props.search)}
-      fields={fields}
-      collapsible
-      onSearch={handleSearch}
-      onReset={handleReset}
-    />
+    <div className='sharp-card p-4 border border-zinc-800'>
+      <FilterBar
+        key={JSON.stringify(props.search)}
+        fields={fields}
+        collapsible
+        onSearch={handleSearch}
+        onReset={handleReset}
+      />
+    </div>
   )
 }
