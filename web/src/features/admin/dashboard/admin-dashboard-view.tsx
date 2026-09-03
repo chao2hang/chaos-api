@@ -18,11 +18,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getChannelList } from '@/features/admin/channels/api'
 import type { Channel } from '@/features/admin/channels/types'
+import { getTrafficDistribution } from '@/features/dashboard/api'
 import { fetchUsageLogs } from '@/features/usage-logs/api'
 import type { UsageLog } from '@/features/usage-logs/types'
 import { cn } from '@/lib/utils'
@@ -36,55 +37,18 @@ interface BarData {
   label?: string
 }
 
-const VOLUME_BARS: BarData[] = [
-  { height: '20%', label: '2.4k' },
-  { height: '35%', label: '4.1k' },
-  { height: '25%', label: '3.0k' },
-  { height: '45%', label: '5.2k' },
-  { height: '85%', active: true, label: '9.8k' },
-  { height: '60%', label: '6.9k' },
-  { height: '55%', label: '6.3k' },
-  { height: '70%', label: '8.1k' },
-  { height: '40%', label: '4.6k' },
-  { height: '30%', label: '3.5k' },
-  { height: '45%', label: '5.2k' },
-  { height: '50%', label: '5.8k' },
-]
-
-const LATENCY_BARS: BarData[] = [
-  { height: '40%', label: '18ms' },
-  { height: '25%', label: '12ms' },
-  { height: '30%', label: '14ms' },
-  { height: '60%', label: '28ms' },
-  { height: '45%', label: '21ms' },
-  { height: '75%', active: true, label: '35ms' },
-  { height: '35%', label: '16ms' },
-  { height: '50%', label: '23ms' },
-  { height: '65%', label: '30ms' },
-  { height: '40%', label: '19ms' },
-  { height: '30%', label: '14ms' },
-  { height: '45%', label: '21ms' },
-]
-
-const ERROR_BARS: BarData[] = [
-  { height: '10%', label: '0.1%' },
-  { height: '15%', label: '0.2%' },
-  { height: '5%', label: '0.0%' },
-  { height: '20%', label: '0.3%' },
-  { height: '10%', label: '0.1%' },
-  { height: '55%', active: true, label: '0.8%' },
-  { height: '15%', label: '0.2%' },
-  { height: '10%', label: '0.1%' },
-  { height: '5%', label: '0.0%' },
-  { height: '8%', label: '0.1%' },
-  { height: '12%', label: '0.2%' },
-  { height: '6%', label: '0.1%' },
-]
-
 export function AdminDashboardView() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.auth.user)
   const [activeTab, setActiveTab] = useState<ChartTab>('volume')
+
+  // Real 24h traffic distribution aggregated across 12 buckets
+  const trafficQuery = useQuery({
+    queryKey: ['admin-dashboard-traffic'],
+    queryFn: () => getTrafficDistribution({ buckets: 12 }),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  })
 
   // Upstream node status
   const channelsQuery = useQuery({
@@ -111,24 +75,98 @@ export function AdminDashboardView() {
     maximumFractionDigits: 2,
   })
 
-  // Compute average latency from recent logs
-  const recentLogs: UsageLog[] = logsQuery.data?.items || []
-  const avgLatency =
-    recentLogs.length > 0
-      ? Math.round(
-          recentLogs.reduce((acc: number, log: UsageLog) => acc + (log.use_time || 0), 0) /
-            recentLogs.length
-        )
-      : 24
-
   const channelItems: Channel[] = channelsQuery.data?.data?.items || []
+  const recentLogs: UsageLog[] = logsQuery.data?.items || []
 
-  const bars =
-    activeTab === 'volume'
-      ? VOLUME_BARS
-      : activeTab === 'latency'
-        ? LATENCY_BARS
-        : ERROR_BARS
+  // Dynamic real data bars for Traffic Distribution
+  const points = trafficQuery.data?.points || []
+
+  const bars: BarData[] = useMemo(() => {
+    if (points.length === 0) {
+      return Array.from({ length: 12 }, () => ({
+        height: '4%',
+        label: '0',
+      }))
+    }
+
+    if (activeTab === 'volume') {
+      const maxVal = Math.max(...points.map((p) => p.volume), 0)
+      return points.map((p) => {
+        const height =
+          maxVal > 0 && p.volume > 0
+            ? `${Math.max(Math.round((p.volume / maxVal) * 90), 8)}%`
+            : '4%'
+        const label =
+          p.volume >= 1000
+            ? `${(p.volume / 1000).toFixed(1)}k`
+            : `${p.volume}`
+        const active = maxVal > 0 && p.volume === maxVal
+        return { height, label, active }
+      })
+    }
+
+    if (activeTab === 'latency') {
+      const maxVal = Math.max(...points.map((p) => p.latency), 0)
+      return points.map((p) => {
+        const height =
+          maxVal > 0 && p.latency > 0
+            ? `${Math.max(Math.round((p.latency / maxVal) * 90), 8)}%`
+            : '4%'
+        const label = `${p.latency}ms`
+        const active = maxVal > 0 && p.latency === maxVal
+        return { height, label, active }
+      })
+    }
+
+    // Tab 'errors'
+    const maxErrors = Math.max(...points.map((p) => p.error_count), 0)
+    return points.map((p) => {
+      const height =
+        maxErrors > 0 && p.error_count > 0
+          ? `${Math.max(Math.round((p.error_count / maxErrors) * 90), 8)}%`
+          : '4%'
+      const pct = (p.error_rate * 100).toFixed(1)
+      const label = `${pct}% (${p.error_count})`
+      const active = p.error_count > 0
+      return { height, label, active }
+    })
+  }, [points, activeTab])
+
+  const timeAxisLabels = useMemo(() => {
+    if (points.length === 12) {
+      return [
+        points[0]?.time_label || '00:00',
+        points[2]?.time_label || '04:00',
+        points[4]?.time_label || '08:00',
+        points[6]?.time_label || '12:00',
+        points[8]?.time_label || '16:00',
+        points[10]?.time_label || '20:00',
+        'NOW',
+      ]
+    }
+    return ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'NOW']
+  }, [points])
+
+  const total24hRequests =
+    trafficQuery.data != null
+      ? trafficQuery.data.total_requests >= 1000
+        ? `${(trafficQuery.data.total_requests / 1000).toFixed(1)}k`
+        : `${trafficQuery.data.total_requests}`
+      : logsQuery.data?.total
+        ? `${logsQuery.data.total}`
+        : '0'
+
+  const avg24hLatency =
+    trafficQuery.data != null
+      ? trafficQuery.data.avg_latency
+      : recentLogs.length > 0
+        ? Math.round(
+            recentLogs.reduce(
+              (acc: number, log: UsageLog) => acc + (log.use_time || 0),
+              0
+            ) / recentLogs.length
+          )
+        : 0
 
   return (
     <div className="space-y-16">
@@ -149,9 +187,8 @@ export function AdminDashboardView() {
           </p>
           <div className="flex items-baseline space-x-2">
             <span className="text-4xl font-light text-white mono">
-              {logsQuery.data?.total ? `${logsQuery.data.total}` : '42.9k'}
+              {total24hRequests}
             </span>
-            <span className="text-emerald-500 text-xs mono">+12.4%</span>
           </div>
         </div>
         <div>
@@ -159,7 +196,7 @@ export function AdminDashboardView() {
             {t('System Latency')}
           </p>
           <div className="flex items-baseline space-x-2">
-            <span className="text-4xl font-light text-white mono">{avgLatency}</span>
+            <span className="text-4xl font-light text-white mono">{avg24hLatency}</span>
             <span className="text-zinc-600 text-sm mono">ms</span>
           </div>
         </div>
@@ -167,7 +204,7 @@ export function AdminDashboardView() {
 
       {/* 数据可视化区：去背景化 */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* 流量图表占位：极简线条工业风 */}
+        {/* 流量图表：极简线条工业风（连接真实后端流量统计） */}
         <div className="lg:col-span-3 border-t border-zinc-800 pt-6">
           <div className="flex justify-between items-end mb-8">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mono">
@@ -232,13 +269,9 @@ export function AdminDashboardView() {
             ))}
           </div>
           <div className="flex justify-between text-[9px] mono text-zinc-600 mt-3 pt-2 border-t border-zinc-900 uppercase">
-            <span>00:00</span>
-            <span>04:00</span>
-            <span>08:00</span>
-            <span>12:00</span>
-            <span>16:00</span>
-            <span>20:00</span>
-            <span>NOW</span>
+            {timeAxisLabels.map((lbl, idx) => (
+              <span key={idx}>{lbl}</span>
+            ))}
           </div>
         </div>
 

@@ -129,3 +129,38 @@ func GetUserFlowQuotaDates(c *gin.Context) {
 	})
 	return
 }
+
+func GetTrafficDistribution(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	buckets, _ := strconv.Atoi(c.Query("buckets"))
+	if buckets <= 0 || buckets > 48 {
+		buckets = 12
+	}
+
+	role := c.GetInt("role")
+	userId := c.GetInt("id")
+	targetUserId := 0
+	username := ""
+
+	if role >= common.RoleAdminUser {
+		if uidStr := c.Query("user_id"); uidStr != "" {
+			targetUserId, _ = strconv.Atoi(uidStr)
+		}
+		username = c.Query("username")
+	} else {
+		targetUserId = userId
+	}
+
+	dist, err := model.GetTrafficDistribution(startTimestamp, endTimestamp, buckets, targetUserId, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    dist,
+	})
+}
+

@@ -90,3 +90,41 @@ export async function getUptimeStatus() {
   )
   return res.data
 }
+
+// ----------------------------------------------------------------------------
+// Traffic Distribution (Volume, Latency, Errors)
+// ----------------------------------------------------------------------------
+
+export interface TrafficDistributionPoint {
+  timestamp: number
+  time_label: string
+  volume: number
+  latency: number
+  error_count: number
+  error_rate: number
+  quota: number
+}
+
+export interface TrafficDistributionData {
+  start_time: number
+  end_time: number
+  bucket_size: number
+  total_requests: number
+  avg_latency: number
+  total_errors: number
+  error_rate: number
+  points: TrafficDistributionPoint[]
+}
+
+export async function getTrafficDistribution(params?: {
+  start_timestamp?: number
+  end_timestamp?: number
+  buckets?: number
+}): Promise<TrafficDistributionData> {
+  const res = await api.get<{
+    success: boolean
+    data: TrafficDistributionData
+  }>('/api/data/traffic', { params })
+  return res.data.data
+}
+
