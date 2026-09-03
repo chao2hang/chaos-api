@@ -22,7 +22,6 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getChannelList } from '@/features/admin/channels/api'
-import type { Channel } from '@/features/admin/channels/types'
 import { getTrafficDistribution } from '@/features/dashboard/api'
 import { fetchUsageLogs } from '@/features/usage-logs/api'
 import type { UsageLog } from '@/features/usage-logs/types'
@@ -32,6 +31,7 @@ import { useAuthStore } from '@/stores/auth-store'
 type ChartTab = 'volume' | 'latency' | 'errors'
 
 interface BarData {
+  key: string
   height: string
   active?: boolean
   label?: string
@@ -50,13 +50,13 @@ export function AdminDashboardView() {
     refetchInterval: 60_000,
   })
 
-  // Upstream node status
+  // All channels, aggregated into enabled / disabled / auto-disabled counts.
   const channelsQuery = useQuery({
     queryKey: ['admin-dashboard-channels'],
     queryFn: () =>
       getChannelList({
         path: '/api/channel',
-        params: { p: 0, page_size: 5 },
+        params: { p: 1, page_size: 1000 },
       }),
     staleTime: 30_000,
   })
@@ -75,15 +75,36 @@ export function AdminDashboardView() {
     maximumFractionDigits: 2,
   })
 
-  const channelItems: Channel[] = channelsQuery.data?.data?.items || []
-  const recentLogs: UsageLog[] = logsQuery.data?.items || []
+  const recentLogs: UsageLog[] = useMemo(
+    () => logsQuery.data?.items ?? [],
+    [logsQuery.data]
+  )
+
+  // Aggregate channel statuses: 1 = enabled, 2 = manually disabled, 3 = auto disabled.
+  const channelStatusCounts = useMemo(() => {
+    const counts = { enabled: 0, disabled: 0, autoDisabled: 0 }
+    for (const channel of channelsQuery.data?.data?.items ?? []) {
+      if (channel.status === 3) {
+        counts.autoDisabled += 1
+      } else if (channel.status === 2) {
+        counts.disabled += 1
+      } else {
+        counts.enabled += 1
+      }
+    }
+    return counts
+  }, [channelsQuery.data])
 
   // Dynamic real data bars for Traffic Distribution
-  const points = trafficQuery.data?.points || []
+  const points = useMemo(
+    () => trafficQuery.data?.points ?? [],
+    [trafficQuery.data]
+  )
 
   const bars: BarData[] = useMemo(() => {
     if (points.length === 0) {
-      return Array.from({ length: 12 }, () => ({
+      return Array.from({ length: 12 }, (_, i) => ({
+        key: `slot-${i}`,
         height: '4%',
         label: '0',
       }))
@@ -101,7 +122,7 @@ export function AdminDashboardView() {
             ? `${(p.volume / 1000).toFixed(1)}k`
             : `${p.volume}`
         const active = maxVal > 0 && p.volume === maxVal
-        return { height, label, active }
+        return { key: String(p.timestamp), height, label, active }
       })
     }
 
@@ -114,7 +135,7 @@ export function AdminDashboardView() {
             : '4%'
         const label = `${p.latency}ms`
         const active = maxVal > 0 && p.latency === maxVal
-        return { height, label, active }
+        return { key: String(p.timestamp), height, label, active }
       })
     }
 
@@ -128,45 +149,58 @@ export function AdminDashboardView() {
       const pct = (p.error_rate * 100).toFixed(1)
       const label = `${pct}% (${p.error_count})`
       const active = p.error_count > 0
-      return { height, label, active }
+      return { key: String(p.timestamp), height, label, active }
     })
   }, [points, activeTab])
 
   const timeAxisLabels = useMemo(() => {
     if (points.length === 12) {
+      const slots = [0, 2, 4, 6, 8, 10]
       return [
-        points[0]?.time_label || '00:00',
-        points[2]?.time_label || '04:00',
-        points[4]?.time_label || '08:00',
-        points[6]?.time_label || '12:00',
-        points[8]?.time_label || '16:00',
-        points[10]?.time_label || '20:00',
-        'NOW',
+        ...slots.map((idx) => ({
+          key: String(points[idx]?.timestamp ?? `fallback-${idx}`),
+          label: points[idx]?.time_label ?? '00:00',
+        })),
+        { key: 'now', label: 'NOW' },
       ]
     }
-    return ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'NOW']
+    return [
+      ...[0, 1, 2, 3, 4, 5].map((i) => ({
+        key: `fallback-${i}`,
+        label: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'][i],
+      })),
+      { key: 'now', label: 'NOW' },
+    ]
   }, [points])
 
-  const total24hRequests =
-    trafficQuery.data != null
-      ? trafficQuery.data.total_requests >= 1000
-        ? `${(trafficQuery.data.total_requests / 1000).toFixed(1)}k`
-        : `${trafficQuery.data.total_requests}`
-      : logsQuery.data?.total
-        ? `${logsQuery.data.total}`
-        : '0'
+  const total24hRequests = useMemo(() => {
+    const fromTraffic = trafficQuery.data?.total_requests
+    if (fromTraffic != null) {
+      return fromTraffic >= 1000
+        ? `${(fromTraffic / 1000).toFixed(1)}k`
+        : `${fromTraffic}`
+    }
+    const fromLogs = logsQuery.data?.total
+    if (fromLogs != null) {
+      return `${fromLogs}`
+    }
+    return '0'
+  }, [trafficQuery.data, logsQuery.data])
 
-  const avg24hLatency =
-    trafficQuery.data != null
-      ? trafficQuery.data.avg_latency
-      : recentLogs.length > 0
-        ? Math.round(
-            recentLogs.reduce(
-              (acc: number, log: UsageLog) => acc + (log.use_time || 0),
-              0
-            ) / recentLogs.length
-          )
-        : 0
+  const avg24hLatency = useMemo(() => {
+    const fromTraffic = trafficQuery.data?.avg_latency
+    if (fromTraffic != null) {
+      return fromTraffic
+    }
+    if (recentLogs.length > 0) {
+      const total = recentLogs.reduce(
+        (acc: number, log: UsageLog) => acc + (log.use_time || 0),
+        0
+      )
+      return Math.round(total / recentLogs.length)
+    }
+    return 0
+  }, [trafficQuery.data, recentLogs])
 
   return (
     <div className="space-y-16">
@@ -250,9 +284,9 @@ export function AdminDashboardView() {
             </div>
           </div>
           <div className="h-48 w-full flex items-end space-x-2">
-            {bars.map((bar, idx) => (
+            {bars.map((bar) => (
               <div
-                key={idx}
+                key={bar.key}
                 title={bar.label}
                 className={cn(
                   'flex-1 transition-all duration-300 cursor-pointer group relative',
@@ -269,63 +303,42 @@ export function AdminDashboardView() {
             ))}
           </div>
           <div className="flex justify-between text-[9px] mono text-zinc-600 mt-3 pt-2 border-t border-zinc-900 uppercase">
-            {timeAxisLabels.map((lbl, idx) => (
-              <span key={idx}>{lbl}</span>
+            {timeAxisLabels.map((item) => (
+              <span key={item.key}>{item.label}</span>
             ))}
           </div>
         </div>
 
-        {/* 侧边状态：硬核节点列表 */}
+        {/* 侧边状态：渠道状态数量 */}
         <div className="lg:col-span-1 border-t border-zinc-800 pt-6">
           <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 mono">
-            {t('Node Status')}
+            {t('Channel Status')}
           </h3>
           <div className="space-y-4">
-            {channelItems.length > 0 ? (
-              channelItems.map((channel: Channel) => {
-                const isEnabled = channel.status === 1
-                const isAutoDisabled = channel.status === 3
-                return (
-                  <div
-                    key={channel.id}
-                    className="flex justify-between items-center border-b border-zinc-900 pb-2"
-                  >
-                    <span className="text-xs mono truncate max-w-[140px] text-zinc-300">
-                      {channel.name}
-                    </span>
-                    <span
-                      className={cn(
-                        'status-tag',
-                        isEnabled && 'text-emerald-500',
-                        isAutoDisabled && 'text-red-500',
-                        !isEnabled && !isAutoDisabled && 'text-zinc-500'
-                      )}
-                    >
-                      {isEnabled
-                        ? t('Active')
-                        : isAutoDisabled
-                          ? t('Down')
-                          : t('Disabled')}
-                    </span>
-                  </div>
-                )
-              })
-            ) : (
-              <>
-                <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
-                  <span className="text-xs mono text-zinc-300">US-EAST-1</span>
-                  <span className="status-tag text-emerald-500">{t('Active')}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
-                  <span className="text-xs mono text-zinc-300">HK-GCP-02</span>
-                  <span className="status-tag text-emerald-500">{t('Active')}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
-                  <span className="text-xs mono text-zinc-300">EU-WEST-1</span>
-                  <span className="status-tag text-red-500">{t('Down')}</span>
-                </div>
-              </>
-            )}
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
+              <span className="text-xs mono text-zinc-300">
+                {t('Enabled Channels')}
+              </span>
+              <span className="text-sm mono text-emerald-500 font-bold">
+                {channelStatusCounts.enabled}
+              </span>
+            </div>
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
+              <span className="text-xs mono text-zinc-300">
+                {t('Disabled Channels')}
+              </span>
+              <span className="text-sm mono text-zinc-500 font-bold">
+                {channelStatusCounts.disabled}
+              </span>
+            </div>
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
+              <span className="text-xs mono text-zinc-300">
+                {t('Auto Disabled Channels')}
+              </span>
+              <span className="text-sm mono text-red-500 font-bold">
+                {channelStatusCounts.autoDisabled}
+              </span>
+            </div>
           </div>
         </div>
       </div>
