@@ -243,7 +243,7 @@ export function AdminDashboardView() {
         </div>
 
         {/* 侧边状态：硬核节点列表 */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="lg:col-span-1 border-t border-zinc-800 pt-6">
           <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 mono">
             {t('Node Status')}
           </h3>
@@ -295,97 +295,95 @@ export function AdminDashboardView() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* 列表区：工业风实时执行日志 */}
-        <div className="lg:col-span-4 mt-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mono">
-              {t('Live Execution Log')}
-            </h3>
-          </div>
-          <div className="w-full overflow-hidden border border-zinc-800 bg-[#0a0a0a]">
-            <table className="w-full text-left text-xs mono">
-              <thead className="bg-zinc-900 text-zinc-500 uppercase">
-                <tr>
-                  <th className="py-3 px-4 font-medium">{t('Timestamp')}</th>
-                  <th className="py-3 px-4 font-medium">{t('Method')}</th>
-                  <th className="py-3 px-4 font-medium">{t('Endpoint')}</th>
-                  <th className="py-3 px-4 font-medium">{t('Status')}</th>
-                  <th className="py-3 px-4 font-medium text-right">{t('Cost')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-900">
-                {recentLogs.length > 0 ? (
-                  recentLogs.map((log: UsageLog) => {
-                    const timeStr = log.created_at
-                      ? dayjs.unix(log.created_at).format('HH:mm:ss.SSS')
-                      : '12:44:02.001'
-                    const costUsd = ((log.quota || 0) / 500000).toFixed(5)
-                    const isSuccess = log.type !== 5
-                    return (
-                      <tr
-                        key={log.id}
-                        className="hover:bg-zinc-900/50 transition-colors"
-                      >
-                        <td className="py-4 px-4 text-zinc-500">{timeStr}</td>
-                        <td className="py-4 px-4">
-                          <span className="text-blue-400 font-medium">POST</span>
-                        </td>
-                        <td className="py-4 px-4 text-zinc-300">
-                          {log.model_name
-                            ? `/v1/models/${log.model_name}`
-                            : '/v1/chat/completions'}
-                        </td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={
-                              isSuccess ? 'text-emerald-500' : 'text-red-500'
-                            }
-                          >
-                            {isSuccess ? '200 OK' : '500 ERR'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-right text-zinc-400">
-                          {costUsd}
-                        </td>
-                      </tr>
-                    )
-                  })
-                ) : (
-                  <>
-                    <tr className="hover:bg-zinc-900/50 transition-colors">
-                      <td className="py-4 px-4 text-zinc-500">12:44:02.001</td>
-                      <td className="py-4 px-4">
-                        <span className="text-blue-400 font-medium">POST</span>
-                      </td>
-                      <td className="py-4 px-4 text-zinc-300">/v1/chat/completions</td>
-                      <td className="py-4 px-4 text-emerald-500">200 OK</td>
-                      <td className="py-4 px-4 text-right text-zinc-400">0.00042</td>
-                    </tr>
-                    <tr className="hover:bg-zinc-900/50 transition-colors">
-                      <td className="py-4 px-4 text-zinc-500">12:43:58.842</td>
-                      <td className="py-4 px-4">
-                        <span className="text-blue-400 font-medium">POST</span>
-                      </td>
-                      <td className="py-4 px-4 text-zinc-300">/v1/embeddings</td>
-                      <td className="py-4 px-4 text-emerald-500">200 OK</td>
-                      <td className="py-4 px-4 text-right text-zinc-400">0.00011</td>
-                    </tr>
-                    <tr className="hover:bg-zinc-900/50 transition-colors">
-                      <td className="py-4 px-4 text-zinc-500">12:43:45.120</td>
-                      <td className="py-4 px-4">
-                        <span className="text-zinc-400 font-medium">GET</span>
-                      </td>
-                      <td className="py-4 px-4 text-zinc-300">/v1/models</td>
-                      <td className="py-4 px-4 text-amber-500">401 UNAUTH</td>
-                      <td className="py-4 px-4 text-right text-zinc-400">0.00000</td>
-                    </tr>
-                  </>
-                )}
-              </tbody>
-            </table>
-          </div>
+      {/* 列表区：工业风实时执行日志 */}
+      <div className="border-t border-zinc-800 pt-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mono">
+            {t('Live Execution Log')}
+          </h3>
         </div>
+        <table className="w-full text-left text-xs mono">
+          <thead className="bg-zinc-900 text-zinc-500 uppercase">
+            <tr>
+              <th className="py-3 px-4 font-medium">{t('Timestamp')}</th>
+              <th className="py-3 px-4 font-medium">{t('Method')}</th>
+              <th className="py-3 px-4 font-medium">{t('Endpoint')}</th>
+              <th className="py-3 px-4 font-medium">{t('Status')}</th>
+              <th className="py-3 px-4 font-medium text-right">{t('Cost')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-900">
+            {recentLogs.length > 0 ? (
+              recentLogs.map((log: UsageLog) => {
+                const timeStr = log.created_at
+                  ? dayjs.unix(log.created_at).format('HH:mm:ss.SSS')
+                  : '12:44:02.001'
+                const costUsd = ((log.quota || 0) / 500000).toFixed(5)
+                const isSuccess = log.type !== 5
+                return (
+                  <tr
+                    key={log.id}
+                    className="hover:bg-zinc-900/50 transition-colors"
+                  >
+                    <td className="py-4 px-4 text-zinc-500">{timeStr}</td>
+                    <td className="py-4 px-4">
+                      <span className="text-blue-400 font-medium">POST</span>
+                    </td>
+                    <td className="py-4 px-4 text-zinc-300">
+                      {log.model_name
+                        ? `/v1/models/${log.model_name}`
+                        : '/v1/chat/completions'}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span
+                        className={
+                          isSuccess ? 'text-emerald-500' : 'text-red-500'
+                        }
+                      >
+                        {isSuccess ? '200 OK' : '500 ERR'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-right text-zinc-400">
+                      {costUsd}
+                    </td>
+                  </tr>
+                )
+              })
+            ) : (
+              <>
+                <tr className="hover:bg-zinc-900/50 transition-colors">
+                  <td className="py-4 px-4 text-zinc-500">12:44:02.001</td>
+                  <td className="py-4 px-4">
+                    <span className="text-blue-400 font-medium">POST</span>
+                  </td>
+                  <td className="py-4 px-4 text-zinc-300">/v1/chat/completions</td>
+                  <td className="py-4 px-4 text-emerald-500">200 OK</td>
+                  <td className="py-4 px-4 text-right text-zinc-400">0.00042</td>
+                </tr>
+                <tr className="hover:bg-zinc-900/50 transition-colors">
+                  <td className="py-4 px-4 text-zinc-500">12:43:58.842</td>
+                  <td className="py-4 px-4">
+                    <span className="text-blue-400 font-medium">POST</span>
+                  </td>
+                  <td className="py-4 px-4 text-zinc-300">/v1/embeddings</td>
+                  <td className="py-4 px-4 text-emerald-500">200 OK</td>
+                  <td className="py-4 px-4 text-right text-zinc-400">0.00011</td>
+                </tr>
+                <tr className="hover:bg-zinc-900/50 transition-colors">
+                  <td className="py-4 px-4 text-zinc-500">12:43:45.120</td>
+                  <td className="py-4 px-4">
+                    <span className="text-zinc-400 font-medium">GET</span>
+                  </td>
+                  <td className="py-4 px-4 text-zinc-300">/v1/models</td>
+                  <td className="py-4 px-4 text-amber-500">401 UNAUTH</td>
+                  <td className="py-4 px-4 text-right text-zinc-400">0.00000</td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   )

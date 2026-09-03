@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout, ConsoleDataTableContainer } from '@/components/layout'
+import { AdminPage } from '@/components/admin/admin-page'
 
 import { ApiKeysDialogs } from './components/api-keys-dialogs'
 import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
@@ -28,17 +28,13 @@ export function ApiKeys() {
   const { t } = useTranslation()
   return (
     <ApiKeysProvider>
-      <SectionPageLayout fixedContent>
-        <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>
-        <SectionPageLayout.Actions>
-          <ApiKeysPrimaryButtons />
-        </SectionPageLayout.Actions>
-        <SectionPageLayout.Content>
-          <ConsoleDataTableContainer fixedHeader>
-            <ApiKeysTable />
-          </ConsoleDataTableContainer>
-        </SectionPageLayout.Content>
-      </SectionPageLayout>
+      <AdminPage
+        title={t('Access Keys')}
+        description={t('Manage API keys, quotas, and access permissions.')}
+        actions={<ApiKeysPrimaryButtons />}
+      >
+        <ApiKeysTable />
+      </AdminPage>
 
       <ApiKeysDialogs />
     </ApiKeysProvider>

@@ -15,10 +15,9 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-import { Button } from '@/components/ui/button'
 
 import { useApiKeys } from './api-keys-provider'
 
@@ -26,11 +25,13 @@ export function ApiKeysPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen } = useApiKeys()
   return (
-    <div className='flex gap-2'>
-      <Button size='sm' onClick={() => setOpen('create')}>
-        <Plus className='h-4 w-4' />
-        {t('Create API Key')}
-      </Button>
-    </div>
+    <button
+      type="button"
+      onClick={() => setOpen('create')}
+      className="btn-industrial-primary mono text-xs cursor-pointer"
+    >
+      <Plus className="size-3.5" />
+      {t('Create API Key')}
+    </button>
   )
 }

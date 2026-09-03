@@ -16,13 +16,55 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap');
 
-:root {
+:root,
+.dark {
   --admin-bg-color: #0a0a0a;
   --admin-border-color: #262626;
   --admin-accent-color: #ffffff;
   --admin-text-secondary: #737373;
+
+  /* 全局暗黑工业风覆写：Obsidian 纯黑、#262626 锐利硬边框、纯白高亮 */
+  --background: #0a0a0a !important;
+  --foreground: #e5e5e5 !important;
+  --card: #0f0f0f !important;
+  --card-foreground: #e5e5e5 !important;
+  --popover: #0f0f0f !important;
+  --popover-foreground: #e5e5e5 !important;
+  --primary: #ffffff !important;
+  --primary-foreground: #000000 !important;
+  --secondary: #18181b !important;
+  --secondary-foreground: #e5e5e5 !important;
+  --muted: #18181b !important;
+  --muted-foreground: #71717a !important;
+  --accent: #18181b !important;
+  --accent-foreground: #ffffff !important;
+  --border: #262626 !important;
+  --input: #262626 !important;
+  --ring: #52525b !important;
+  --sidebar: #0a0a0a !important;
+  --sidebar-foreground: #e5e5e5 !important;
+  --sidebar-border: #262626 !important;
+  --table-header: #18181b !important;
+  --table-row: #0a0a0a !important;
+  --radius: 0px !important;
+}
+
+/* 工业风核心定义：彻底移除圆角，硬朗边框 */
+* {
+  border-radius: 0px !important;
+}
+
+body {
+  background-color: var(--admin-bg-color);
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #e5e5e5;
+}
+
+::selection {
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 .mono {
@@ -58,7 +100,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
   border: 1px solid var(--admin-border-color);
 }
 
-/* 移除圆角或使用极小圆角 */
+/* 锐利卡片 */
 .sharp-card {
   background: #0f0f0f;
   border: 1px solid var(--admin-border-color);
@@ -69,39 +111,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
   border-color: #404040;
 }
 
-/* 侧边栏激活项：纯色块线条 */
+/* 侧边栏激活项：呼吸/高亮指示条 */
 .nav-item {
-  position: relative;
-  color: var(--admin-text-secondary);
-  transition: all 0.2s;
+  border-left: 2px solid transparent;
+  color: #71717a;
+  transition: all 0.15s ease-in-out;
 }
 
-.nav-item:hover,
-.nav-item.active {
+.nav-item:hover {
   color: #ffffff;
 }
 
-.nav-item.active::before {
-  content: "";
-  position: absolute;
-  left: -1.5rem;
-  width: 2px;
-  height: 100%;
-  background: var(--admin-accent-color);
+.nav-item.active {
+  border-left: 2px solid var(--admin-accent-color);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0) 100%);
+  color: #ffffff;
+  font-weight: 500;
 }
 
-/* 工业级状态标签 */
+/* 微型状态标签 */
 .status-tag {
+  font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
-  padding: 2px 6px;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-weight: 600;
-  border: 0.5px solid currentColor;
+  border: 1px solid currentColor;
+  padding: 1px 4px;
+  text-transform: uppercase;
+  line-height: 1.2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
 }
 
 /* 工业级按钮 */

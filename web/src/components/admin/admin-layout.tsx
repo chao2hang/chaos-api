@@ -47,8 +47,8 @@ type AdminLayoutProps = {
 
 /**
  * Industrial minimalist Admin Layout referencing the terminal prototype.
- * Obsidian black (#0a0a0a), sharp borders (#262626), pure white accents,
- * JetBrains Mono accents, and strict razor-thin divisions.
+ * Obsidian black (#0a0a0a), sharp borders (#262626), zero border-radius, pure white accents,
+ * Space Grotesk / JetBrains Mono typography, and strict razor-thin divisions.
  */
 export function AdminLayout(props: AdminLayoutProps) {
   const { t } = useTranslation()
@@ -71,62 +71,67 @@ export function AdminLayout(props: AdminLayoutProps) {
 
   return (
     <AdminHeaderActionContext.Provider value={{ setHeaderAction }}>
-      <div className="flex h-screen overflow-hidden bg-[#0a0a0a] text-[#e5e5e5] select-text">
+      <div className="flex h-screen overflow-hidden bg-[#0a0a0a] text-[#e5e5e5] antialiased selection:bg-white selection:text-black">
         {/* 侧边栏：极致简约工业风 */}
-        <aside className="w-64 border-r border-[#262626] flex flex-col p-6 bg-[#0a0a0a] shrink-0 select-none">
-          <div className="flex items-center space-x-3 mb-10">
-            <div className="w-5 h-5 bg-white flex items-center justify-center shrink-0">
-              <div className="w-2.5 h-2.5 bg-black" />
+        <aside className="w-64 border-r border-[#262626] flex flex-col justify-between p-6 bg-[#0a0a0a] shrink-0 select-none">
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* 品牌 */}
+            <div className="flex items-center space-x-3 mb-10 shrink-0">
+              <div className="w-5 h-5 bg-white flex items-center justify-center shrink-0">
+                <div className="w-2.5 h-2.5 bg-black" />
+              </div>
+              <div>
+                <span className="text-xs font-black tracking-widest block text-white mono">
+                  CHAOS_API
+                </span>
+                <span className="text-[9px] text-zinc-500 tracking-wider block mono uppercase">
+                  {t('Enterprise Core')}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-xs font-black tracking-widest block text-white mono">
-                CHAOS_API
-              </span>
-              <span className="text-[9px] text-zinc-500 tracking-wider block mono uppercase">
-                {t('Enterprise Core')}
-              </span>
-            </div>
+
+            {/* 导航 */}
+            <nav className="space-y-6 overflow-y-auto admin-no-scrollbar flex-1 pr-1">
+              {navSections.map((section) => (
+                <div key={section.groupKey}>
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-4 mono">
+                    {t(section.groupTitle)}
+                  </p>
+                  <ul className="space-y-3 text-sm">
+                    {section.items.map((item) => {
+                      const isActive =
+                        item.href === '/dashboard' || item.href === '/admin'
+                          ? pathname === '/dashboard' ||
+                            pathname.startsWith('/dashboard') ||
+                            pathname === '/admin' ||
+                            pathname === '/admin/'
+                          : pathname.startsWith(item.pathPrefix)
+                      return (
+                        <li key={item.key}>
+                          <Link
+                            to={item.href as any}
+                            className={cn(
+                              'nav-item block py-1 pl-3 text-xs tracking-wide transition-colors cursor-pointer',
+                              isActive
+                                ? 'active text-white font-medium'
+                                : 'text-zinc-500 hover:text-white'
+                            )}
+                          >
+                            {t(item.label)}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </nav>
           </div>
 
-          <nav className="flex-1 space-y-6 overflow-y-auto admin-no-scrollbar">
-            {navSections.map((section) => (
-              <div key={section.groupKey}>
-                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-4 mono">
-                  {t(section.groupTitle)}
-                </p>
-                <ul className="space-y-3 text-sm">
-                  {section.items.map((item) => {
-                    const isActive =
-                      item.href === '/dashboard' || item.href === '/admin'
-                        ? pathname === '/dashboard' ||
-                          pathname.startsWith('/dashboard') ||
-                          pathname === '/admin' ||
-                          pathname === '/admin/'
-                        : pathname.startsWith(item.pathPrefix)
-                    return (
-                      <li key={item.key}>
-                        <Link
-                          to={item.href as any}
-                          className={cn(
-                            'nav-item block py-1 text-xs tracking-wide transition-colors cursor-pointer',
-                            isActive
-                              ? 'active text-white font-medium'
-                              : 'text-zinc-500 hover:text-white'
-                          )}
-                        >
-                          {t(item.label)}
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ))}
-          </nav>
-
-          <div className="mt-auto pt-6 border-t border-zinc-800 space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-zinc-800 rounded-sm flex items-center justify-center mono text-xs text-white font-bold shrink-0">
+          {/* 底栏信息：严格复刻原型，纯方角头像 */}
+          <div className="border-t border-zinc-800 pt-4 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="w-8 h-8 bg-zinc-800 flex items-center justify-center mono text-xs text-white font-bold shrink-0">
                 {userInitial}
               </div>
               <div className="text-xs min-w-0">
@@ -134,17 +139,8 @@ export function AdminLayout(props: AdminLayoutProps) {
                 <p className="text-zinc-500 mono text-[10px]">v2.4.0-stable</p>
               </div>
             </div>
-
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-900">
-              <Link
-                to="/dashboard"
-                className="text-zinc-500 hover:text-white mono text-[10px] tracking-wider uppercase transition-colors cursor-pointer"
-              >
-                ← {t('Back to Console')}
-              </Link>
-              <div className="opacity-70 hover:opacity-100 transition-opacity">
-                <LanguageSwitcher />
-              </div>
+            <div className="opacity-70 hover:opacity-100 transition-opacity shrink-0">
+              <LanguageSwitcher />
             </div>
           </div>
         </aside>
@@ -177,11 +173,9 @@ export function AdminLayout(props: AdminLayoutProps) {
             </div>
           </header>
 
-          {/* 页面内容注入 */}
-          <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
-            <div className="p-8 max-w-7xl mx-auto w-full">
-              {props.children ?? <Outlet />}
-            </div>
+          {/* 画布区：完全贴合原型 */}
+          <main className="flex-1 overflow-y-auto bg-[#0a0a0a] p-8">
+            {props.children ?? <Outlet />}
           </main>
         </div>
       </div>
