@@ -26,6 +26,24 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@chaos_team/admin-ui-core': path.resolve(
+        __dirname,
+        '../packages/admin-ui/core/src/index.ts'
+      ),
+      '@chaos_team/admin-ui-core/register': path.resolve(
+        __dirname,
+        '../packages/admin-ui/core/src/register.ts'
+      ),
+      '@chaos_team/admin-ui-core/styles.css': path.resolve(
+        __dirname,
+        '../packages/admin-ui/core/src/styles.css'
+      ),
+      '@chaos_team/admin-ui-react': path.resolve(
+        __dirname,
+        '../packages/admin-ui/react/src/index.tsx'
+      ),
+      react: path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       // See rsbuild.config.ts: chaos-ui's layout chunk imports `next/link`
       // at module scope; stub it so tests can load that chunk.
       'next/link': path.resolve(__dirname, './src/lib/next-link-stub.tsx'),
@@ -41,7 +59,11 @@ export default defineConfig({
     // inside the package's own chunks (externalized deps bypass aliases).
     server: {
       deps: {
-        inline: ['@chaos_team/chaos-ui'],
+        inline: [
+          '@chaos_team/chaos-ui',
+          '@chaos_team/admin-ui-core',
+          '@chaos_team/admin-ui-react',
+        ],
       },
     },
   },

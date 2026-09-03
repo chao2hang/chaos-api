@@ -60,6 +60,24 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        '@chaos_team/admin-ui-core': path.resolve(
+          __dirname,
+          '../packages/admin-ui/core/src/index.ts'
+        ),
+        '@chaos_team/admin-ui-core/register': path.resolve(
+          __dirname,
+          '../packages/admin-ui/core/src/register.ts'
+        ),
+        '@chaos_team/admin-ui-core/styles.css': path.resolve(
+          __dirname,
+          '../packages/admin-ui/core/src/styles.css'
+        ),
+        '@chaos_team/admin-ui-react': path.resolve(
+          __dirname,
+          '../packages/admin-ui/react/src/index.tsx'
+        ),
+        react: path.resolve(__dirname, './node_modules/react'),
+        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
         // `@chaos_team/chaos-ui/layout` imports `next/link` at module scope for
         // its optional Next.js adapter. This app always passes its own
         // `linkComponent` (TanStack Router), so the adapter is never rendered

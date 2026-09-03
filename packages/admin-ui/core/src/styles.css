@@ -1,0 +1,87 @@
+/*
+Copyright (C) 2023-2026 Chaos
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License.
+*/
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap");
+@import "./tokens.css";
+
+.aui-root {
+  scrollbar-color: var(--aui-border) var(--aui-bg);
+  scrollbar-width: thin;
+}
+
+.aui-root ::selection {
+  color: var(--aui-text-inverse);
+  background: var(--aui-text-primary);
+}
+
+.aui-root ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.aui-root ::-webkit-scrollbar-track {
+  background: var(--aui-bg);
+}
+
+.aui-root ::-webkit-scrollbar-thumb {
+  background: var(--aui-border);
+}
+
+.aui-root ::-webkit-scrollbar-thumb:hover {
+  background: var(--aui-border-hover);
+}
+
+.aui-root .aui-no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.aui-root .aui-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Slotted table content lives in light DOM, so its data cells are styled here. */
+.aui-root > table,
+aui-table > table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--aui-text);
+  background: var(--aui-bg);
+  font: 12px/1.4 var(--aui-font-mono);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.aui-root > table thead,
+aui-table > table thead {
+  background: var(--aui-header);
+  color: var(--aui-text-secondary);
+  text-transform: uppercase;
+}
+
+.aui-root > table th,
+.aui-root > table td,
+aui-table > table th,
+aui-table > table td {
+  border-bottom: 1px solid #18181b;
+}
+
+.aui-root > table th,
+aui-table > table th {
+  padding: 12px 16px;
+  border-bottom-color: var(--aui-border);
+  font-weight: 500;
+}
+
+.aui-root > table td,
+aui-table > table td {
+  padding: 14px 16px;
+}
+
+.aui-root > table tbody tr:hover,
+aui-table > table tbody tr:hover {
+  background: rgb(39 39 42 / 50%);
+}

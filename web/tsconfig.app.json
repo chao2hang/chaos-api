@@ -19,7 +19,10 @@
 
     /* Alias */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@chaos_team/admin-ui-core": ["../packages/admin-ui/core/src/index.ts"],
+      "@chaos_team/admin-ui-core/*": ["../packages/admin-ui/core/src/*"],
+      "@chaos_team/admin-ui-react": ["../packages/admin-ui/react/src/index.tsx"]
     },
 
     /* Linting */
@@ -29,5 +32,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "../packages/admin-ui/core/src",
+    "../packages/admin-ui/react/src"
+  ]
 }

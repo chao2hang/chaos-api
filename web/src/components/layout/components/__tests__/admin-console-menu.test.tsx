@@ -43,7 +43,11 @@ describe('console menu conversion', () => {
       label: 'General',
     })
     expect(menu[0].children).toEqual([
-      { key: '/dashboard/overview', label: 'Overview', href: '/dashboard/overview' },
+      {
+        key: '/dashboard/overview',
+        label: 'Overview',
+        href: '/dashboard/overview',
+      },
       { key: '/keys', label: 'API Keys', href: '/keys' },
     ])
     expect(menu[1]).toMatchObject({ key: 'group:personal', label: 'Personal' })
@@ -57,8 +61,11 @@ describe('console menu conversion', () => {
           {
             title: 'Site & Branding',
             items: [
-              { title: 'General', url: '/system-settings/site/general' },
-              { title: 'Branding', url: '/system-settings/site/branding' },
+              { title: 'General', url: '/admin/system-settings/site/general' },
+              {
+                title: 'Branding',
+                url: '/admin/system-settings/site/branding',
+              },
             ],
           },
         ],
@@ -72,14 +79,14 @@ describe('console menu conversion', () => {
     })
     expect(parent?.children).toEqual([
       {
-        key: '/system-settings/site/general',
+        key: '/admin/system-settings/site/general',
         label: 'General',
-        href: '/system-settings/site/general',
+        href: '/admin/system-settings/site/general',
       },
       {
-        key: '/system-settings/site/branding',
+        key: '/admin/system-settings/site/branding',
         label: 'Branding',
-        href: '/system-settings/site/branding',
+        href: '/admin/system-settings/site/branding',
       },
     ])
   })

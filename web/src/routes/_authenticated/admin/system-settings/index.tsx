@@ -15,15 +15,12 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { createFileRoute } from '@tanstack/react-router'
-
-import { AdminPagePlaceholder } from '@/components/admin/admin-page-placeholder'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/admin/system-settings/')({
-  component: () => (
-    <AdminPagePlaceholder
-      titleKey='System Settings'
-      descriptionKey='Configure site, auth, billing, models, operations, and security options.'
-    />
-  ),
+  beforeLoad: () => {
+    throw redirect({
+      to: '/admin/system-settings/site',
+    })
+  },
 })

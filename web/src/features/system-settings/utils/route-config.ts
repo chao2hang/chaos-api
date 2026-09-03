@@ -46,7 +46,7 @@ export type SettingsRouteConfigOptions<
   defaultSection: TSectionId
   /** Settings component to render */
   component: TComponent
-  /** Route path for redirect (e.g., '/system-settings/site') */
+  /** Route path for redirect (e.g., '/admin/system-settings/site') */
   routePath: string
   /** Whether to redirect to default section if no section is provided (default: false) */
   redirectToDefault?: boolean
@@ -66,7 +66,7 @@ export type SettingsRouteConfigOptions<
  *     sectionIds: SITE_SECTION_IDS,
  *     defaultSection: SITE_DEFAULT_SECTION,
  *     component: SiteSettings,
- *     routePath: '/system-settings/site',
+ *     routePath: '/admin/system-settings/site',
  *     redirectToDefault: true,
  *   })
  * )

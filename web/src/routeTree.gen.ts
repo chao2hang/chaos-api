@@ -31,6 +31,7 @@ import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedAdminSystemSettingsRouteRouteImport } from './routes/_authenticated/admin/system-settings/route'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
@@ -59,6 +60,20 @@ import { Route as AuthenticatedAdminTaskPluginsIndexRouteImport } from './routes
 import { Route as AuthenticatedAdminUsageLogsIndexRouteImport } from './routes/_authenticated/admin/usage-logs/index'
 import { Route as AuthenticatedAdminUsageLogsSectionRouteImport } from './routes/_authenticated/admin/usage-logs/$section'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
+import { Route as AuthenticatedAdminSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/admin/system-settings/auth/index'
+import { Route as AuthenticatedAdminSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/admin/system-settings/auth/$section'
+import { Route as AuthenticatedAdminSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/admin/system-settings/billing/index'
+import { Route as AuthenticatedAdminSystemSettingsBillingSectionRouteImport } from './routes/_authenticated/admin/system-settings/billing/$section'
+import { Route as AuthenticatedAdminSystemSettingsContentIndexRouteImport } from './routes/_authenticated/admin/system-settings/content/index'
+import { Route as AuthenticatedAdminSystemSettingsContentSectionRouteImport } from './routes/_authenticated/admin/system-settings/content/$section'
+import { Route as AuthenticatedAdminSystemSettingsModelsIndexRouteImport } from './routes/_authenticated/admin/system-settings/models/index'
+import { Route as AuthenticatedAdminSystemSettingsModelsSectionRouteImport } from './routes/_authenticated/admin/system-settings/models/$section'
+import { Route as AuthenticatedAdminSystemSettingsOperationsIndexRouteImport } from './routes/_authenticated/admin/system-settings/operations/index'
+import { Route as AuthenticatedAdminSystemSettingsOperationsSectionRouteImport } from './routes/_authenticated/admin/system-settings/operations/$section'
+import { Route as AuthenticatedAdminSystemSettingsSecurityIndexRouteImport } from './routes/_authenticated/admin/system-settings/security/index'
+import { Route as AuthenticatedAdminSystemSettingsSecuritySectionRouteImport } from './routes/_authenticated/admin/system-settings/security/$section'
+import { Route as AuthenticatedAdminSystemSettingsSiteIndexRouteImport } from './routes/_authenticated/admin/system-settings/site/index'
+import { Route as AuthenticatedAdminSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/admin/system-settings/site/$section'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -168,6 +183,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
+const AuthenticatedAdminSystemSettingsRouteRoute =
+  AuthenticatedAdminSystemSettingsRouteRouteImport.update({
+    id: '/system-settings',
+    path: '/system-settings',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
@@ -306,9 +327,9 @@ const AuthenticatedAdminSystemInfoIndexRoute =
   } as any)
 const AuthenticatedAdminSystemSettingsIndexRoute =
   AuthenticatedAdminSystemSettingsIndexRouteImport.update({
-    id: '/system-settings/',
-    path: '/system-settings/',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
   } as any)
 const AuthenticatedAdminTaskPluginsIndexRoute =
   AuthenticatedAdminTaskPluginsIndexRouteImport.update({
@@ -334,6 +355,90 @@ const AuthenticatedAdminUsersIndexRoute =
     path: '/users/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminSystemSettingsAuthIndexRoute =
+  AuthenticatedAdminSystemSettingsAuthIndexRouteImport.update({
+    id: '/auth/',
+    path: '/auth/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsAuthSectionRoute =
+  AuthenticatedAdminSystemSettingsAuthSectionRouteImport.update({
+    id: '/auth/$section',
+    path: '/auth/$section',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsBillingIndexRoute =
+  AuthenticatedAdminSystemSettingsBillingIndexRouteImport.update({
+    id: '/billing/',
+    path: '/billing/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsBillingSectionRoute =
+  AuthenticatedAdminSystemSettingsBillingSectionRouteImport.update({
+    id: '/billing/$section',
+    path: '/billing/$section',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsContentIndexRoute =
+  AuthenticatedAdminSystemSettingsContentIndexRouteImport.update({
+    id: '/content/',
+    path: '/content/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsContentSectionRoute =
+  AuthenticatedAdminSystemSettingsContentSectionRouteImport.update({
+    id: '/content/$section',
+    path: '/content/$section',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsModelsIndexRoute =
+  AuthenticatedAdminSystemSettingsModelsIndexRouteImport.update({
+    id: '/models/',
+    path: '/models/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsModelsSectionRoute =
+  AuthenticatedAdminSystemSettingsModelsSectionRouteImport.update({
+    id: '/models/$section',
+    path: '/models/$section',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsOperationsIndexRoute =
+  AuthenticatedAdminSystemSettingsOperationsIndexRouteImport.update({
+    id: '/operations/',
+    path: '/operations/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsOperationsSectionRoute =
+  AuthenticatedAdminSystemSettingsOperationsSectionRouteImport.update({
+    id: '/operations/$section',
+    path: '/operations/$section',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsSecurityIndexRoute =
+  AuthenticatedAdminSystemSettingsSecurityIndexRouteImport.update({
+    id: '/security/',
+    path: '/security/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsSecuritySectionRoute =
+  AuthenticatedAdminSystemSettingsSecuritySectionRouteImport.update({
+    id: '/security/$section',
+    path: '/security/$section',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsSiteIndexRoute =
+  AuthenticatedAdminSystemSettingsSiteIndexRouteImport.update({
+    id: '/site/',
+    path: '/site/',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminSystemSettingsSiteSectionRoute =
+  AuthenticatedAdminSystemSettingsSiteSectionRouteImport.update({
+    id: '/site/$section',
+    path: '/site/$section',
+    getParentRoute: () => AuthenticatedAdminSystemSettingsRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -354,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
   '/setup/': typeof SetupIndexRoute
+  '/admin/system-settings': typeof AuthenticatedAdminSystemSettingsRouteRouteWithChildren
   '/user/reset': typeof authUserResetRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -384,6 +490,20 @@ export interface FileRoutesByFullPath {
   '/admin/task-plugins/': typeof AuthenticatedAdminTaskPluginsIndexRoute
   '/admin/usage-logs/': typeof AuthenticatedAdminUsageLogsIndexRoute
   '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
+  '/admin/system-settings/auth/$section': typeof AuthenticatedAdminSystemSettingsAuthSectionRoute
+  '/admin/system-settings/billing/$section': typeof AuthenticatedAdminSystemSettingsBillingSectionRoute
+  '/admin/system-settings/content/$section': typeof AuthenticatedAdminSystemSettingsContentSectionRoute
+  '/admin/system-settings/models/$section': typeof AuthenticatedAdminSystemSettingsModelsSectionRoute
+  '/admin/system-settings/operations/$section': typeof AuthenticatedAdminSystemSettingsOperationsSectionRoute
+  '/admin/system-settings/security/$section': typeof AuthenticatedAdminSystemSettingsSecuritySectionRoute
+  '/admin/system-settings/site/$section': typeof AuthenticatedAdminSystemSettingsSiteSectionRoute
+  '/admin/system-settings/auth/': typeof AuthenticatedAdminSystemSettingsAuthIndexRoute
+  '/admin/system-settings/billing/': typeof AuthenticatedAdminSystemSettingsBillingIndexRoute
+  '/admin/system-settings/content/': typeof AuthenticatedAdminSystemSettingsContentIndexRoute
+  '/admin/system-settings/models/': typeof AuthenticatedAdminSystemSettingsModelsIndexRoute
+  '/admin/system-settings/operations/': typeof AuthenticatedAdminSystemSettingsOperationsIndexRoute
+  '/admin/system-settings/security/': typeof AuthenticatedAdminSystemSettingsSecurityIndexRoute
+  '/admin/system-settings/site/': typeof AuthenticatedAdminSystemSettingsSiteIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -433,6 +553,20 @@ export interface FileRoutesByTo {
   '/admin/task-plugins': typeof AuthenticatedAdminTaskPluginsIndexRoute
   '/admin/usage-logs': typeof AuthenticatedAdminUsageLogsIndexRoute
   '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
+  '/admin/system-settings/auth/$section': typeof AuthenticatedAdminSystemSettingsAuthSectionRoute
+  '/admin/system-settings/billing/$section': typeof AuthenticatedAdminSystemSettingsBillingSectionRoute
+  '/admin/system-settings/content/$section': typeof AuthenticatedAdminSystemSettingsContentSectionRoute
+  '/admin/system-settings/models/$section': typeof AuthenticatedAdminSystemSettingsModelsSectionRoute
+  '/admin/system-settings/operations/$section': typeof AuthenticatedAdminSystemSettingsOperationsSectionRoute
+  '/admin/system-settings/security/$section': typeof AuthenticatedAdminSystemSettingsSecuritySectionRoute
+  '/admin/system-settings/site/$section': typeof AuthenticatedAdminSystemSettingsSiteSectionRoute
+  '/admin/system-settings/auth': typeof AuthenticatedAdminSystemSettingsAuthIndexRoute
+  '/admin/system-settings/billing': typeof AuthenticatedAdminSystemSettingsBillingIndexRoute
+  '/admin/system-settings/content': typeof AuthenticatedAdminSystemSettingsContentIndexRoute
+  '/admin/system-settings/models': typeof AuthenticatedAdminSystemSettingsModelsIndexRoute
+  '/admin/system-settings/operations': typeof AuthenticatedAdminSystemSettingsOperationsIndexRoute
+  '/admin/system-settings/security': typeof AuthenticatedAdminSystemSettingsSecurityIndexRoute
+  '/admin/system-settings/site': typeof AuthenticatedAdminSystemSettingsSiteIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -456,6 +590,7 @@ export interface FileRoutesById {
   '/(errors)/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
   '/setup/': typeof SetupIndexRoute
+  '/_authenticated/admin/system-settings': typeof AuthenticatedAdminSystemSettingsRouteRouteWithChildren
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -486,6 +621,20 @@ export interface FileRoutesById {
   '/_authenticated/admin/task-plugins/': typeof AuthenticatedAdminTaskPluginsIndexRoute
   '/_authenticated/admin/usage-logs/': typeof AuthenticatedAdminUsageLogsIndexRoute
   '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
+  '/_authenticated/admin/system-settings/auth/$section': typeof AuthenticatedAdminSystemSettingsAuthSectionRoute
+  '/_authenticated/admin/system-settings/billing/$section': typeof AuthenticatedAdminSystemSettingsBillingSectionRoute
+  '/_authenticated/admin/system-settings/content/$section': typeof AuthenticatedAdminSystemSettingsContentSectionRoute
+  '/_authenticated/admin/system-settings/models/$section': typeof AuthenticatedAdminSystemSettingsModelsSectionRoute
+  '/_authenticated/admin/system-settings/operations/$section': typeof AuthenticatedAdminSystemSettingsOperationsSectionRoute
+  '/_authenticated/admin/system-settings/security/$section': typeof AuthenticatedAdminSystemSettingsSecuritySectionRoute
+  '/_authenticated/admin/system-settings/site/$section': typeof AuthenticatedAdminSystemSettingsSiteSectionRoute
+  '/_authenticated/admin/system-settings/auth/': typeof AuthenticatedAdminSystemSettingsAuthIndexRoute
+  '/_authenticated/admin/system-settings/billing/': typeof AuthenticatedAdminSystemSettingsBillingIndexRoute
+  '/_authenticated/admin/system-settings/content/': typeof AuthenticatedAdminSystemSettingsContentIndexRoute
+  '/_authenticated/admin/system-settings/models/': typeof AuthenticatedAdminSystemSettingsModelsIndexRoute
+  '/_authenticated/admin/system-settings/operations/': typeof AuthenticatedAdminSystemSettingsOperationsIndexRoute
+  '/_authenticated/admin/system-settings/security/': typeof AuthenticatedAdminSystemSettingsSecurityIndexRoute
+  '/_authenticated/admin/system-settings/site/': typeof AuthenticatedAdminSystemSettingsSiteIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -508,6 +657,7 @@ export interface FileRouteTypes {
     | '/503'
     | '/oauth/$provider'
     | '/setup/'
+    | '/admin/system-settings'
     | '/user/reset'
     | '/dashboard/$section'
     | '/errors/$error'
@@ -538,6 +688,20 @@ export interface FileRouteTypes {
     | '/admin/task-plugins/'
     | '/admin/usage-logs/'
     | '/admin/users/'
+    | '/admin/system-settings/auth/$section'
+    | '/admin/system-settings/billing/$section'
+    | '/admin/system-settings/content/$section'
+    | '/admin/system-settings/models/$section'
+    | '/admin/system-settings/operations/$section'
+    | '/admin/system-settings/security/$section'
+    | '/admin/system-settings/site/$section'
+    | '/admin/system-settings/auth/'
+    | '/admin/system-settings/billing/'
+    | '/admin/system-settings/content/'
+    | '/admin/system-settings/models/'
+    | '/admin/system-settings/operations/'
+    | '/admin/system-settings/security/'
+    | '/admin/system-settings/site/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -587,6 +751,20 @@ export interface FileRouteTypes {
     | '/admin/task-plugins'
     | '/admin/usage-logs'
     | '/admin/users'
+    | '/admin/system-settings/auth/$section'
+    | '/admin/system-settings/billing/$section'
+    | '/admin/system-settings/content/$section'
+    | '/admin/system-settings/models/$section'
+    | '/admin/system-settings/operations/$section'
+    | '/admin/system-settings/security/$section'
+    | '/admin/system-settings/site/$section'
+    | '/admin/system-settings/auth'
+    | '/admin/system-settings/billing'
+    | '/admin/system-settings/content'
+    | '/admin/system-settings/models'
+    | '/admin/system-settings/operations'
+    | '/admin/system-settings/security'
+    | '/admin/system-settings/site'
   id:
     | '__root__'
     | '/'
@@ -609,6 +787,7 @@ export interface FileRouteTypes {
     | '/(errors)/503'
     | '/oauth/$provider'
     | '/setup/'
+    | '/_authenticated/admin/system-settings'
     | '/(auth)/user/reset'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
@@ -639,6 +818,20 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/task-plugins/'
     | '/_authenticated/admin/usage-logs/'
     | '/_authenticated/admin/users/'
+    | '/_authenticated/admin/system-settings/auth/$section'
+    | '/_authenticated/admin/system-settings/billing/$section'
+    | '/_authenticated/admin/system-settings/content/$section'
+    | '/_authenticated/admin/system-settings/models/$section'
+    | '/_authenticated/admin/system-settings/operations/$section'
+    | '/_authenticated/admin/system-settings/security/$section'
+    | '/_authenticated/admin/system-settings/site/$section'
+    | '/_authenticated/admin/system-settings/auth/'
+    | '/_authenticated/admin/system-settings/billing/'
+    | '/_authenticated/admin/system-settings/content/'
+    | '/_authenticated/admin/system-settings/models/'
+    | '/_authenticated/admin/system-settings/operations/'
+    | '/_authenticated/admin/system-settings/security/'
+    | '/_authenticated/admin/system-settings/site/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -812,6 +1005,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/system-settings': {
+      id: '/_authenticated/admin/system-settings'
+      path: '/system-settings'
+      fullPath: '/admin/system-settings'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/channels/': {
       id: '/_authenticated/channels/'
       path: '/channels'
@@ -975,10 +1175,10 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/admin/system-settings/': {
       id: '/_authenticated/admin/system-settings/'
-      path: '/system-settings'
+      path: '/'
       fullPath: '/admin/system-settings/'
       preLoaderRoute: typeof AuthenticatedAdminSystemSettingsIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
     }
     '/_authenticated/admin/task-plugins/': {
       id: '/_authenticated/admin/task-plugins/'
@@ -1007,6 +1207,104 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users/'
       preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/system-settings/auth/': {
+      id: '/_authenticated/admin/system-settings/auth/'
+      path: '/auth'
+      fullPath: '/admin/system-settings/auth/'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsAuthIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/auth/$section': {
+      id: '/_authenticated/admin/system-settings/auth/$section'
+      path: '/auth/$section'
+      fullPath: '/admin/system-settings/auth/$section'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsAuthSectionRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/billing/': {
+      id: '/_authenticated/admin/system-settings/billing/'
+      path: '/billing'
+      fullPath: '/admin/system-settings/billing/'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsBillingIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/billing/$section': {
+      id: '/_authenticated/admin/system-settings/billing/$section'
+      path: '/billing/$section'
+      fullPath: '/admin/system-settings/billing/$section'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsBillingSectionRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/content/': {
+      id: '/_authenticated/admin/system-settings/content/'
+      path: '/content'
+      fullPath: '/admin/system-settings/content/'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsContentIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/content/$section': {
+      id: '/_authenticated/admin/system-settings/content/$section'
+      path: '/content/$section'
+      fullPath: '/admin/system-settings/content/$section'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsContentSectionRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/models/': {
+      id: '/_authenticated/admin/system-settings/models/'
+      path: '/models'
+      fullPath: '/admin/system-settings/models/'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsModelsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/models/$section': {
+      id: '/_authenticated/admin/system-settings/models/$section'
+      path: '/models/$section'
+      fullPath: '/admin/system-settings/models/$section'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsModelsSectionRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/operations/': {
+      id: '/_authenticated/admin/system-settings/operations/'
+      path: '/operations'
+      fullPath: '/admin/system-settings/operations/'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsOperationsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/operations/$section': {
+      id: '/_authenticated/admin/system-settings/operations/$section'
+      path: '/operations/$section'
+      fullPath: '/admin/system-settings/operations/$section'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsOperationsSectionRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/security/': {
+      id: '/_authenticated/admin/system-settings/security/'
+      path: '/security'
+      fullPath: '/admin/system-settings/security/'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsSecurityIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/security/$section': {
+      id: '/_authenticated/admin/system-settings/security/$section'
+      path: '/security/$section'
+      fullPath: '/admin/system-settings/security/$section'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsSecuritySectionRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/site/': {
+      id: '/_authenticated/admin/system-settings/site/'
+      path: '/site'
+      fullPath: '/admin/system-settings/site/'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsSiteIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
+    }
+    '/_authenticated/admin/system-settings/site/$section': {
+      id: '/_authenticated/admin/system-settings/site/$section'
+      path: '/site/$section'
+      fullPath: '/admin/system-settings/site/$section'
+      preLoaderRoute: typeof AuthenticatedAdminSystemSettingsSiteSectionRouteImport
+      parentRoute: typeof AuthenticatedAdminSystemSettingsRouteRoute
     }
   }
 }
@@ -1037,7 +1335,65 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
   authRouteRouteChildren,
 )
 
+interface AuthenticatedAdminSystemSettingsRouteRouteChildren {
+  AuthenticatedAdminSystemSettingsIndexRoute: typeof AuthenticatedAdminSystemSettingsIndexRoute
+  AuthenticatedAdminSystemSettingsAuthSectionRoute: typeof AuthenticatedAdminSystemSettingsAuthSectionRoute
+  AuthenticatedAdminSystemSettingsBillingSectionRoute: typeof AuthenticatedAdminSystemSettingsBillingSectionRoute
+  AuthenticatedAdminSystemSettingsContentSectionRoute: typeof AuthenticatedAdminSystemSettingsContentSectionRoute
+  AuthenticatedAdminSystemSettingsModelsSectionRoute: typeof AuthenticatedAdminSystemSettingsModelsSectionRoute
+  AuthenticatedAdminSystemSettingsOperationsSectionRoute: typeof AuthenticatedAdminSystemSettingsOperationsSectionRoute
+  AuthenticatedAdminSystemSettingsSecuritySectionRoute: typeof AuthenticatedAdminSystemSettingsSecuritySectionRoute
+  AuthenticatedAdminSystemSettingsSiteSectionRoute: typeof AuthenticatedAdminSystemSettingsSiteSectionRoute
+  AuthenticatedAdminSystemSettingsAuthIndexRoute: typeof AuthenticatedAdminSystemSettingsAuthIndexRoute
+  AuthenticatedAdminSystemSettingsBillingIndexRoute: typeof AuthenticatedAdminSystemSettingsBillingIndexRoute
+  AuthenticatedAdminSystemSettingsContentIndexRoute: typeof AuthenticatedAdminSystemSettingsContentIndexRoute
+  AuthenticatedAdminSystemSettingsModelsIndexRoute: typeof AuthenticatedAdminSystemSettingsModelsIndexRoute
+  AuthenticatedAdminSystemSettingsOperationsIndexRoute: typeof AuthenticatedAdminSystemSettingsOperationsIndexRoute
+  AuthenticatedAdminSystemSettingsSecurityIndexRoute: typeof AuthenticatedAdminSystemSettingsSecurityIndexRoute
+  AuthenticatedAdminSystemSettingsSiteIndexRoute: typeof AuthenticatedAdminSystemSettingsSiteIndexRoute
+}
+
+const AuthenticatedAdminSystemSettingsRouteRouteChildren: AuthenticatedAdminSystemSettingsRouteRouteChildren =
+  {
+    AuthenticatedAdminSystemSettingsIndexRoute:
+      AuthenticatedAdminSystemSettingsIndexRoute,
+    AuthenticatedAdminSystemSettingsAuthSectionRoute:
+      AuthenticatedAdminSystemSettingsAuthSectionRoute,
+    AuthenticatedAdminSystemSettingsBillingSectionRoute:
+      AuthenticatedAdminSystemSettingsBillingSectionRoute,
+    AuthenticatedAdminSystemSettingsContentSectionRoute:
+      AuthenticatedAdminSystemSettingsContentSectionRoute,
+    AuthenticatedAdminSystemSettingsModelsSectionRoute:
+      AuthenticatedAdminSystemSettingsModelsSectionRoute,
+    AuthenticatedAdminSystemSettingsOperationsSectionRoute:
+      AuthenticatedAdminSystemSettingsOperationsSectionRoute,
+    AuthenticatedAdminSystemSettingsSecuritySectionRoute:
+      AuthenticatedAdminSystemSettingsSecuritySectionRoute,
+    AuthenticatedAdminSystemSettingsSiteSectionRoute:
+      AuthenticatedAdminSystemSettingsSiteSectionRoute,
+    AuthenticatedAdminSystemSettingsAuthIndexRoute:
+      AuthenticatedAdminSystemSettingsAuthIndexRoute,
+    AuthenticatedAdminSystemSettingsBillingIndexRoute:
+      AuthenticatedAdminSystemSettingsBillingIndexRoute,
+    AuthenticatedAdminSystemSettingsContentIndexRoute:
+      AuthenticatedAdminSystemSettingsContentIndexRoute,
+    AuthenticatedAdminSystemSettingsModelsIndexRoute:
+      AuthenticatedAdminSystemSettingsModelsIndexRoute,
+    AuthenticatedAdminSystemSettingsOperationsIndexRoute:
+      AuthenticatedAdminSystemSettingsOperationsIndexRoute,
+    AuthenticatedAdminSystemSettingsSecurityIndexRoute:
+      AuthenticatedAdminSystemSettingsSecurityIndexRoute,
+    AuthenticatedAdminSystemSettingsSiteIndexRoute:
+      AuthenticatedAdminSystemSettingsSiteIndexRoute,
+  }
+
+const AuthenticatedAdminSystemSettingsRouteRouteWithChildren =
+  AuthenticatedAdminSystemSettingsRouteRoute._addFileChildren(
+    AuthenticatedAdminSystemSettingsRouteRouteChildren,
+  )
+
 interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminSystemSettingsRouteRoute: typeof AuthenticatedAdminSystemSettingsRouteRouteWithChildren
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminUsageLogsSectionRoute: typeof AuthenticatedAdminUsageLogsSectionRoute
   AuthenticatedAdminChannelsIndexRoute: typeof AuthenticatedAdminChannelsIndexRoute
@@ -1045,7 +1401,6 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminRedemptionCodesIndexRoute: typeof AuthenticatedAdminRedemptionCodesIndexRoute
   AuthenticatedAdminSubscriptionsIndexRoute: typeof AuthenticatedAdminSubscriptionsIndexRoute
   AuthenticatedAdminSystemInfoIndexRoute: typeof AuthenticatedAdminSystemInfoIndexRoute
-  AuthenticatedAdminSystemSettingsIndexRoute: typeof AuthenticatedAdminSystemSettingsIndexRoute
   AuthenticatedAdminTaskPluginsIndexRoute: typeof AuthenticatedAdminTaskPluginsIndexRoute
   AuthenticatedAdminUsageLogsIndexRoute: typeof AuthenticatedAdminUsageLogsIndexRoute
   AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
@@ -1053,6 +1408,8 @@ interface AuthenticatedAdminRouteRouteChildren {
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
   {
+    AuthenticatedAdminSystemSettingsRouteRoute:
+      AuthenticatedAdminSystemSettingsRouteRouteWithChildren,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
     AuthenticatedAdminUsageLogsSectionRoute:
       AuthenticatedAdminUsageLogsSectionRoute,
@@ -1064,8 +1421,6 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
       AuthenticatedAdminSubscriptionsIndexRoute,
     AuthenticatedAdminSystemInfoIndexRoute:
       AuthenticatedAdminSystemInfoIndexRoute,
-    AuthenticatedAdminSystemSettingsIndexRoute:
-      AuthenticatedAdminSystemSettingsIndexRoute,
     AuthenticatedAdminTaskPluginsIndexRoute:
       AuthenticatedAdminTaskPluginsIndexRoute,
     AuthenticatedAdminUsageLogsIndexRoute:

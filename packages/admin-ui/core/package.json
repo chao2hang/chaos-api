@@ -1,0 +1,19 @@
+{
+  "name": "@chaos_team/admin-ui-core",
+  "version": "0.1.0",
+  "description": "Framework-agnostic industrial admin components based on Web Components.",
+  "type": "module",
+  "sideEffects": ["./src/register.ts", "./src/styles.css"],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./register": "./src/register.ts",
+    "./styles.css": "./src/styles.css",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "peerDependencies": {
+    "lit": ">=3.0.0"
+  }
+}

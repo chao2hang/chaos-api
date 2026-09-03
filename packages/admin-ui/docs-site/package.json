@@ -1,0 +1,25 @@
+{
+  "name": "@chaos_team/admin-ui-docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Documentation site and interactive playground for Chaos Admin UI.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "../../../web/node_modules/.bin/tsgo -p tsconfig.json",
+    "lint": "../../../web/node_modules/.bin/oxlint -c ../../../web/.oxlintrc.json src",
+    "format": "../../../web/node_modules/.bin/oxfmt --write src index.html vite.config.ts",
+    "format:check": "../../../web/node_modules/.bin/oxfmt --check src index.html vite.config.ts",
+    "test:smoke": "../../../web/node_modules/.bin/tsgo -p tsconfig.json && ../../../web/node_modules/.bin/vite build"
+  },
+  "dependencies": {
+    "@chaos_team/admin-ui-core": "workspace:*",
+    "lit": "^3.3.0",
+    "vite": "^8.0.0"
+  },
+  "devDependencies": {
+    "typescript": ">=5.7.0"
+  }
+}

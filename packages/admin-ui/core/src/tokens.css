@@ -1,0 +1,82 @@
+/*
+Copyright (C) 2023-2026 Chaos
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License.
+*/
+
+:root {
+  --aui-bg: #0a0a0a;
+  --aui-surface: #0f0f0f;
+  --aui-surface-subtle: #0c0c0c;
+  --aui-header: #18181b;
+  --aui-border: #262626;
+  --aui-border-hover: #404040;
+  --aui-focus: #a1a1aa;
+  --aui-text: #e5e5e5;
+  --aui-text-primary: #ffffff;
+  --aui-text-secondary: #737373;
+  --aui-text-muted: #52525b;
+  --aui-text-inverse: #000000;
+  --aui-success: #10b981;
+  --aui-danger: #ef4444;
+  --aui-danger-hover: #f87171;
+  --aui-warning: #f59e0b;
+  --aui-info: #60a5fa;
+  --aui-font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --aui-font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --aui-radius: 0px;
+  --aui-control-height: 36px;
+  --aui-control-height-compact: 32px;
+  --aui-sidebar-width: 256px;
+  --aui-header-height: 64px;
+  --aui-page-padding: 32px;
+  --aui-transition: 160ms ease-in-out;
+}
+
+.aui-root,
+.aui-root :where(*) {
+  box-sizing: border-box;
+}
+
+.aui-root {
+  color: var(--aui-text);
+  background: var(--aui-bg);
+  font-family: var(--aui-font-ui);
+  line-height: 1.45;
+}
+
+.aui-mono {
+  font-family: var(--aui-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.aui-root :where(button, input, select, textarea) {
+  font: inherit;
+}
+
+.aui-root :where(button, [role="button"], a, input, select, textarea):focus-visible {
+  outline: 1px solid var(--aui-focus);
+  outline-offset: 2px;
+}
+
+.aui-root :where(button, [role="button"]):disabled,
+.aui-root :where([aria-disabled="true"]) {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+@media (max-width: 767px) {
+  .aui-root :where(input, select, textarea) {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aui-root :where(*) {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

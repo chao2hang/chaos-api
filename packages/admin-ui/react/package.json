@@ -1,0 +1,16 @@
+{
+  "name": "@chaos_team/admin-ui-react",
+  "version": "0.1.0",
+  "description": "React bindings for the Chaos industrial admin component library.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "peerDependencies": {
+    "@chaos_team/admin-ui-core": "^0.1.0",
+    "react": ">=18.0.0"
+  }
+}

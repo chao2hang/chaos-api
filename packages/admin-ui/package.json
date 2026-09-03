@@ -1,0 +1,38 @@
+{
+  "name": "@chaos_team/admin-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Obsidian Industrial Console component library for React, Vue and Svelte.",
+  "workspaces": [
+    "core",
+    "react",
+    "vue",
+    "svelte",
+    "docs-site"
+  ],
+  "type": "module",
+  "scripts": {
+    "typecheck:core": "../../web/node_modules/.bin/tsgo -p core/tsconfig.json",
+    "typecheck:react": "../../web/node_modules/.bin/tsgo -p react/tsconfig.json",
+    "test": "vitest run",
+    "format:check": "oxfmt --check core/src react/src vue/src svelte/src",
+    "format": "oxfmt --write core/src react/src vue/src svelte/src",
+    "typecheck:vue": "../../web/node_modules/.bin/tsgo -p vue/tsconfig.json",
+    "check:svelte": "node scripts/check-svelte.mjs",
+    "typecheck": "bun run typecheck:core && bun run typecheck:react && bun run typecheck:vue",
+    "docs:dev": "bun --cwd docs-site run dev",
+    "docs:build": "bun --cwd docs-site run build",
+    "docs:preview": "bun --cwd docs-site run preview"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^29.0.0",
+    "lit": "^3.3.0",
+    "react": "^19.0.0",
+    "svelte": "^5.0.0",
+    "typescript": ">=5.7.0",
+    "vitest": "^4.0.0",
+    "vue": "^3.5.0"
+  }
+}
