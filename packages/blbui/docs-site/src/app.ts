@@ -85,7 +85,7 @@ root.innerHTML = `
   <aside class="docs-sidebar">
     <a class="brand" href="#overview" data-nav="overview" aria-label="BLBUI home">
       <span class="brand-mark"><i></i></span>
-      <span class="brand-copy"><strong>CHAOS_API</strong><small>BLBUI / DOCS</small></span>
+      <span class="brand-copy"><strong>BLBUI</strong><small>UI LIBRARY / DOCS</small></span>
     </a>
     <div class="sidebar-rule"></div>
     <label class="docs-search"><span aria-hidden="true">⌕</span><input id="docs-search" type="search" placeholder="SEARCH COMPONENTS" aria-label="Search components" /></label>
@@ -94,8 +94,8 @@ root.innerHTML = `
   </aside>
   <div class="docs-main">
     <header class="docs-header">
-      <div class="header-path"><span>DOCS:</span> CHAOS BLBUI <b>/</b> COMPONENT SYSTEM</div>
-      <div class="header-tools"><a href="https://github.com/chao2hang/chaos-api" target="_blank" rel="noreferrer">GITHUB ↗</a><button type="button" class="header-menu" aria-label="Open navigation">MENU</button></div>
+      <div class="header-path"><span>DOCS:</span> BLBUI <b>/</b> COMPONENT SYSTEM</div>
+      <div class="header-tools"><a href="https://github.com/chao2hang/blbui" target="_blank" rel="noreferrer">GITHUB ↗</a><button type="button" class="header-menu" aria-label="Open navigation">MENU</button></div>
     </header>
     <main class="docs-content">
       <section class="docs-hero" id="overview">
@@ -119,7 +119,7 @@ root.innerHTML = `
       <section class="content-section framework-section" id="frameworks"><div class="section-heading"><span class="section-index">03</span><div><p class="eyebrow">INTEGRATION</p><h2>One system. Your stack.</h2></div></div><p class="section-intro">The core owns behavior and visual language. Thin adapters make the same components feel native in every supported framework.</p><div class="framework-tabs" role="tablist" aria-label="Framework examples">${["react", "vue", "svelte", "web"].map((framework, index) => `<button type="button" role="tab" aria-selected="${index === 0}" data-framework="${framework}">${framework === "web" ? "WEB COMPONENTS" : framework.toUpperCase()}</button>`).join("")}</div><pre class="framework-code" aria-live="polite"></pre><div class="install-row"><span>INSTALL</span><code>bun add @chaos_team/blbui-react @chaos_team/blbui-core</code><button type="button" class="copy-install">COPY</button></div></section>
       <section class="content-section accessibility-section" id="accessibility"><div class="section-heading"><span class="section-index">04</span><div><p class="eyebrow">QUALITY BAR</p><h2>Accessible by default</h2></div></div><div class="a11y-list"><div><strong>01</strong><span>Native elements first</span><p>Buttons, inputs, select, table and dialog preserve browser semantics.</p></div><div><strong>02</strong><span>State has meaning</span><p>Active, selected, disabled, loading and error states expose ARIA semantics.</p></div><div><strong>03</strong><span>Motion is optional</span><p>Transitions and shimmer respect <code>prefers-reduced-motion</code>.</p></div></div></section>
     </main>
-    <footer class="docs-footer"><span>CHAOS BLBUI / DOCUMENTATION</span><span>BUILT FOR OPERATORS, NOT DECORATION.</span></footer>
+    <footer class="docs-footer"><span>BLBUI / DOCUMENTATION</span><span>BUILT FOR OPERATORS, NOT DECORATION.</span></footer>
   </div>
 `;
 
