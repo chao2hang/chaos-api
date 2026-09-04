@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/i18n"
 	"github.com/chaos-api/chaos-api/model"
 	"github.com/chaos-api/chaos-api/pkg/jsplugin"
 	"github.com/chaos-api/chaos-api/service"
@@ -36,15 +34,6 @@ var completionRatioMetaOptionKeys = []string{
 
 func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
-}
-
-func isPositiveOptionValue(value string) bool {
-	intValue, err := strconv.Atoi(strings.TrimSpace(value))
-	if err == nil {
-		return intValue > 0
-	}
-	floatValue, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
-	return err == nil && floatValue > 0
 }
 
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
@@ -145,17 +134,9 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
-	switch option.Key {
-	case "QuotaForInviter", "QuotaForInvitee":
-		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
-			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
-			return
-		}
-	default:
-		if isPaymentComplianceOptionKey(option.Key) {
-			common.ApiErrorMsg(c, "合规确认字段不允许通过通用设置接口修改")
-			return
-		}
+	if isPaymentComplianceOptionKey(option.Key) {
+		common.ApiErrorMsg(c, "合规确认字段不允许通过通用设置接口修改")
+		return
 	}
 	if option.Key == "TaskPublicAddress" && option.Value.(string) != "" {
 		if err := service.ValidateTaskArtifactBaseURL(option.Value.(string)); err != nil {
