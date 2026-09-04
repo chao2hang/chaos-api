@@ -58,22 +58,43 @@ export class AdminTableElement extends AdminElement {
     }
     .spinner {
       width: 12px;
-      height: 12px;
-      border: 1px solid currentColor;
-      border-right-color: transparent;
-      animation: spin 650ms linear infinite;
+      height: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
     }
-    ::slotted(table) {
-      min-width: 640px;
+    .spinner i {
+      width: 3px;
+      height: 6px;
+      display: block;
+      background: currentColor;
+      animation: pulse 800ms ease-in-out infinite;
     }
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
+    .spinner i:nth-child(2) {
+      animation-delay: 100ms;
+    }
+    .spinner i:nth-child(3) {
+      animation-delay: 200ms;
+    }
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 0.35;
+        transform: scaleY(0.7);
+      }
+      50% {
+        opacity: 1;
+        transform: scaleY(1);
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .spinner {
+      .spinner,
+      .spinner::before,
+      .spinner::after {
         animation: none;
+        opacity: 1;
+        transform: none;
       }
     }
   `;
@@ -87,7 +108,8 @@ export class AdminTableElement extends AdminElement {
     return html`<div class="frame">
       <div class="scroll"><slot></slot></div>
       <div class="state loading-state">
-        <span class="spinner" aria-hidden="true"></span><span>${this.loadingLabel}</span>
+        <span class="spinner" aria-hidden="true"><i></i><i></i><i></i></span
+        ><span>${this.loadingLabel}</span>
       </div>
       <div class="state empty-state" role="status">${this.emptyLabel}</div>
     </div>`;

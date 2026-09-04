@@ -52,24 +52,50 @@ export class AdminSpinnerElement extends AdminElement {
     }
     .spinner {
       width: 16px;
-      height: 16px;
-      border: 1px solid currentColor;
-      border-right-color: transparent;
-      animation: spin 650ms linear infinite;
+      height: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
     }
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
+    .spinner i {
+      width: 3px;
+      height: 6px;
+      display: block;
+      background: currentColor;
+      animation: pulse 800ms ease-in-out infinite;
+    }
+    .spinner i:nth-child(2) {
+      animation-delay: 100ms;
+    }
+    .spinner i:nth-child(3) {
+      animation-delay: 200ms;
+    }
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 0.35;
+        transform: scaleY(0.7);
+      }
+      50% {
+        opacity: 1;
+        transform: scaleY(1);
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .spinner {
+      .spinner,
+      .spinner::before,
+      .spinner::after {
         animation: none;
+        opacity: 1;
+        transform: none;
       }
     }
   `;
   render() {
-    return html`<span class="spinner" role="status" aria-label="loading"></span>`;
+    return html`<span class="spinner" role="status" aria-label="loading"
+      ><i></i><i></i><i></i
+    ></span>`;
   }
 }
 
