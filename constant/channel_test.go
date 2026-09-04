@@ -40,3 +40,51 @@ func TestVolcengineChannelSpecialBases(t *testing.T) {
 		assert.Equal(t, "https://ark.cn-beijing.volces.com/api/plan/v3", base.OpenAIBaseURL)
 	}
 }
+
+func TestDomesticCodingPlanSpecialBases(t *testing.T) {
+	minimaxPlans := []string{
+		"minimax-coding-plan",
+		"https://api.minimax.cn/anthropic",
+	}
+	for _, p := range minimaxPlans {
+		base, ok := ChannelSpecialBases[p]
+		assert.True(t, ok, "expected plan %s in ChannelSpecialBases", p)
+		assert.Equal(t, "https://api.minimax.cn/anthropic", base.ClaudeBaseURL)
+		assert.Equal(t, "https://api.minimax.cn/v1", base.OpenAIBaseURL)
+	}
+
+	minimaxIntlPlans := []string{
+		"minimax-coding-plan-international",
+		"https://api.minimax.io/anthropic",
+	}
+	for _, p := range minimaxIntlPlans {
+		base, ok := ChannelSpecialBases[p]
+		assert.True(t, ok, "expected plan %s in ChannelSpecialBases", p)
+		assert.Equal(t, "https://api.minimax.io/anthropic", base.ClaudeBaseURL)
+		assert.Equal(t, "https://api.minimax.io/v1", base.OpenAIBaseURL)
+	}
+
+	bailianPlans := []string{
+		"bailian-coding-plan",
+		"qwen-coding-plan",
+		"https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		"https://coding.dashscope.aliyuncs.com/v1",
+	}
+	for _, p := range bailianPlans {
+		base, ok := ChannelSpecialBases[p]
+		assert.True(t, ok, "expected plan %s in ChannelSpecialBases", p)
+		assert.Equal(t, "https://coding.dashscope.aliyuncs.com/apps/anthropic", base.ClaudeBaseURL)
+		assert.Equal(t, "https://coding.dashscope.aliyuncs.com/v1", base.OpenAIBaseURL)
+	}
+
+	kimiPlatformPlans := []string{
+		"kimi-api-platform",
+		"https://api.moonshot.cn/anthropic",
+	}
+	for _, p := range kimiPlatformPlans {
+		base, ok := ChannelSpecialBases[p]
+		assert.True(t, ok, "expected plan %s in ChannelSpecialBases", p)
+		assert.Equal(t, "https://api.moonshot.cn/anthropic", base.ClaudeBaseURL)
+		assert.Equal(t, "https://api.moonshot.cn/v1", base.OpenAIBaseURL)
+	}
+}

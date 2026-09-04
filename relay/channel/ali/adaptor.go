@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/chaos-api/chaos-api/common"
+	channelconstant "github.com/chaos-api/chaos-api/constant"
 	"github.com/chaos-api/chaos-api/relay/channel"
 	"github.com/chaos-api/chaos-api/relay/channel/claude"
 	"github.com/chaos-api/chaos-api/relay/channel/openai"
@@ -93,40 +94,61 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = channelconstant.GetChannelBaseURL(channelconstant.ChannelTypeAli)
+	}
+	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseURL]
+
 	var fullRequestURL string
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if supportsAliAnthropicMessages(info.UpstreamModelName) {
-			fullRequestURL = fmt.Sprintf("%s/apps/anthropic/v1/messages", info.ChannelBaseUrl)
-		} else {
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl)
+		switch {
+		case hasSpecialPlan && specialPlan.ClaudeBaseURL != "":
+			fullRequestURL = fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL)
+		case supportsAliAnthropicMessages(info.UpstreamModelName):
+			fullRequestURL = fmt.Sprintf("%s/apps/anthropic/v1/messages", baseURL)
+		default:
+			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", baseURL)
 		}
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeEmbeddings:
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/embeddings", info.ChannelBaseUrl)
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				fullRequestURL = fmt.Sprintf("%s/embeddings", specialPlan.OpenAIBaseURL)
+			} else {
+				fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/embeddings", baseURL)
+			}
 		case constant.RelayModeRerank:
-			fullRequestURL = fmt.Sprintf("%s/api/v1/services/rerank/text-rerank/text-rerank", info.ChannelBaseUrl)
+			fullRequestURL = fmt.Sprintf("%s/api/v1/services/rerank/text-rerank/text-rerank", baseURL)
 		case constant.RelayModeResponses:
-			fullRequestURL = fmt.Sprintf("%s/api/v2/apps/protocols/compatible-mode/v1/responses", info.ChannelBaseUrl)
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				fullRequestURL = fmt.Sprintf("%s/responses", specialPlan.OpenAIBaseURL)
+			} else {
+				fullRequestURL = fmt.Sprintf("%s/api/v2/apps/protocols/compatible-mode/v1/responses", baseURL)
+			}
 		case constant.RelayModeImagesGenerations:
 			if isSyncImageModel(info.UpstreamModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", baseURL)
 			} else {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/text2image/image-synthesis", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/text2image/image-synthesis", baseURL)
 			}
 		case constant.RelayModeImagesEdits:
 			if isOldWanModel(info.UpstreamModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image2image/image-synthesis", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image2image/image-synthesis", baseURL)
 			} else if isWanModel(info.UpstreamModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image-generation/generation", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image-generation/generation", baseURL)
 			} else {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", baseURL)
 			}
 		case constant.RelayModeCompletions:
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)
+			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", baseURL)
 		default:
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl)
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				fullRequestURL = fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL)
+			} else {
+				fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", baseURL)
+			}
 		}
 	}
 

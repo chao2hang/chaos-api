@@ -261,4 +261,50 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/plan",
 		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3",
 	},
+
+	// MiniMax Token Plan（原 Coding Plan；订阅 Key 与按量 API Key 不互通）
+	"minimax-coding-plan": {
+		ClaudeBaseURL: "https://api.minimax.cn/anthropic",
+		OpenAIBaseURL: "https://api.minimax.cn/v1",
+	},
+	"minimax-coding-plan-international": {
+		ClaudeBaseURL: "https://api.minimax.io/anthropic",
+		OpenAIBaseURL: "https://api.minimax.io/v1",
+	},
+	"https://api.minimax.cn/anthropic": {
+		ClaudeBaseURL: "https://api.minimax.cn/anthropic",
+		OpenAIBaseURL: "https://api.minimax.cn/v1",
+	},
+	"https://api.minimax.io/anthropic": {
+		ClaudeBaseURL: "https://api.minimax.io/anthropic",
+		OpenAIBaseURL: "https://api.minimax.io/v1",
+	},
+
+	// 阿里云百炼 Coding Plan（聚合套餐：千问 + GLM + Kimi + MiniMax；Key 格式 sk-sp-xxx，与按量 Key 不互通）
+	"bailian-coding-plan": {
+		ClaudeBaseURL: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		OpenAIBaseURL: "https://coding.dashscope.aliyuncs.com/v1",
+	},
+	"qwen-coding-plan": {
+		ClaudeBaseURL: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		OpenAIBaseURL: "https://coding.dashscope.aliyuncs.com/v1",
+	},
+	"https://coding.dashscope.aliyuncs.com/apps/anthropic": {
+		ClaudeBaseURL: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		OpenAIBaseURL: "https://coding.dashscope.aliyuncs.com/v1",
+	},
+	"https://coding.dashscope.aliyuncs.com/v1": {
+		ClaudeBaseURL: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		OpenAIBaseURL: "https://coding.dashscope.aliyuncs.com/v1",
+	},
+
+	// Kimi 开放平台（按量计费，非订阅套餐；官方 Anthropic 兼容端点）
+	"kimi-api-platform": {
+		ClaudeBaseURL: "https://api.moonshot.cn/anthropic",
+		OpenAIBaseURL: "https://api.moonshot.cn/v1",
+	},
+	"https://api.moonshot.cn/anthropic": {
+		ClaudeBaseURL: "https://api.moonshot.cn/anthropic",
+		OpenAIBaseURL: "https://api.moonshot.cn/v1",
+	},
 }

@@ -80,3 +80,60 @@ export const CHANNEL_STATUS_META: Record<number, ChannelStatusMeta> = {
 
 /** Status filter values accepted by the list endpoint. */
 export const STATUS_FILTER_VALUES = ['enabled', 'disabled'] as const
+
+/**
+ * Domestic coding-plan channel presets, rendered as a "Coding Plan" group
+ * inside the Type menu. Selecting one sets the channel type (mirroring backend
+ * IDs in `constant/channel.go`), the `base_url` plan key (mirroring
+ * `constant.ChannelSpecialBases`) and the recommended model list.
+ */
+export interface CodingPlanTypeOption {
+  /** Backend channel type id (as string). */
+  type: string
+  /** Plan key written into the channel `base_url` field. */
+  planBase: string
+  /** i18n key for the display label. */
+  labelKey: string
+  /** Comma-separated recommended models; empty means "do not touch models". */
+  models: string
+}
+
+export const CODING_PLAN_TYPES: CodingPlanTypeOption[] = [
+  {
+    type: '26',
+    planBase: 'glm-coding-plan',
+    labelKey: 'glm-coding-plan (Zhipu GLM Coding Plan)',
+    models: 'glm-5.3,glm-5.3-flash',
+  },
+  {
+    type: '26',
+    planBase: 'glm-coding-plan-international',
+    labelKey: 'glm-coding-plan-international (Zhipu GLM Coding Plan Intl)',
+    models: 'glm-5.3,glm-5.3-flash',
+  },
+  {
+    type: '25',
+    planBase: 'kimi-api-platform',
+    labelKey: 'kimi-api-platform (Kimi Open Platform)',
+    models: 'kimi-k3,kimi-k2.7-code,kimi-k2.7-code-highspeed,kimi-k2.6',
+  },
+  {
+    type: '35',
+    planBase: 'minimax-coding-plan',
+    labelKey: 'minimax-coding-plan (MiniMax Token Plan)',
+    models: 'MiniMax-M3',
+  },
+  {
+    type: '17',
+    planBase: 'bailian-coding-plan',
+    labelKey: 'bailian-coding-plan (Alibaba Bailian Coding Plan)',
+    models:
+      'qwen3.7-plus,qwen3.6-plus,qwen3.5-plus,qwen3-coder-next,qwen3-coder-plus,kimi-k2.5,glm-5,MiniMax-M2.5',
+  },
+  {
+    type: '45',
+    planBase: 'doubao-coding-plan',
+    labelKey: 'doubao-coding-plan (Volcengine Ark Coding Plan)',
+    models: '',
+  },
+]
