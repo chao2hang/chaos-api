@@ -178,13 +178,9 @@ func (s *ResponsesToChatStreamState) terminalOutputChunks(response *dto.OpenAIRe
 			}
 			chunks = append(chunks, s.textDelta(text.String())...)
 		case out.Type == responsesOutputTypeReasoning && !s.hasSentReasoning:
-			var reasoning strings.Builder
-			for _, c := range out.Content {
-				if c.Text != "" {
-					reasoning.WriteString(c.Text)
-				}
+			if reasoning := reasoningTextFromOutput(out); reasoning != "" {
+				chunks = append(chunks, s.reasoningDelta(reasoning)...)
 			}
-			chunks = append(chunks, s.reasoningDelta(reasoning.String())...)
 		case isResponsesToolOutputType(out.Type):
 			chunks = append(chunks, s.toolItem(&dto.ResponsesStreamResponse{Item: out})...)
 		}

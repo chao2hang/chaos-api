@@ -215,14 +215,34 @@ func ExtractReasoningTextFromResponses(resp *dto.OpenAIResponsesResponse) string
 	}
 
 	var sb strings.Builder
-	for _, out := range resp.Output {
+	for i := range resp.Output {
+		out := &resp.Output[i]
 		if out.Type != responsesOutputTypeReasoning {
 			continue
 		}
-		for _, c := range out.Content {
-			if c.Text != "" {
-				sb.WriteString(c.Text)
-			}
+		if s := reasoningTextFromOutput(out); s != "" {
+			sb.WriteString(s)
+		}
+	}
+	return sb.String()
+}
+
+// reasoningTextFromOutput collects reasoning text from both the summary parts
+// (what OpenAI emits by default) and the raw content parts (only returned when
+// reasoning text is explicitly included upstream).
+func reasoningTextFromOutput(out *dto.ResponsesOutput) string {
+	if out == nil {
+		return ""
+	}
+	var sb strings.Builder
+	for _, part := range out.Summary {
+		if part.Text != "" {
+			sb.WriteString(part.Text)
+		}
+	}
+	for _, c := range out.Content {
+		if c.Text != "" {
+			sb.WriteString(c.Text)
 		}
 	}
 	return sb.String()

@@ -446,3 +446,77 @@ func mustStreamChunks(t *testing.T, state *ResponsesToChatStreamState, event *dt
 	require.NoError(t, err)
 	return chunks
 }
+
+// Mirrors the real wire format: OpenAI reasoning items carry summaries in
+// `summary` (raw text only appears in `content` when explicitly included).
+func TestResponsesResponseToChatCompletionsReadsReasoningSummaryField(t *testing.T) {
+resp := &dto.OpenAIResponsesResponse{
+ID:     "resp_1",
+Model:  "gpt-test",
+Status: []byte(`"completed"`),
+Output: []dto.ResponsesOutput{
+{
+Type: responsesOutputTypeReasoning,
+Summary: []dto.ResponsesReasoningSummaryPart{
+{Type: "summary_text", Text: "thinking hard"},
+},
+},
+{
+Type: responsesOutputTypeMessage,
+Role: "assistant",
+Content: []dto.ResponsesOutputContent{
+{Type: "output_text", Text: "answer"},
+},
+},
+},
+}
+
+chat, _, err := ResponsesResponseToChatCompletionsResponse(resp, "chatcmpl_1")
+require.NoError(t, err)
+assert.Equal(t, "thinking hard", chat.Choices[0].Message.GetReasoningContent())
+assert.Equal(t, "answer", chat.Choices[0].Message.StringContent())
+}
+
+func TestResponsesStreamTerminalChunksReadReasoningSummaryField(t *testing.T) {
+state := NewResponsesToChatStreamState("gpt-test", false)
+event := &dto.ResponsesStreamResponse{
+Type: responsesEventCompleted,
+Response: &dto.OpenAIResponsesResponse{
+ID:     "resp_1",
+Model:  "gpt-test",
+Status: []byte(`"completed"`),
+Output: []dto.ResponsesOutput{
+{
+Type: responsesOutputTypeReasoning,
+Summary: []dto.ResponsesReasoningSummaryPart{
+{Type: "summary_text", Text: "stream thinking"},
+},
+},
+{
+Type: responsesOutputTypeMessage,
+Role: "assistant",
+Content: []dto.ResponsesOutputContent{
+{Type: "output_text", Text: "stream answer"},
+},
+},
+},
+},
+}
+
+chunks, err := ResponsesStreamEventToChatChunks(event, state)
+require.NoError(t, err)
+
+var reasoning, text string
+for _, chunk := range chunks {
+for _, choice := range chunk.Choices {
+if choice.Delta.ReasoningContent != nil {
+reasoning += *choice.Delta.ReasoningContent
+}
+if choice.Delta.Content != nil {
+text += *choice.Delta.Content
+}
+}
+}
+assert.Equal(t, "stream thinking", reasoning)
+assert.Equal(t, "stream answer", text)
+}

@@ -266,6 +266,10 @@ type FunctionRequest struct {
 	Name        string `json:"name"`
 	Parameters  any    `json:"parameters,omitempty"`
 	Arguments   string `json:"arguments,omitempty"`
+	// Strict enables structured-output constraints for function tools.
+	// Chat completions keeps it inside `function`; the Responses API hoists
+	// it to the tool's top level.
+	Strict json.RawMessage `json:"strict,omitempty"`
 }
 
 type StreamOptions struct {

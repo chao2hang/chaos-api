@@ -175,3 +175,88 @@ func assistantMessageWithTool(content string, id string, name string, args strin
 	})
 	return msg
 }
+
+func TestChatCompletionsRequestToResponsesRequestStoreDefault(t *testing.T) {
+	t.Run("defaults to false", func(t *testing.T) {
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:    "gpt-test",
+			Messages: []dto.Message{{Role: "user", Content: "hello"}},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "false", string(got.Store))
+	})
+
+	t.Run("keeps explicit client choice", func(t *testing.T) {
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:    "gpt-test",
+			Messages: []dto.Message{{Role: "user", Content: "hello"}},
+			Store:    json.RawMessage("true"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "true", string(got.Store))
+	})
+}
+
+func TestChatCompletionsRequestToResponsesRequestSkipsEmptyAssistantItems(t *testing.T) {
+	nilContentAssistant := dto.Message{Role: "assistant"}
+	nilContentAssistant.SetToolCalls([]dto.ToolCallRequest{{
+		ID:       "call_2",
+		Type:     "function",
+		Function: dto.FunctionRequest{Name: "get_time", Arguments: `{}`},
+	}})
+
+	req := &dto.GeneralOpenAIRequest{
+		Model: "gpt-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "weather?"},
+			assistantMessageWithTool("", "call_1", "get_weather", `{"city":"Paris"}`),
+			{Role: "tool", ToolCallId: "call_1", Content: "15 degrees"},
+			nilContentAssistant,
+			{Role: "tool", ToolCallId: "call_2", Content: "noon"},
+			{Role: "user", Content: "thanks"},
+		},
+	}
+
+	got, err := ChatCompletionsRequestToResponsesRequest(req)
+	require.NoError(t, err)
+
+	var input []map[string]any
+	require.NoError(t, json.Unmarshal(got.Input, &input))
+	require.Len(t, input, 6)
+
+	itemTypes := make([]string, 0, len(input))
+	for _, item := range input {
+		itemTypes = append(itemTypes, kitutil.Interface2String(item["type"]))
+	}
+	// No {"role":"assistant","content":""} items, only the function calls.
+	assert.Equal(t, []string{"", "function_call", "function_call_output", "function_call", "function_call_output", ""}, itemTypes)
+}
+
+func TestChatCompletionsRequestToResponsesRequestMapsStrictAndReasoning(t *testing.T) {
+	req := &dto.GeneralOpenAIRequest{
+		Model:           "gpt-test",
+		Messages:        []dto.Message{{Role: "user", Content: "hello"}},
+		ReasoningEffort: "high",
+		Tools: []dto.ToolCallRequest{
+			{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:        "get_weather",
+					Description: "Get weather",
+					Parameters:  map[string]any{"type": "object"},
+					Strict:      json.RawMessage("true"),
+				},
+			},
+		},
+	}
+
+	got, err := ChatCompletionsRequestToResponsesRequest(req)
+	require.NoError(t, err)
+
+	require.NotNil(t, got.Reasoning)
+	assert.Equal(t, "high", got.Reasoning.Effort)
+	assert.Equal(t, "auto", got.Reasoning.Summary)
+
+	assert.Equal(t, "function", gjson.GetBytes(got.Tools, "0.type").String())
+	assert.Equal(t, true, gjson.GetBytes(got.Tools, "0.strict").Bool())
+}
