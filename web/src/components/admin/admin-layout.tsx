@@ -20,6 +20,7 @@ import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Logo } from '@/assets/logo'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -77,9 +78,7 @@ export function AdminLayout(props: AdminLayoutProps) {
           <div className="flex-1 flex flex-col min-h-0">
             {/* 品牌 */}
             <div className="flex items-center space-x-3 mb-10 shrink-0">
-              <div className="w-5 h-5 bg-white flex items-center justify-center shrink-0">
-                <div className="w-2.5 h-2.5 bg-black" />
-              </div>
+              <Logo className="w-5 h-5 shrink-0 text-white" />
               <div>
                 <span className="text-xs font-black tracking-widest block text-white mono">
                   CHAOS_API
@@ -159,17 +158,7 @@ export function AdminLayout(props: AdminLayoutProps) {
                   {t('Server: Optimal')}
                 </span>
               </div>
-              {headerAction ? (
-                headerAction
-              ) : (
-                <Link
-                  to="/admin/channels"
-                  search={{ page: 1, pageSize: 10, filter: '', status: [], type: [], group: '' }}
-                  className="bg-white text-black px-3 py-1 text-xs font-bold uppercase tracking-tight hover:bg-zinc-200 transition-colors mono cursor-pointer"
-                >
-                  {t('Deploy New')}
-                </Link>
-              )}
+              {headerAction}
             </div>
           </header>
 

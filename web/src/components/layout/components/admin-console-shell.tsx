@@ -21,6 +21,8 @@ import {
 } from '@chaos_team/chaos-ui/layout'
 import { Link, useLocation } from '@tanstack/react-router'
 import { useMemo, type ReactNode } from 'react'
+
+import { Logo } from '@/assets/logo'
 import { useTranslation } from 'react-i18next'
 
 import { ConfigDrawer } from '@/components/config-drawer'
@@ -57,8 +59,9 @@ const RouterLink: AdminSiderLinkComponent = (props) => {
 function SiderBrandLogo() {
 
   return (
-    <span className='font-bold text-lg select-none'>
-      Chaos
+    <span className='inline-flex items-center gap-2 select-none'>
+      <Logo className='size-5' />
+      <span className='font-bold text-lg'>Chaos</span>
     </span>
   )
 }
@@ -96,11 +99,7 @@ export function AdminConsoleShell(props: AdminConsoleShellProps) {
       selectedMatch='prefix'
       linkComponent={RouterLink}
       logo={<SiderBrandLogo />}
-      logoCollapsed={
-        <span className='font-bold select-none'>
-          C
-        </span>
-      }
+      logoCollapsed={<Logo className='size-5' />}
       userMenu={<ProfileDropdown />}
       notification={
         <NotificationPopover

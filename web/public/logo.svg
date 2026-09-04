@@ -1,4 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
-  <rect x="32" y="32" width="116" height="116" rx="26" fill="#0a0a0c"/>
-  <text x="90" y="113" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-weight="800" font-size="56" fill="#ffffff">Chaos</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="CHAOS_API">
+  <!-- CHAOS_API industrial mark: modular C + offset terminal cursor -->
+  <rect width="180" height="180" fill="#0a0a0c"/>
+  <g fill="#ffffff">
+    <rect x="54" y="54" width="72" height="18"/>
+    <rect x="54" y="108" width="72" height="18"/>
+    <rect x="54" y="54" width="18" height="72"/>
+    <rect x="94.5" y="81" width="18" height="18"/>
+  </g>
 </svg>
