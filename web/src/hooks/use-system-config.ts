@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { useEffect, useCallback } from 'react'
 
-import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import {
   useSystemConfigStore,
@@ -93,7 +93,9 @@ export function mapStatusDataToConfig(
 
   return {
     systemName: data.system_name || DEFAULT_SYSTEM_NAME,
-    logo: data.logo || DEFAULT_LOGO,
+    // Keep the raw value: an empty string means "no logo configured"
+    // and the UI must not render any logo in that case.
+    logo: data.logo?.trim() || '',
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
@@ -173,7 +175,8 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
   useEffect(() => {
     const { logo } = config
 
-    // Skip if logo is already loaded
+    // No logo configured (or already loaded) — nothing to preload and
+    // the favicon must keep its default.
     if (!logo || logo === loadedLogoUrl) return
 
     // Preload new logo
@@ -184,10 +187,8 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
         applyFaviconToDom(logo)
       },
       () => {
-        if (logo !== DEFAULT_LOGO) {
-          // eslint-disable-next-line no-console
-          console.error('Failed to load logo:', logo)
-        }
+        // eslint-disable-next-line no-console
+        console.error('Failed to load logo:', logo)
         // Mark as loaded even on error to prevent infinite retry
         setLoadedLogoUrl(logo)
       }
@@ -198,6 +199,6 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
   return {
     ...config,
     loading,
-    logoLoaded: config.logo === loadedLogoUrl && !!loadedLogoUrl,
+    logoLoaded: !config.logo || config.logo === loadedLogoUrl,
   }
 }

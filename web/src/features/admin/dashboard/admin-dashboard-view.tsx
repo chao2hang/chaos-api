@@ -356,6 +356,7 @@ export function AdminDashboardView() {
               <th className="py-3 px-4 font-medium">{t('Timestamp')}</th>
               <th className="py-3 px-4 font-medium">{t('Method')}</th>
               <th className="py-3 px-4 font-medium">{t('Endpoint')}</th>
+              <th className="py-3 px-4 font-medium">{t('Model')}</th>
               <th className="py-3 px-4 font-medium">{t('Status')}</th>
               <th className="py-3 px-4 font-medium text-right">{t('Cost')}</th>
             </tr>
@@ -368,6 +369,17 @@ export function AdminDashboardView() {
                   : '12:44:02.001'
                 const costUsd = ((log.quota || 0) / 500000).toFixed(5)
                 const isSuccess = log.type !== 5
+                // 'other' is a JSON string recorded per request; relay logs
+                // carry the real request path there.
+                let endpoint = '-'
+                try {
+                  const other = log.other ? JSON.parse(log.other) : null
+                  if (other && typeof other.request_path === 'string') {
+                    endpoint = other.request_path || '-'
+                  }
+                } catch {
+                  // malformed/absent 'other' payload keeps the fallback
+                }
                 return (
                   <tr
                     key={log.id}
@@ -377,10 +389,9 @@ export function AdminDashboardView() {
                     <td className="py-4 px-4">
                       <span className="text-blue-400 font-medium">POST</span>
                     </td>
+                    <td className="py-4 px-4 text-zinc-300">{endpoint}</td>
                     <td className="py-4 px-4 text-zinc-300">
-                      {log.model_name
-                        ? `/v1/models/${log.model_name}`
-                        : '/v1/chat/completions'}
+                      {log.model_name || '-'}
                     </td>
                     <td className="py-4 px-4">
                       <span
@@ -405,6 +416,7 @@ export function AdminDashboardView() {
                     <span className="text-blue-400 font-medium">POST</span>
                   </td>
                   <td className="py-4 px-4 text-zinc-300">/v1/chat/completions</td>
+                  <td className="py-4 px-4 text-zinc-300">gpt-4o</td>
                   <td className="py-4 px-4 text-emerald-500">200 OK</td>
                   <td className="py-4 px-4 text-right text-zinc-400">0.00042</td>
                 </tr>
@@ -414,6 +426,7 @@ export function AdminDashboardView() {
                     <span className="text-blue-400 font-medium">POST</span>
                   </td>
                   <td className="py-4 px-4 text-zinc-300">/v1/embeddings</td>
+                  <td className="py-4 px-4 text-zinc-300">text-embedding-3-small</td>
                   <td className="py-4 px-4 text-emerald-500">200 OK</td>
                   <td className="py-4 px-4 text-right text-zinc-400">0.00011</td>
                 </tr>
@@ -423,6 +436,7 @@ export function AdminDashboardView() {
                     <span className="text-zinc-400 font-medium">GET</span>
                   </td>
                   <td className="py-4 px-4 text-zinc-300">/v1/models</td>
+                  <td className="py-4 px-4 text-zinc-300">-</td>
                   <td className="py-4 px-4 text-amber-500">401 UNAUTH</td>
                   <td className="py-4 px-4 text-right text-zinc-400">0.00000</td>
                 </tr>

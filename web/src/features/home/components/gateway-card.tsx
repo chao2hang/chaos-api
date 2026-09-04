@@ -22,7 +22,7 @@ import { Separator } from '@/components/ui/separator'
 import { getGatewayFeatures } from '../constants'
 
 interface GatewayCardProps {
-  logo: string
+  logo?: string
   systemName: string
 }
 
@@ -44,11 +44,13 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
       <div className='relative'>
         {/* Gateway Header */}
         <div className='mb-8 flex items-center justify-center gap-3'>
-          <img
-            src={logo}
-            alt={systemName}
-            className='h-12 w-12 rounded-lg object-cover'
-          />
+          {logo && (
+            <img
+              src={logo}
+              alt={systemName}
+              className='h-12 w-12 rounded-lg object-cover'
+            />
+          )}
           <h3 className='from-foreground to-foreground/70 bg-gradient-to-r bg-clip-text text-2xl font-bold text-transparent'>
             {systemName}
           </h3>

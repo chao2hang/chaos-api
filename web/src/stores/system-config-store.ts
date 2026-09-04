@@ -73,11 +73,13 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     (set) => ({
       config: {
         systemName: DEFAULT_SYSTEM_NAME,
-        logo: DEFAULT_LOGO,
+        // Empty means "no logo configured" — the UI hides the logo
+        // entirely until the backend reports one.
+        logo: '',
         currency: { ...DEFAULT_CURRENCY_CONFIG },
       },
       loading: true,
-      loadedLogoUrl: DEFAULT_LOGO,
+      loadedLogoUrl: '',
       setConfig: (newConfig) =>
         set((state) => ({
           config: {
@@ -94,6 +96,25 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     }),
     {
       name: 'system-config-storage',
+      // v1: logo no longer falls back to the bundled default; clear a
+      // previously persisted default so an unconfigured logo stays hidden.
+      version: 1,
+      migrate: (persisted) => {
+        const state = (persisted ?? {}) as {
+          config?: Partial<SystemConfig>
+          loadedLogoUrl?: string
+        }
+        return {
+          ...state,
+          config: {
+            ...state.config,
+            logo:
+              state.config?.logo === DEFAULT_LOGO ? '' : state.config?.logo,
+          },
+          loadedLogoUrl:
+            state.loadedLogoUrl === DEFAULT_LOGO ? '' : state.loadedLogoUrl,
+        }
+      },
       partialize: (state) => ({
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,
