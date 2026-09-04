@@ -15,21 +15,26 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const
 
-import { AdminSystemInfo } from '@/features/admin/system-info'
-import { ROLE } from '@/lib/roles'
-import { useAuthStore } from '@/stores/auth-store'
+/**
+ * Format a byte count as a compact human-readable value
+ * ("60.6 GB"). Invalid input renders "-".
+ */
+export function formatBytes(value?: number): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return '-'
+  }
+  if (value === 0) return '0 B'
 
-export const Route = createFileRoute('/_authenticated/admin/system-info/')({
-  beforeLoad: () => {
-    const { auth } = useAuthStore.getState()
+  const exponent = Math.min(
+    Math.floor(Math.log(value) / Math.log(1024)),
+    BYTE_UNITS.length - 1
+  )
+  if (exponent <= 0) return `${value} B`
 
-    if (auth.user?.role !== ROLE.SUPER_ADMIN) {
-      throw redirect({
-        to: '/403',
-      })
-    }
-  },
-  component: AdminSystemInfo,
-})
+  const scaled = value / 1024 ** exponent
+  return `${new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  }).format(scaled)} ${BYTE_UNITS[exponent]}`
+}

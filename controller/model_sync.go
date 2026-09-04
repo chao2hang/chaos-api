@@ -64,6 +64,14 @@ type upstreamModel struct {
 	Status      int             `json:"status"`
 	Tags        string          `json:"tags"`
 	VendorName  string          `json:"vendor_name"`
+	// 上游定价字段（与模型元数据同源下发）
+	RatioModel          *float64 `json:"ratio_model"`
+	RatioCompletion     *float64 `json:"ratio_completion"`
+	RatioCache          *float64 `json:"ratio_cache"`
+	PricePerMInput      *float64 `json:"price_per_m_input"`
+	PricePerMOutput     *float64 `json:"price_per_m_output"`
+	PricePerMCacheRead  *float64 `json:"price_per_m_cache_read"`
+	PricePerMCacheWrite *float64 `json:"price_per_m_cache_write"`
 }
 
 type upstreamVendor struct {

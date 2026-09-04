@@ -351,6 +351,9 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			modelsRoute.GET("/sync_upstream/preview", controller.SyncUpstreamPreview)
 			modelsRoute.POST("/sync_upstream", controller.SyncUpstreamModels)
+			modelsRoute.GET("/pricing_upstream/match", controller.PricingUpstreamMatch)
+			modelsRoute.GET("/pricing_upstream/catalog", controller.PricingUpstreamCatalog)
+			modelsRoute.POST("/pricing_upstream/apply", controller.PricingUpstreamApply)
 			modelsRoute.GET("/missing", controller.GetMissingModels)
 			modelsRoute.GET("/", controller.GetAllModelsMeta)
 			modelsRoute.GET("/search", controller.SearchModelsMeta)

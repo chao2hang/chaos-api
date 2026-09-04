@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 import { useQuery } from '@tanstack/react-query'
-import { Code2, Eye, RotateCcw, Save } from 'lucide-react'
+import { CloudDownload, Code2, Eye, RotateCcw, Save } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -45,6 +45,7 @@ import {
   ModelRatioVisualEditor,
   type ModelRatioVisualEditorHandle,
 } from './model-ratio-visual-editor'
+import { UpstreamPricingSyncDialog } from './upstream-pricing-sync-dialog'
 
 type ModelFormValues = {
   ModelPrice: string
@@ -175,6 +176,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
   const { t } = useTranslation()
   const isUnsetVariant = variant === 'unset'
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false)
   const visualEditorRef = useRef<ModelRatioVisualEditorHandle>(null)
 
   const enabledModelsQuery = useQuery({
@@ -220,8 +222,29 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
   return (
     <div className='space-y-6'>
-      {!isUnsetVariant && (
+      {isUnsetVariant ? (
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'These models are served by channels but have no price configured. Requests fail unless the user accepts unset-ratio models.'
+            )}
+          </p>
+          <Button size='sm' onClick={() => setSyncDialogOpen(true)}>
+            <CloudDownload data-icon='inline-start' />
+            {t('Sync upstream pricing')}
+          </Button>
+        </div>
+      ) : (
         <div className='flex flex-wrap justify-end gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={() => setSyncDialogOpen(true)}
+          >
+            <CloudDownload data-icon='inline-start' />
+            {t('Sync upstream pricing')}
+          </Button>
           <Button
             type='button'
             variant='destructive'
@@ -368,6 +391,11 @@ export const ModelRatioForm = memo(function ModelRatioForm({
           </SettingsForm>
         )}
       </Form>
+
+      <UpstreamPricingSyncDialog
+        open={syncDialogOpen}
+        onOpenChange={setSyncDialogOpen}
+      />
     </div>
   )
 })

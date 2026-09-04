@@ -15,21 +15,18 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+/** Instance heartbeats are reported every 30s; poll at the same cadence. */
+export const INSTANCE_POLL_INTERVAL_MS = 30_000
 
-import { AdminSystemInfo } from '@/features/admin/system-info'
-import { ROLE } from '@/lib/roles'
-import { useAuthStore } from '@/stores/auth-store'
+export const INSTANCE_STALE_TIME_MS = 30_000
 
-export const Route = createFileRoute('/_authenticated/admin/system-info/')({
-  beforeLoad: () => {
-    const { auth } = useAuthStore.getState()
+/** Nodes stop reporting before this many seconds are considered stale. */
+export const DEFAULT_STALE_AFTER_SECONDS = 90
 
-    if (auth.user?.role !== ROLE.SUPER_ADMIN) {
-      throw redirect({
-        to: '/403',
-      })
-    }
-  },
-  component: AdminSystemInfo,
-})
+export const SYSTEM_INFO_QUERY_KEY = ['admin', 'system-info'] as const
+
+/** Success message keys rendered via t(). */
+export const SUCCESS_MESSAGES = {
+  STALE_INSTANCE_DELETED: 'Deleted stale instance',
+  STALE_INSTANCES_DELETED: 'Deleted {{count}} stale instances',
+} as const
