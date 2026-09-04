@@ -716,6 +716,7 @@ h2 {
   align-items: center;
   gap: 7px;
   min-height: 31px;
+  margin-bottom: 14px;
   padding: 0 8px;
   border: 1px solid var(--aui-border);
   background: #0f0f0f;
@@ -936,11 +937,6 @@ h2 {
   width: 100%;
 }
 
-@media (max-width: 980px) {
-  .docs-search {
-    margin-bottom: 12px;
-  }
-}
 @media (max-width: 760px) {
   .catalog-toolbar {
     align-items: flex-start;
