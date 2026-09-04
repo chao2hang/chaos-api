@@ -1,0 +1,29 @@
+{
+  "name": "@chaos_team/blbui-business-react",
+  "version": "0.1.0",
+  "description": "React bindings for BLBUI business components.",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@chaos_team/blbui-business": "^0.1.0",
+    "react": ">=18.0.0"
+  }
+}

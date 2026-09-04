@@ -1,0 +1,111 @@
+name: Publish BLBUI packages
+
+on:
+  push:
+    tags:
+      - "blbui-v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and pack without publishing to npm"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-blbui-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate and build packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.0"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install package workspace
+        working-directory: packages/blbui
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck package workspace
+        working-directory: packages/blbui
+        run: bun run typecheck
+
+      - name: Check Svelte components
+        working-directory: packages/blbui
+        run: bun run check:svelte
+
+      - name: Build documentation site
+        working-directory: packages/blbui
+        run: bun run docs:check
+
+      - name: Build publish artifacts
+        working-directory: packages/blbui
+        run: bun run build:packages
+
+      - name: Pack all public packages
+        working-directory: packages/blbui
+        run: |
+          set -euo pipefail
+          for package in core react vue svelte business business-react; do
+            echo "--- npm pack $package ---"
+            (cd "$package" && npm pack --dry-run --json) > "/tmp/blbui-$package-pack.json"
+          done
+
+  publish:
+    name: Publish packages to npm
+    needs: validate
+    if: github.event_name == 'push' || inputs.dry_run != true
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.0"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6.4.0
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install package workspace
+        working-directory: packages/blbui
+        run: bun install --frozen-lockfile
+
+      - name: Build publish artifacts
+        working-directory: packages/blbui
+        run: bun run build:packages
+
+      - name: Publish packages in dependency order
+        working-directory: packages/blbui
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: |
+          set -euo pipefail
+          test -n "$NODE_AUTH_TOKEN" || { echo "NPM_TOKEN repository/environment secret is required"; exit 1; }
+          for package in core react vue svelte business business-react; do
+            echo "--- npm publish $package ---"
+            (cd "$package" && npm publish --access public --provenance --ignore-scripts)
+          done

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedSideEffectImports": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@chaos_team/blbui-core": ["../core/src/index.ts"],
+      "@chaos_team/blbui-core/*": ["../core/src/*"],
+      "@chaos_team/blbui-business": ["../business/src/index.ts"],
+      "@chaos_team/blbui-business/*": ["../business/src/*"],
+      "@chaos_team/blbui-business/register": ["../business/src/register.ts"],
+      "@chaos_team/blbui-business/styles.css": ["../business/src/styles.css"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

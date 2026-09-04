@@ -1,0 +1,35 @@
+{
+  "name": "@chaos_team/blbui-svelte",
+  "version": "0.1.0",
+  "description": "Svelte 5 bindings for the Chaos industrial admin component library.",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "svelte": "./dist/index.js",
+      "import": "./dist/index.js"
+    },
+    "./components": {
+      "types": "./src/components.ts",
+      "svelte": "./dist/components.js",
+      "import": "./dist/components.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@chaos_team/blbui-core": "^0.1.0",
+    "svelte": "^5.0.0"
+  }
+}

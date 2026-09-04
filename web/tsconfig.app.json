@@ -20,9 +20,9 @@
     /* Alias */
     "paths": {
       "@/*": ["./src/*"],
-      "@chaos_team/admin-ui-core": ["../packages/admin-ui/core/src/index.ts"],
-      "@chaos_team/admin-ui-core/*": ["../packages/admin-ui/core/src/*"],
-      "@chaos_team/admin-ui-react": ["../packages/admin-ui/react/src/index.tsx"]
+      "@chaos_team/blbui-core": ["../packages/blbui/core/src/index.ts"],
+      "@chaos_team/blbui-core/*": ["../packages/blbui/core/src/*"],
+      "@chaos_team/blbui-react": ["../packages/blbui/react/src/index.tsx"]
     },
 
     /* Linting */
@@ -34,7 +34,7 @@
   },
   "include": [
     "src",
-    "../packages/admin-ui/core/src",
-    "../packages/admin-ui/react/src"
+    "../packages/blbui/core/src",
+    "../packages/blbui/react/src"
   ]
 }

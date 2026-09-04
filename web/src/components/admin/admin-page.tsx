@@ -29,7 +29,7 @@ export type AdminPageProps = {
 /**
  * Stable React page shell for the industrial admin console.
  *
- * The visual primitives are owned by admin-ui's tokens and styles, while the
+ * The visual primitives are owned by blbui's tokens and styles, while the
  * application wrapper intentionally stays in light DOM so routed page content
  * cannot disappear when a custom-element registry is still loading during HMR.
  */

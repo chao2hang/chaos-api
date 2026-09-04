@@ -60,21 +60,21 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-        '@chaos_team/admin-ui-core': path.resolve(
+        '@chaos_team/blbui-core': path.resolve(
           __dirname,
-          '../packages/admin-ui/core/src/index.ts'
+          '../packages/blbui/core/src/index.ts'
         ),
-        '@chaos_team/admin-ui-core/register': path.resolve(
+        '@chaos_team/blbui-core/register': path.resolve(
           __dirname,
-          '../packages/admin-ui/core/src/register.ts'
+          '../packages/blbui/core/src/register.ts'
         ),
-        '@chaos_team/admin-ui-core/styles.css': path.resolve(
+        '@chaos_team/blbui-core/styles.css': path.resolve(
           __dirname,
-          '../packages/admin-ui/core/src/styles.css'
+          '../packages/blbui/core/src/styles.css'
         ),
-        '@chaos_team/admin-ui-react': path.resolve(
+        '@chaos_team/blbui-react': path.resolve(
           __dirname,
-          '../packages/admin-ui/react/src/index.tsx'
+          '../packages/blbui/react/src/index.tsx'
         ),
         react: path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
