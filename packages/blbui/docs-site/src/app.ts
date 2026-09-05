@@ -4,136 +4,114 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License.
 */
 
-import { catalog, categoryLabels, type CatalogItem } from "./catalog";
+import { categoryLabels, type CatalogCategory } from "./catalog";
+import {
+  components,
+  initComponentDemo,
+  type ComponentItem,
+  type FrameworkType,
+} from "./components-data";
 
 type SectionId =
   | "overview"
   | "tokens"
   | "components"
-  | "button"
-  | "form"
-  | "feedback"
-  | "data"
-  | "overlay"
+  | "cat-primitives"
+  | "cat-forms"
+  | "cat-navigation"
+  | "cat-feedback"
+  | "cat-overlay"
+  | "cat-data"
+  | "cat-layout"
+  | "cat-business"
   | "frameworks"
   | "accessibility";
 
-type Section = { id: SectionId; label: string; eyebrow: string };
-
-type Example = { id: SectionId; title: string; description: string; render: () => string };
+type Section = { id: SectionId; label: string; eyebrow: string; category?: CatalogCategory };
 
 const sections: Section[] = [
   { id: "overview", label: "Overview", eyebrow: "START HERE" },
   { id: "tokens", label: "Design Tokens", eyebrow: "FOUNDATION" },
-  { id: "components", label: "Component Index", eyebrow: "LIBRARY" },
-  { id: "button", label: "Button", eyebrow: "PRIMITIVES" },
-  { id: "form", label: "Form Controls", eyebrow: "PRIMITIVES" },
-  { id: "feedback", label: "Feedback", eyebrow: "PRIMITIVES" },
-  { id: "data", label: "Data Display", eyebrow: "COMPOSITION" },
-  { id: "overlay", label: "Dialog & Overlay", eyebrow: "COMPOSITION" },
+  { id: "components", label: "All Components (87)", eyebrow: "LIBRARY" },
+  { id: "cat-primitives", label: "Primitives (9)", eyebrow: "CATEGORIES", category: "primitives" },
+  { id: "cat-forms", label: "Form Controls (17)", eyebrow: "CATEGORIES", category: "forms" },
+  { id: "cat-navigation", label: "Navigation (13)", eyebrow: "CATEGORIES", category: "navigation" },
+  { id: "cat-feedback", label: "Feedback & Status (9)", eyebrow: "CATEGORIES", category: "feedback" },
+  { id: "cat-overlay", label: "Overlays & Dialogs (7)", eyebrow: "CATEGORIES", category: "overlay" },
+  { id: "cat-data", label: "Data & Tables (11)", eyebrow: "CATEGORIES", category: "data" },
+  { id: "cat-layout", label: "Layout & Surfaces (12)", eyebrow: "CATEGORIES", category: "layout" },
+  { id: "cat-business", label: "Business Suite (9)", eyebrow: "CATEGORIES", category: "business" },
   { id: "frameworks", label: "Framework Adapters", eyebrow: "INTEGRATION" },
   { id: "accessibility", label: "Accessibility", eyebrow: "INTEGRATION" },
-];
-
-const examples: Example[] = [
-  {
-    id: "button",
-    title: "Button",
-    description:
-      "Primary actions are white. Secondary actions stay transparent. Destructive actions are explicit and never rely on color alone.",
-    render: buttonExample,
-  },
-  {
-    id: "form",
-    title: "Form Controls",
-    description:
-      "Inputs preserve the terminal rhythm: deep black surface, hard 1px border, monospace data entry, visible focus.",
-    render: formExample,
-  },
-  {
-    id: "feedback",
-    title: "Feedback States",
-    description: "Success, danger, warning and neutral states share one compact status vocabulary.",
-    render: feedbackExample,
-  },
-  {
-    id: "data",
-    title: "Data Display",
-    description:
-      "Tables are data-first, horizontally scrollable, and keep loading and empty states structurally stable.",
-    render: dataExample,
-  },
-  {
-    id: "overlay",
-    title: "Dialog & Overlay",
-    description:
-      "Native dialog behavior gives keyboard users ESC close, focus semantics and a clear destructive confirmation path.",
-    render: overlayExample,
-  },
 ];
 
 const codeSamples: Record<string, string> = {
   react: `import { AdminButton, AdminPage } from '@chaos_team/blbui-react'\n\n<AdminPage title="Channels">\n  <AdminButton variant="primary">Deploy New</AdminButton>\n</AdminPage>`,
   vue: `<script setup lang="ts">\nimport { AdminButton, AdminPage } from '@chaos_team/blbui-vue'\n</script>\n\n<AdminPage title="Channels">\n  <AdminButton variant="primary">Deploy New</AdminButton>\n</AdminPage>`,
-  svelte: `<script lang="ts">\nimport { AdminButton, AdminPage } from '@chaos_team/blbui-svelte/components'\n</script>\n\n<AdminPage title="Channels">\n  <AdminButton variant="primary">Deploy New</AdminButton>\n</AdminPage>`,
+  svelte: `<script lang="ts">\nimport { registerAdminElements } from '@chaos_team/blbui-svelte'\nimport '@chaos_team/blbui-core/styles.css'\n\nregisterAdminElements()\n</script>\n\n<aui-page title="Channels">\n  <aui-button variant="primary">Deploy New</aui-button>\n</aui-page>`,
   web: `import { registerAdminElements } from '@chaos_team/blbui-core/register'\nimport '@chaos_team/blbui-core/styles.css'\n\nregisterAdminElements()\n\n<aui-button variant="primary">Deploy New</aui-button>`,
 };
 
-const root = document.createElement("div");
-root.className = "docs-app aui-root";
-root.innerHTML = `
-  <aside class="docs-sidebar">
-    <a class="brand" href="#overview" data-nav="overview" aria-label="BLBUI home">
-      <span class="brand-mark"><i></i></span>
-      <span class="brand-copy"><strong>BLBUI</strong><small>UI LIBRARY / DOCS</small></span>
-    </a>
-    <div class="sidebar-rule"></div>
-    <label class="docs-search"><span aria-hidden="true">⌕</span><input id="docs-search" type="search" placeholder="SEARCH COMPONENTS" aria-label="Search components" /></label>
-    <nav class="docs-nav" aria-label="Documentation navigation"></nav>
-    <div class="sidebar-footer"><span class="pulse"></span><span>CORE STATUS / STABLE</span><span class="version">v0.1.0</span></div>
-  </aside>
-  <div class="docs-main">
-    <header class="docs-header">
-      <div class="header-path"><span>DOCS:</span> BLBUI <b>/</b> COMPONENT SYSTEM</div>
-      <div class="header-tools"><a href="https://github.com/chao2hang/blbui" target="_blank" rel="noreferrer">GITHUB ↗</a><button type="button" class="header-menu" aria-label="Open navigation">MENU</button></div>
-    </header>
-    <main class="docs-content">
-      <section class="docs-hero" id="overview">
-        <div class="hero-kicker"><span></span> OBSIDIAN INDUSTRIAL CONSOLE / 0.1.0</div>
-        <h1>BLBUI<br><em>DOCUMENTATION</em></h1>
-        <p class="hero-lede">A sharp, data-first component system for operational interfaces. Built once for the web, React, Vue and Svelte.</p>
-        <div class="hero-actions"><aui-button variant="primary" id="hero-explore">EXPLORE COMPONENTS</aui-button><a class="text-link" href="#frameworks">VIEW FRAMEWORKS <span>→</span></a></div>
-        <div class="hero-grid" aria-label="Library facts"><div><small>RENDERER</small><strong>WEB COMPONENTS</strong></div><div><small>ADAPTERS</small><strong>REACT · VUE · SVELTE</strong></div><div><small>DESIGN LANGUAGE</small><strong>OBSIDIAN / INDUSTRIAL</strong></div></div><div class="hero-count"><strong>${catalog.length}</strong><span>COMPONENTS CATALOGUED / 8 SYSTEM LAYERS / 3 FRAMEWORK ADAPTERS</span></div>
-      </section>
-      <section class="content-section" id="tokens"><div class="section-heading"><span class="section-index">01</span><div><p class="eyebrow">FOUNDATION</p><h2>Design tokens</h2></div></div><div class="token-layout"><div class="token-copy"><p>Every component inherits a compact, semantic token layer. Override variables at your application root to create a controlled variant without forking component CSS.</p><code>:root { --aui-bg: #0a0a0a; --aui-border: #262626; }</code></div><div class="token-grid">${tokenCards()}</div></div></section>
-      <section class="content-section" id="components"><div class="section-heading"><span class="section-index">02</span><div><p class="eyebrow">LIBRARY INDEX</p><h2>Every building block</h2></div></div><p class="section-intro catalog-intro">A searchable inventory of the real registered Custom Elements. Primitive, framework-neutral and ready to compose across admin, ERP, CRM, analytics and operations products.</p><div class="catalog-toolbar"><div class="catalog-total"><strong id="catalog-visible-count">${catalog.length}</strong><span>VISIBLE / ${catalog.length} TOTAL</span></div><div class="category-filters" role="group" aria-label="Filter component category"><button type="button" class="category-filter is-active" data-category="all">ALL</button>${Object.entries(
-        categoryLabels,
-      )
-        .map(
-          ([id, label]) =>
-            `<button type="button" class="category-filter" data-category="${id}">${label.toUpperCase()}</button>`,
-        )
-        .join(
-          "",
-        )}</div></div><div class="catalog-grid" id="catalog-grid">${catalogMarkup()}</div><div class="showcase-heading"><p class="eyebrow">LIVE SHOWCASE</p><span>INTERACTIVE REFERENCES / REAL CORE ELEMENTS</span></div><div class="component-grid" id="showcase-grid">${examples.map((example) => `<article class="component-card" id="showcase-${example.id}"><div class="component-card-heading"><span class="component-slug">AUI / ${example.id.toUpperCase()}</span><span class="component-status">READY</span></div><h3>${example.title}</h3><p>${example.description}</p><div class="playground">${example.render()}</div><div class="component-card-footer"><button class="code-toggle" type="button" data-code="${example.id}">VIEW USAGE <span>⌄</span></button><a href="#accessibility">A11Y NOTES →</a></div><pre class="code-block" data-code-block="${example.id}" hidden></pre></article>`).join("")}</div><div class="advanced-lab"><div class="showcase-heading"><p class="eyebrow">ADVANCED LAB</p><span>NEW IN CORE / FILTERS, WORKFLOWS, INSPECTORS</span></div>${advancedLabMarkup()}</div></section>
-      <section class="content-section framework-section" id="frameworks"><div class="section-heading"><span class="section-index">03</span><div><p class="eyebrow">INTEGRATION</p><h2>One system. Your stack.</h2></div></div><p class="section-intro">The core owns behavior and visual language. Thin adapters make the same components feel native in every supported framework.</p><div class="framework-tabs" role="tablist" aria-label="Framework examples">${["react", "vue", "svelte", "web"].map((framework, index) => `<button type="button" role="tab" aria-selected="${index === 0}" data-framework="${framework}">${framework === "web" ? "WEB COMPONENTS" : framework.toUpperCase()}</button>`).join("")}</div><pre class="framework-code" aria-live="polite"></pre><div class="install-row"><span>INSTALL</span><code>bun add @chaos_team/blbui-react @chaos_team/blbui-core</code><button type="button" class="copy-install">COPY</button></div></section>
-      <section class="content-section accessibility-section" id="accessibility"><div class="section-heading"><span class="section-index">04</span><div><p class="eyebrow">QUALITY BAR</p><h2>Accessible by default</h2></div></div><div class="a11y-list"><div><strong>01</strong><span>Native elements first</span><p>Buttons, inputs, select, table and dialog preserve browser semantics.</p></div><div><strong>02</strong><span>State has meaning</span><p>Active, selected, disabled, loading and error states expose ARIA semantics.</p></div><div><strong>03</strong><span>Motion is optional</span><p>Transitions and shimmer respect <code>prefers-reduced-motion</code>.</p></div></div></section>
-    </main>
-    <footer class="docs-footer"><span>BLBUI / DOCUMENTATION</span><span>BUILT FOR OPERATORS, NOT DECORATION.</span></footer>
-  </div>
-`;
-
-function catalogMarkup(items: CatalogItem[] = catalog): string {
-  return items
-    .map(
-      (entry) =>
-        `<article class="catalog-card" data-catalog-id="${entry.id}" data-category="${entry.category}" data-search="${`${entry.name} ${entry.tag} ${entry.description} ${entry.category}`.toLowerCase()}"><div class="catalog-card-top"><span class="component-slug">${entry.tag}</span><span class="catalog-status catalog-status-${entry.status}">${entry.status.toUpperCase()}</span></div><h3>${entry.name}</h3><p>${entry.description}</p><div class="catalog-meta"><span>${categoryLabels[entry.category].toUpperCase()}</span><span>${entry.props.length} PROPS</span></div><div class="catalog-api"><code>${entry.props.length ? entry.props.join(" · ") : "SLOT / NATIVE"}</code>${entry.events?.length ? `<small>${entry.events.join(" · ")}</small>` : ""}</div></article>`,
-    )
-    .join("");
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function advancedLabMarkup(): string {
-  return `<div class="lab-grid"><article class="lab-card"><span class="component-slug">PRIMITIVES / MIX</span><h3>Operational markers</h3><div class="lab-preview"><aui-badge variant="primary" dot>PRIMARY</aui-badge><aui-badge variant="success" dot>HEALTHY</aui-badge><aui-avatar initials="CA" size="lg"></aui-avatar><aui-progress value="72" max="100" label="CAPACITY" show-value></aui-progress></div></article><article class="lab-card"><span class="component-slug">INPUT / SEARCH</span><h3>Searchable selection</h3><div class="lab-preview"><aui-combobox id="docs-combobox" options='[{"value":"openai","label":"OpenAI","description":"Primary provider route"},{"value":"anthropic","label":"Anthropic","description":"Failover provider route"},{"value":"gemini","label":"Gemini","description":"Edge provider route"}]' placeholder="SEARCH PROVIDER"></aui-combobox><aui-tag-input values='["production","eu-west"]' placeholder="ADD FILTER"></aui-tag-input></div></article><article class="lab-card"><span class="component-slug">LAYOUT / INSPECTOR</span><h3>System composition</h3><div class="lab-preview"><aui-grid columns="3"><aui-stat label="REQUESTS" value="12.8K" unit="RPM"></aui-stat><aui-stat label="LATENCY" value="184" unit="MS"></aui-stat><aui-stat label="ERRORS" value="0.04" unit="%"></aui-stat></aui-grid></div></article><article class="lab-card"><span class="component-slug">DATA / OPERATIONS</span><h3>Queue board</h3><div class="lab-preview"><aui-kanban columns='[{"id":"todo","title":"TODO","items":[{"id":"1","title":"Rotate provider key","meta":"SECURITY"}]},{"id":"doing","title":"IN PROGRESS","items":[{"id":"2","title":"Review latency spike","meta":"OPS"}]},{"id":"done","title":"DONE","items":[{"id":"3","title":"Deploy fallback route","meta":"RELEASE"}]}]'></aui-kanban></div></article></div>`;
+let globalFramework: FrameworkType = "wc";
+const cardFrameworkMap = new Map<string, FrameworkType>();
+
+function renderComponentCard(comp: ComponentItem, fw: FrameworkType = globalFramework): string {
+  const code = comp.usage[fw] ?? comp.usage.wc;
+  return `
+    <article class="catalog-card" data-catalog-id="${comp.id}" data-category="${comp.category}" data-search="${`${comp.name} ${comp.tag} ${comp.description} ${comp.category} ${comp.props.join(" ")}`.toLowerCase()}">
+      <div class="catalog-card-top">
+        <div class="card-tags">
+          <span class="component-slug">${comp.tag}</span>
+          <span class="component-react-slug">&lt;${comp.name}&gt;</span>
+        </div>
+        <div class="card-badges">
+          <span class="component-cat-badge">${categoryLabels[comp.category].toUpperCase()}</span>
+          <span class="catalog-status catalog-status-${comp.status}">${comp.status.toUpperCase()}</span>
+        </div>
+      </div>
+      <h3>${comp.name}</h3>
+      <p>${comp.description}</p>
+      
+      <div class="playground" data-playground-id="${comp.id}">
+        ${comp.previewHtml}
+      </div>
+
+      <div class="catalog-api">
+        <div class="api-row">
+          <span class="api-label">PROPS:</span>
+          <code>${comp.props.length ? comp.props.join(" · ") : "SLOT / NATIVE"}</code>
+        </div>
+        ${
+          comp.events.length
+            ? `<div class="api-row">
+          <span class="api-label">EVENTS:</span>
+          <small>${comp.events.join(" · ")}</small>
+        </div>`
+            : ""
+        }
+      </div>
+
+      <div class="card-usage-panel">
+        <div class="usage-bar">
+          <div class="usage-tabs" role="tablist">
+            <button type="button" class="usage-tab ${fw === "wc" ? "is-active" : ""}" data-card-fw="wc" data-id="${comp.id}">WC</button>
+            <button type="button" class="usage-tab ${fw === "react" ? "is-active" : ""}" data-card-fw="react" data-id="${comp.id}">REACT</button>
+            <button type="button" class="usage-tab ${fw === "vue" ? "is-active" : ""}" data-card-fw="vue" data-id="${comp.id}">VUE</button>
+            <button type="button" class="usage-tab ${fw === "svelte" ? "is-active" : ""}" data-card-fw="svelte" data-id="${comp.id}">SVELTE</button>
+          </div>
+          <div class="usage-actions">
+            <button type="button" class="card-copy-btn" data-id="${comp.id}" title="Copy usage snippet">COPY</button>
+            <button type="button" class="card-toggle-btn" data-id="${comp.id}" title="Toggle usage code">HIDE ⌃</button>
+          </div>
+        </div>
+        <pre class="card-code-block" data-code-id="${comp.id}"><code>${escapeHtml(code)}</code></pre>
+      </div>
+    </article>
+  `;
 }
 
 function tokenCards(): string {
@@ -155,29 +133,111 @@ function tokenCards(): string {
     .join("");
 }
 
-function buttonExample(): string {
-  return `<div class="demo-stack"><div class="demo-row"><aui-button variant="primary">DEPLOY NEW</aui-button><aui-button variant="secondary">FILTER</aui-button><aui-button variant="danger">DELETE</aui-button></div><div class="demo-row"><aui-button size="compact" variant="secondary">COMPACT ACTION</aui-button><aui-button size="compact" variant="primary" loading>PROCESSING</aui-button><aui-button size="compact" variant="secondary" disabled>DISABLED</aui-button></div></div>`;
-}
+const root = document.createElement("div");
+root.className = "docs-app aui-root";
+root.innerHTML = `
+  <aside class="docs-sidebar">
+    <a class="brand" href="#overview" data-nav="overview" aria-label="BLBUI home">
+      <span class="brand-mark"><i></i></span>
+      <span class="brand-copy"><strong>BLBUI</strong><small>UI LIBRARY / DOCS</small></span>
+    </a>
+    <div class="sidebar-rule"></div>
+    <label class="docs-search"><span aria-hidden="true">⌕</span><input id="docs-search" type="search" placeholder="SEARCH 87 COMPONENTS..." aria-label="Search components" /></label>
+    <nav class="docs-nav" aria-label="Documentation navigation"></nav>
+    <div class="sidebar-footer"><span class="pulse"></span><span>CORE STATUS / STABLE</span><span class="version">v0.0.2</span></div>
+  </aside>
+  <div class="docs-main">
+    <header class="docs-header">
+      <div class="header-path"><span>DOCS:</span> BLBUI <b>/</b> COMPONENT SYSTEM</div>
+      <div class="header-tools"><a href="https://github.com/chao2hang/blbui" target="_blank" rel="noreferrer">GITHUB ↗</a><button type="button" class="header-menu" aria-label="Open navigation">MENU</button></div>
+    </header>
+    <main class="docs-content">
+      <section class="docs-hero" id="overview">
+        <div class="hero-kicker"><span></span> OBSIDIAN INDUSTRIAL CONSOLE / 0.0.2</div>
+        <h1>BLBUI<br><em>DOCUMENTATION</em></h1>
+        <p class="hero-lede">A sharp, data-first cross-framework component system for enterprise operational consoles. All 87 components with interactive previews, live properties, and usage across Web Components, React, Vue, and Svelte.</p>
+        <div class="hero-actions"><aui-button variant="primary" id="hero-explore">EXPLORE 87 COMPONENTS</aui-button><a class="text-link" href="#frameworks">VIEW FRAMEWORKS <span>→</span></a></div>
+        <div class="hero-grid" aria-label="Library facts"><div><small>RENDERER</small><strong>WEB COMPONENTS</strong></div><div><small>ADAPTERS</small><strong>REACT · VUE · SVELTE</strong></div><div><small>DESIGN LANGUAGE</small><strong>OBSIDIAN / INDUSTRIAL</strong></div></div><div class="hero-count"><strong>${components.length}</strong><span>REGISTERED COMPONENTS / 8 CATEGORIES / ZERO RUNTIME OVERHEAD</span></div>
+      </section>
 
-function formExample(): string {
-  return `<div class="demo-form"><label>CHANNEL NAME<aui-input value="openai-primary" placeholder="Enter channel name"></aui-input></label><label>PROVIDER<aui-select options='[{"value":"openai","label":"OpenAI"},{"value":"anthropic","label":"Anthropic"}]'></aui-select></label><label>NOTES<aui-textarea value="Operational route for production traffic." rows="3"></aui-textarea></label><div class="demo-checks"><aui-checkbox label="Enable channel"></aui-checkbox><aui-switch label="Failover route"></aui-switch></div></div>`;
-}
+      <section class="content-section" id="tokens">
+        <div class="section-heading"><span class="section-index">01</span><div><p class="eyebrow">FOUNDATION</p><h2>Design tokens</h2></div></div>
+        <div class="token-layout"><div class="token-copy"><p>Every component inherits a compact, semantic token layer. Override variables at your application root to create a controlled variant without forking component CSS.</p><code>:root { --aui-bg: #0a0a0a; --aui-border: #262626; }</code></div><div class="token-grid">${tokenCards()}</div></div>
+      </section>
 
-function feedbackExample(): string {
-  return `<div class="demo-stack"><div class="demo-row demo-statuses"><aui-status-tag status="success">ONLINE</aui-status-tag><aui-status-tag status="danger">FAILED</aui-status-tag><aui-status-tag status="warning">REVIEW</aui-status-tag><aui-status-tag status="info">SYNCING</aui-status-tag><aui-status-tag>DISABLED</aui-status-tag></div><div class="feedback-grid"><aui-empty-state title="No routes" description="Create a route to begin."></aui-empty-state><aui-error-state title="Request failed" description="The upstream did not respond."><aui-button size="compact" variant="secondary">RETRY</aui-button></aui-error-state></div></div>`;
-}
+      <section class="content-section" id="components">
+        <div class="section-heading"><span class="section-index">02</span><div><p class="eyebrow">LIBRARY INDEX &amp; PLAYGROUND</p><h2>All 87 components &amp; usage</h2></div></div>
+        <p class="section-intro catalog-intro">Every custom element is rendered live with interactive controls, schema props, and instant code snippets for Web Components, React, Vue and Svelte.</p>
+        
+        <div class="catalog-toolbar">
+          <div class="catalog-total"><strong id="catalog-visible-count">${components.length}</strong><span>VISIBLE / ${components.length} TOTAL</span></div>
+          <div class="category-filters" role="group" aria-label="Filter component category">
+            <button type="button" class="category-filter is-active" data-category="all">ALL (87)</button>
+            <button type="button" class="category-filter" data-category="primitives">PRIMITIVES (9)</button>
+            <button type="button" class="category-filter" data-category="forms">FORMS (17)</button>
+            <button type="button" class="category-filter" data-category="navigation">NAVIGATION (13)</button>
+            <button type="button" class="category-filter" data-category="feedback">FEEDBACK (9)</button>
+            <button type="button" class="category-filter" data-category="overlay">OVERLAYS (7)</button>
+            <button type="button" class="category-filter" data-category="data">DATA (11)</button>
+            <button type="button" class="category-filter" data-category="layout">LAYOUT (12)</button>
+            <button type="button" class="category-filter" data-category="business">BUSINESS (9)</button>
+          </div>
+        </div>
 
-function dataExample(): string {
-  return `<div class="demo-stack"><aui-table><table><thead><tr><th>CHANNEL</th><th>MODEL</th><th>STATUS</th><th>LATENCY</th></tr></thead><tbody><tr><td>OPENAI / PRIMARY</td><td>GPT-4.1</td><td><aui-status-tag status="success">ONLINE</aui-status-tag></td><td>184 MS</td></tr><tr><td>ANTHROPIC / FAILOVER</td><td>CLAUDE-3-7</td><td><aui-status-tag status="warning">REVIEW</aui-status-tag></td><td>—</td></tr><tr><td>GEMINI / EDGE</td><td>GEMINI-2.5</td><td><aui-status-tag status="danger">FAILED</aui-status-tag></td><td>2.4 S</td></tr></tbody></table></aui-table><aui-pagination page="1" total-pages="3" total="24"></aui-pagination></div>`;
-}
+        <div class="global-fw-bar">
+          <span class="global-fw-label">USAGE CODE FRAMEWORK:</span>
+          <div class="global-fw-actions">
+            <button type="button" class="global-fw-btn is-active" data-global-fw="wc">WEB COMPONENTS</button>
+            <button type="button" class="global-fw-btn" data-global-fw="react">REACT</button>
+            <button type="button" class="global-fw-btn" data-global-fw="vue">VUE</button>
+            <button type="button" class="global-fw-btn" data-global-fw="svelte">SVELTE</button>
+            <button type="button" class="global-toggle-all-btn" id="global-toggle-usage">TOGGLE ALL USAGE</button>
+          </div>
+        </div>
 
-function overlayExample(): string {
-  return `<div class="demo-row"><aui-button variant="secondary" id="open-dialog">OPEN DIALOG</aui-button><aui-button variant="danger" id="open-confirm">OPEN CONFIRMATION</aui-button><aui-dialog title="Deploy route" description="Changes apply to production traffic."><div class="dialog-placeholder">DIALOG CONTENT / READY FOR FORM FIELDS</div><span slot="footer"><aui-button variant="secondary" id="close-dialog">CANCEL</aui-button><aui-button variant="primary" id="save-dialog">CONFIRM DEPLOY</aui-button></span></aui-dialog><aui-confirm-dialog title="Delete channel?" description="This action permanently removes the channel route." confirm-label="DELETE CHANNEL" cancel-label="CANCEL" danger></aui-confirm-dialog></div>`;
-}
+        <div class="catalog-grid" id="catalog-grid">
+          ${components.map((c) => renderComponentCard(c, globalFramework)).join("")}
+        </div>
+      </section>
 
-function getNavId(): SectionId {
-  const hash = window.location.hash.slice(1) as SectionId;
-  return sections.some((section) => section.id === hash) ? hash : "overview";
+      <section class="content-section framework-section" id="frameworks">
+        <div class="section-heading"><span class="section-index">03</span><div><p class="eyebrow">INTEGRATION</p><h2>One system. Your stack.</h2></div></div>
+        <p class="section-intro">The core owns behavior and visual language. Thin adapters make the same components feel native in every supported framework.</p>
+        <div class="framework-tabs" role="tablist" aria-label="Framework examples">${["react", "vue", "svelte", "web"].map((framework, index) => `<button type="button" role="tab" aria-selected="${index === 0}" data-framework="${framework}">${framework === "web" ? "WEB COMPONENTS" : framework.toUpperCase()}</button>`).join("")}</div>
+        <pre class="framework-code" aria-live="polite"></pre>
+        <div class="install-row"><span>INSTALL</span><code>bun add @chaos_team/blbui-react @chaos_team/blbui-core</code><button type="button" class="copy-install">COPY</button></div>
+      </section>
+
+      <section class="content-section accessibility-section" id="accessibility">
+        <div class="section-heading"><span class="section-index">04</span><div><p class="eyebrow">QUALITY BAR</p><h2>Accessible by default</h2></div></div>
+        <div class="a11y-list">
+          <div><strong>01</strong><span>Native elements first</span><p>Buttons, inputs, select, table and dialog preserve browser semantics.</p></div>
+          <div><strong>02</strong><span>State has meaning</span><p>Active, selected, disabled, loading and error states expose ARIA semantics.</p></div>
+          <div><strong>03</strong><span>Motion is optional</span><p>Transitions and shimmer respect <code>prefers-reduced-motion</code>.</p></div>
+        </div>
+      </section>
+    </main>
+    <footer class="docs-footer"><span>BLBUI / DOCUMENTATION</span><span>BUILT FOR OPERATORS, NOT DECORATION.</span></footer>
+  </div>
+`;
+
+// Build sidebar navigation
+const nav = root.querySelector(".docs-nav") as HTMLElement;
+let previousEyebrow = "";
+for (const section of sections) {
+  if (section.eyebrow !== previousEyebrow) {
+    const label = document.createElement("p");
+    label.className = "nav-eyebrow";
+    label.textContent = section.eyebrow;
+    nav.append(label);
+    previousEyebrow = section.eyebrow;
+  }
+  const link = document.createElement("a");
+  link.href = section.category ? "#components" : `#${section.id}`;
+  link.dataset.nav = section.id;
+  if (section.category) link.dataset.targetCategory = section.category;
+  link.textContent = section.label;
+  nav.append(link);
 }
 
 function setActiveNav(id: SectionId): void {
@@ -193,74 +253,10 @@ function updateFrameworkCode(framework: string): void {
   if (code) code.textContent = codeSamples[framework] ?? codeSamples.web;
 }
 
-const nav = root.querySelector(".docs-nav") as HTMLElement;
-let previousEyebrow = "";
-for (const section of sections) {
-  if (section.eyebrow !== previousEyebrow) {
-    const label = document.createElement("p");
-    label.className = "nav-eyebrow";
-    label.textContent = section.eyebrow;
-    nav.append(label);
-    previousEyebrow = section.eyebrow;
-  }
-  const link = document.createElement("a");
-  link.href = `#${section.id}`;
-  link.dataset.nav = section.id;
-  link.textContent = section.label;
-  nav.append(link);
-}
-
-function setProperty(selector: string, name: string, value: unknown): void {
-  const element = root.querySelector(selector) as (HTMLElement & Record<string, unknown>) | null;
-  if (element) element[name] = value;
-}
-
-setProperty("#showcase-form aui-select", "options", [
-  { value: "openai", label: "OpenAI" },
-  { value: "anthropic", label: "Anthropic" },
-]);
-setProperty("#docs-combobox", "options", [
-  { value: "openai", label: "OpenAI", description: "Primary provider route" },
-  { value: "anthropic", label: "Anthropic", description: "Failover provider route" },
-  { value: "gemini", label: "Gemini", description: "Edge provider route" },
-]);
-setProperty(".advanced-lab aui-tag-input", "values", ["production", "eu-west"]);
-setProperty(".advanced-lab aui-kanban", "columns", [
-  {
-    id: "todo",
-    title: "TODO",
-    items: [{ id: "1", title: "Rotate provider key", meta: "SECURITY" }],
-  },
-  {
-    id: "doing",
-    title: "IN PROGRESS",
-    items: [{ id: "2", title: "Review latency spike", meta: "OPS" }],
-  },
-  {
-    id: "done",
-    title: "DONE",
-    items: [{ id: "3", title: "Deploy fallback route", meta: "RELEASE" }],
-  },
-]);
-
-root
-  .querySelectorAll<HTMLElement>("[data-nav]")
-  .forEach((link) =>
-    link.addEventListener("click", () => setActiveNav(link.dataset.nav as SectionId)),
-  );
-root
-  .querySelector("#hero-explore")
-  ?.addEventListener("click", () =>
-    document.querySelector("#components")?.scrollIntoView({ behavior: "smooth" }),
-  );
-root
-  .querySelector(".header-menu")
-  ?.addEventListener("click", () =>
-    root.querySelector(".docs-sidebar")?.classList.toggle("is-open"),
-  );
-
+// Wire up filtering
 const catalogCount = root.querySelector<HTMLElement>("#catalog-visible-count");
-let selectedCategory = "all";
+let selectedCategory: string = "all";
+
 function filterCatalog(): void {
   const query = (root.querySelector<HTMLInputElement>("#docs-search")?.value ?? "")
     .trim()
@@ -276,49 +272,136 @@ function filterCatalog(): void {
   });
   if (catalogCount) catalogCount.textContent = String(visible);
 }
+
 root.querySelector("#docs-search")?.addEventListener("input", filterCatalog);
+
+function applyCategoryFilter(cat: string): void {
+  selectedCategory = cat;
+  root.querySelectorAll<HTMLButtonElement>(".category-filter").forEach((item) => {
+    item.classList.toggle("is-active", (item.dataset.category ?? "all") === cat);
+  });
+  filterCatalog();
+}
+
 root.querySelectorAll<HTMLButtonElement>(".category-filter").forEach((button) =>
   button.addEventListener("click", () => {
-    selectedCategory = button.dataset.category ?? "all";
-    root
-      .querySelectorAll(".category-filter")
-      .forEach((item) => item.classList.toggle("is-active", item === button));
-    filterCatalog();
+    applyCategoryFilter(button.dataset.category ?? "all");
   }),
 );
 
-root.querySelectorAll<HTMLButtonElement>(".code-toggle").forEach((button) => {
-  button.addEventListener("click", () => {
-    const id = button.dataset.code;
-    const block = root.querySelector<HTMLElement>(`[data-code-block="${id}"]`);
-    if (!block || !id) return;
-    if (block.hidden) {
-      block.textContent = usageCode(id);
-      block.hidden = false;
-      button.innerHTML = "HIDE USAGE <span>⌃</span>";
-    } else {
-      block.hidden = true;
-      button.innerHTML = "VIEW USAGE <span>⌄</span>";
+// Sidebar category clicks
+root.querySelectorAll<HTMLAnchorElement>("[data-target-category]").forEach((link) => {
+  link.addEventListener("click", () => {
+    const cat = link.dataset.targetCategory;
+    if (cat) {
+      applyCategoryFilter(cat);
+      document.querySelector("#components")?.scrollIntoView({ behavior: "smooth" });
     }
   });
 });
 
-function usageCode(id: string): string {
-  if (id === "button") {
-    return `<aui-button variant="primary">Deploy New</aui-button>\n<aui-button variant="secondary">Filter</aui-button>\n<aui-button variant="danger">Delete</aui-button>`;
+// Update card code
+function updateCardCode(cardId: string, fw: FrameworkType): void {
+  const comp = components.find((c) => c.id === cardId);
+  if (!comp) return;
+  const pre = root.querySelector<HTMLElement>(`pre[data-code-id="${cardId}"]`);
+  if (pre) {
+    const codeEl = pre.querySelector("code");
+    const code = comp.usage[fw] ?? comp.usage.wc;
+    if (codeEl) codeEl.textContent = code;
   }
-  if (id === "form") {
-    return `<aui-input placeholder="Search channels"></aui-input>\n<aui-select .options={options}></aui-select>\n<aui-textarea rows="4"></aui-textarea>`;
-  }
-  if (id === "data") {
-    return `<aui-table>\n  <table>...</table>\n</aui-table>\n<aui-pagination page="1" total-pages="3" total="24"></aui-pagination>`;
-  }
-  if (id === "overlay") {
-    return `<aui-dialog title="Deploy route">\n  <span slot="footer">...</span>\n</aui-dialog>`;
-  }
-  return `<aui-status-tag status="success">ONLINE</aui-status-tag>\n<aui-empty-state title="No routes"></aui-empty-state>\n<aui-error-state title="Request failed"></aui-error-state>`;
 }
 
+// Card tabs
+root.querySelectorAll<HTMLButtonElement>(".usage-tab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const cardId = btn.dataset.id;
+    const fw = (btn.dataset.cardFw ?? "wc") as FrameworkType;
+    if (!cardId) return;
+    cardFrameworkMap.set(cardId, fw);
+
+    const parentBar = btn.closest(".usage-bar");
+    parentBar
+      ?.querySelectorAll(".usage-tab")
+      .forEach((t) => t.classList.toggle("is-active", t === btn));
+
+    updateCardCode(cardId, fw);
+  });
+});
+
+// Card copy button
+root.querySelectorAll<HTMLButtonElement>(".card-copy-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const cardId = btn.dataset.id;
+    if (!cardId) return;
+    const pre = root.querySelector<HTMLElement>(`pre[data-code-id="${cardId}"]`);
+    const code = pre?.querySelector("code")?.textContent ?? "";
+    await navigator.clipboard?.writeText(code);
+    const original = btn.textContent;
+    btn.textContent = "COPIED!";
+    window.setTimeout(() => {
+      btn.textContent = original ?? "COPY";
+    }, 1200);
+  });
+});
+
+// Card toggle button
+root.querySelectorAll<HTMLButtonElement>(".card-toggle-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const cardId = btn.dataset.id;
+    if (!cardId) return;
+    const pre = root.querySelector<HTMLElement>(`pre[data-code-id="${cardId}"]`);
+    if (!pre) return;
+    const isHidden = pre.hidden;
+    pre.hidden = !isHidden;
+    btn.textContent = isHidden ? "HIDE ⌃" : "SHOW ⌄";
+  });
+});
+
+// Global framework switcher
+root.querySelectorAll<HTMLButtonElement>(".global-fw-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const fw = (btn.dataset.globalFw ?? "wc") as FrameworkType;
+    globalFramework = fw;
+
+    root.querySelectorAll(".global-fw-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+
+    components.forEach((c) => {
+      cardFrameworkMap.set(c.id, fw);
+      updateCardCode(c.id, fw);
+      const card = root.querySelector(`[data-catalog-id="${c.id}"]`);
+      card?.querySelectorAll<HTMLButtonElement>(".usage-tab").forEach((t) => {
+        t.classList.toggle("is-active", t.dataset.cardFw === fw);
+      });
+    });
+  });
+});
+
+// Global toggle all usage
+let allExpanded = true;
+root.querySelector("#global-toggle-usage")?.addEventListener("click", () => {
+  allExpanded = !allExpanded;
+  root.querySelectorAll<HTMLElement>(".card-code-block").forEach((pre) => {
+    pre.hidden = !allExpanded;
+  });
+  root.querySelectorAll<HTMLButtonElement>(".card-toggle-btn").forEach((btn) => {
+    btn.textContent = allExpanded ? "HIDE ⌃" : "SHOW ⌄";
+  });
+  const btn = root.querySelector<HTMLButtonElement>("#global-toggle-usage");
+  if (btn) btn.textContent = allExpanded ? "COLLAPSE ALL USAGE" : "EXPAND ALL USAGE";
+});
+
+// Hero explore button
+root.querySelector("#hero-explore")?.addEventListener("click", () => {
+  document.querySelector("#components")?.scrollIntoView({ behavior: "smooth" });
+});
+
+// Header menu toggle
+root.querySelector(".header-menu")?.addEventListener("click", () => {
+  root.querySelector(".docs-sidebar")?.classList.toggle("is-open");
+});
+
+// Framework tabs in section 03
 root.querySelectorAll<HTMLButtonElement>("[data-framework]").forEach((button) =>
   button.addEventListener("click", () => {
     root
@@ -329,42 +412,17 @@ root.querySelectorAll<HTMLButtonElement>("[data-framework]").forEach((button) =>
 );
 updateFrameworkCode("react");
 
+// Install snippet copy
 root.querySelector(".copy-install")?.addEventListener("click", async (event) => {
   const button = event.currentTarget as HTMLButtonElement;
-  await navigator.clipboard?.writeText(
-    "bun add @chaos_team/blbui-react @chaos_team/blbui-core",
-  );
+  await navigator.clipboard?.writeText("bun add @chaos_team/blbui-react @chaos_team/blbui-core");
   button.textContent = "COPIED";
   window.setTimeout(() => {
     button.textContent = "COPY";
   }, 1200);
 });
 
-root
-  .querySelector("#open-dialog")
-  ?.addEventListener("click", () => root.querySelector("aui-dialog")?.setAttribute("open", ""));
-root
-  .querySelector("#close-dialog")
-  ?.addEventListener("click", () => root.querySelector("aui-dialog")?.removeAttribute("open"));
-root
-  .querySelector("#save-dialog")
-  ?.addEventListener("click", () => root.querySelector("aui-dialog")?.removeAttribute("open"));
-root
-  .querySelector("#open-confirm")
-  ?.addEventListener("click", () =>
-    root.querySelector("aui-confirm-dialog")?.setAttribute("open", ""),
-  );
-root
-  .querySelector("aui-confirm-dialog")
-  ?.addEventListener("aui-confirm", () =>
-    root.querySelector("aui-confirm-dialog")?.removeAttribute("open"),
-  );
-root
-  .querySelector("aui-confirm-dialog")
-  ?.addEventListener("aui-cancel", () =>
-    root.querySelector("aui-confirm-dialog")?.removeAttribute("open"),
-  );
-
+// Intersection observer for sidebar navigation
 const observer = new IntersectionObserver(
   (entries) => {
     const visible = entries
@@ -374,10 +432,10 @@ const observer = new IntersectionObserver(
   },
   { rootMargin: "-15% 0px -70% 0px", threshold: [0, 0.2, 0.8] },
 );
-root
-  .querySelectorAll<HTMLElement>(".docs-content > section")
-  .forEach((section) => observer.observe(section));
-setActiveNav(getNavId());
+root.querySelectorAll<HTMLElement>(".docs-content > section").forEach((section) => observer.observe(section));
+
+// Initialize rich data for custom elements
+initComponentDemo(root);
 
 export function mountDocsApp(container: HTMLElement): void {
   container.replaceChildren(root);
