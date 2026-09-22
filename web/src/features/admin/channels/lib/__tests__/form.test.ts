@@ -107,4 +107,16 @@ describe('buildChannelPayload', () => {
     })
     expect(payload.key).toBe('sk-1234')
   })
+
+  it('supports channel with status_reason for auto-disabled diagnostics', () => {
+    const channelWithReason: Channel = {
+      ...minimalChannel,
+      status: 3,
+      status_reason: 'status_code=429, No deployments available',
+    }
+    expect(channelWithReason.status).toBe(3)
+    expect(channelWithReason.status_reason).toBe(
+      'status_code=429, No deployments available'
+    )
+  })
 })

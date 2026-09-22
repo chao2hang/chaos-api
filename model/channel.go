@@ -54,6 +54,7 @@ type Channel struct {
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
+	StatusReason  string `json:"status_reason,omitempty" gorm:"-"`
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
@@ -321,12 +322,42 @@ func (channel *Channel) GetOtherInfo() map[string]interface{} {
 }
 
 func (channel *Channel) SetOtherInfo(otherInfo map[string]interface{}) {
-	otherInfoBytes, err := json.Marshal(otherInfo)
+	otherInfoBytes, err := common.Marshal(otherInfo)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to marshal other info: channel_id=%d, tag=%s, name=%s, error=%v", channel.Id, channel.GetTag(), channel.Name, err))
 		return
 	}
 	channel.OtherInfo = string(otherInfoBytes)
+}
+
+func (channel *Channel) AfterFind(_ *gorm.DB) error {
+	channel.PopulateStatusReason()
+	return nil
+}
+
+func (channel *Channel) PopulateStatusReason() {
+	if channel.Status == common.ChannelStatusEnabled {
+		channel.StatusReason = ""
+		return
+	}
+	info := channel.GetOtherInfo()
+	if reason, ok := info["status_reason"].(string); ok && reason != "" {
+		channel.StatusReason = reason
+		return
+	}
+	if channel.ChannelInfo.IsMultiKey && len(channel.ChannelInfo.MultiKeyDisabledReason) > 0 {
+		var reasons []string
+		for _, r := range channel.ChannelInfo.MultiKeyDisabledReason {
+			if r != "" {
+				reasons = append(reasons, r)
+			}
+		}
+		if len(reasons) > 0 {
+			channel.StatusReason = strings.Join(reasons, "; ")
+			return
+		}
+	}
+	channel.StatusReason = ""
 }
 
 func (channel *Channel) GetTag() string {
@@ -794,7 +825,13 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			}
 		} else {
 			info := channel.GetOtherInfo()
-			info["status_reason"] = reason
+			if status == common.ChannelStatusEnabled {
+				info["status_reason"] = ""
+				channel.StatusReason = ""
+			} else {
+				info["status_reason"] = reason
+				channel.StatusReason = reason
+			}
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
 			channel.Status = status

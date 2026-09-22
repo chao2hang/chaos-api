@@ -19,7 +19,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tag } from '@chaos_team/chaos-ui'
+import { Tag, Tooltip, TooltipContent, TooltipTrigger } from '@chaos_team/chaos-ui'
 import type { ProColumn } from '@chaos_team/chaos-ui/business'
 
 import { formatCurrencyUSD, formatQuota } from '@/lib/format'
@@ -42,9 +42,22 @@ export interface UseChannelColumnsParams {
   handlers: ChannelRowHandlers
 }
 
-function renderStatusCell(props: { value: string; label: string }) {
+function renderStatusCell(props: { value: string; label: string; reason?: string }) {
   const meta = CHANNEL_STATUS_META[Number(props.value)]
-  return <Tag color={meta?.color ?? 'gray'}>{props.label}</Tag>
+  const tag = <Tag color={meta?.color ?? 'gray'}>{props.label}</Tag>
+  if (props.reason) {
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<span className='inline-flex cursor-help items-center' />}>
+          {tag}
+        </TooltipTrigger>
+        <TooltipContent side='top' className='max-w-xs break-words text-xs'>
+          {props.reason}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+  return tag
 }
 
 function renderModelsCell(props: { value: string }) {
@@ -106,10 +119,14 @@ export function useChannelColumns(
         title: t('Status'),
         dataIndex: 'status',
         width: 110,
-        render: (value: unknown) => {
+        render: (value: unknown, record: Channel) => {
           const meta = CHANNEL_STATUS_META[Number(value)]
           const label = meta ? t(meta.labelKey) : String(value)
-          return renderStatusCell({ value: String(value), label })
+          return renderStatusCell({
+            value: String(value),
+            label,
+            reason: record.status_reason,
+          })
         },
       },
       {

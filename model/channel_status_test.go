@@ -100,3 +100,34 @@ func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.
 	assert.Equal(t, "manual operation", otherInfo["status_reason"])
 	assert.Equal(t, float64(1234), otherInfo["status_time"])
 }
+
+func TestUpdateChannelStatus_StatusReasonPopulation(t *testing.T) {
+	setupChannelStatusTest(t)
+
+	channel := Channel{
+		Name:        "reason-test-channel",
+		Key:         "sk-test-key",
+		Status:      common.ChannelStatusEnabled,
+		Models:      "gpt-4",
+		Group:       "default",
+		ChannelInfo: ChannelInfo{},
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+
+	// 1. Disable with reason
+	changed := UpdateChannelStatus(channel.Id, "", common.ChannelStatusAutoDisabled, "status_code=429, Quota exceeded")
+	require.True(t, changed)
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, channel.Id).Error)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, stored.Status)
+	assert.Equal(t, "status_code=429, Quota exceeded", stored.StatusReason)
+
+	// 2. Re-enable clears reason
+	changed = UpdateChannelStatus(channel.Id, "", common.ChannelStatusEnabled, "")
+	require.True(t, changed)
+
+	require.NoError(t, DB.First(&stored, channel.Id).Error)
+	assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
+	assert.Empty(t, stored.StatusReason)
+}

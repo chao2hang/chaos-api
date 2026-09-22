@@ -18,6 +18,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { useTranslation } from 'react-i18next'
 
+import { Tooltip, TooltipContent, TooltipTrigger } from '@chaos_team/chaos-ui'
+
 import { formatCurrencyUSD } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +27,16 @@ import { getChannelTypeLabel } from '../constants'
 import { formatResponseTime, summarizeModels } from '../lib/format'
 import type { Channel } from '../types'
 import { ChannelRowActions } from './channel-row-actions'
+
+function getStatusLabel(status: number): string {
+  if (status === 1) {
+    return 'Active'
+  }
+  if (status === 3) {
+    return 'Down'
+  }
+  return 'Disabled'
+}
 
 export interface ChannelsTableProps {
   data: Channel[]
@@ -101,24 +113,31 @@ export function ChannelsTable(props: ChannelsTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-900 text-zinc-300">
-            {props.loading ? (
-              <tr>
-                <td colSpan={11} className="py-12 text-center text-zinc-600 mono">
-                  {t('Loading...')}
-                </td>
-              </tr>
-            ) : props.data.length === 0 ? (
-              <tr>
-                <td colSpan={11} className="py-12 text-center text-zinc-600 mono">
-                  {t('No channels found')}
-                </td>
-              </tr>
-            ) : (
-              props.data.map((channel) => {
+            {(() => {
+              if (props.loading) {
+                return (
+                  <tr>
+                    <td colSpan={11} className="py-12 text-center text-zinc-600 mono">
+                      {t('Loading...')}
+                    </td>
+                  </tr>
+                )
+              }
+              if (props.data.length === 0) {
+                return (
+                  <tr>
+                    <td colSpan={11} className="py-12 text-center text-zinc-600 mono">
+                      {t('No channels found')}
+                    </td>
+                  </tr>
+                )
+              }
+              return props.data.map((channel) => {
                 const isSelected = props.selectedIds.includes(channel.id)
                 const isEnabled = channel.status === 1
                 const isAutoDisabled = channel.status === 3
                 const modelsSummary = summarizeModels(channel.models)
+                const statusText = getStatusLabel(channel.status)
 
                 return (
                   <tr
@@ -145,16 +164,36 @@ export function ChannelsTable(props: ChannelsTableProps) {
                       {getChannelTypeLabel(channel.type)}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span
-                        className={cn(
-                          'status-tag',
-                          isEnabled && 'text-emerald-500',
-                          isAutoDisabled && 'text-red-500',
-                          !isEnabled && !isAutoDisabled && 'text-zinc-500'
-                        )}
-                      >
-                        {isEnabled ? 'Active' : isAutoDisabled ? 'Down' : 'Disabled'}
-                      </span>
+                      {channel.status_reason ? (
+                        <Tooltip>
+                          <TooltipTrigger render={<span className="inline-flex cursor-help items-center" />}>
+                            <span
+                              className={cn(
+                                'status-tag',
+                                isEnabled && 'text-emerald-500',
+                                isAutoDisabled && 'text-red-500',
+                                !isEnabled && !isAutoDisabled && 'text-zinc-500'
+                              )}
+                            >
+                              {statusText}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs break-words text-xs">
+                            {channel.status_reason}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span
+                          className={cn(
+                            'status-tag',
+                            isEnabled && 'text-emerald-500',
+                            isAutoDisabled && 'text-red-500',
+                            !isEnabled && !isAutoDisabled && 'text-zinc-500'
+                          )}
+                        >
+                          {statusText}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-zinc-400">
                       {formatResponseTime(channel.response_time)}
@@ -184,7 +223,7 @@ export function ChannelsTable(props: ChannelsTableProps) {
                   </tr>
                 )
               })
-            )}
+            })()}
           </tbody>
         </table>
       </div>

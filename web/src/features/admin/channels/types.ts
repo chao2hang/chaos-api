@@ -65,6 +65,7 @@ export type Channel = {
   param_override: string
   setting: string
   settings: string
+  status_reason?: string
   channel_info: ChannelInfo | null
 }
 

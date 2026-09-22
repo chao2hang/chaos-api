@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/chaos-api/chaos-api/common"
@@ -32,7 +33,7 @@ type channelTestHandler struct{}
 func (channelTestHandler) Type() string { return model.SystemTaskTypeChannelTest }
 
 func (channelTestHandler) Enabled() bool {
-	return operation_setting.GetMonitorSetting().AutoTestChannelEnabled
+	return operation_setting.GetMonitorSetting().AutoTestChannelEnabled || common.AutomaticEnableChannelEnabled
 }
 
 func (channelTestHandler) Interval() time.Duration {
@@ -60,6 +61,11 @@ func (channelTestHandler) Run(ctx context.Context, task *model.SystemTask, runne
 	if err := task.DecodePayload(&payload); err != nil {
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
 		return
+	}
+	if strings.TrimSpace(payload.Mode) == "" {
+		if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled && common.AutomaticEnableChannelEnabled {
+			payload.Mode = operation_setting.ChannelTestModePassiveRecovery
+		}
 	}
 	summary, err := runChannelTestTask(ctx, payload.Mode, payload.Notify, service.NewSystemTaskProgressReporter(task, runnerID))
 	if err != nil {
