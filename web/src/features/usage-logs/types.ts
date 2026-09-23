@@ -61,6 +61,7 @@ export type UsageLogStat = {
   quota: number
   rpm: number
   tpm: number
+  tps?: number
 }
 
 /** Midjourney drawing log (`GET /api/mj` and `/api/mj/self`). */

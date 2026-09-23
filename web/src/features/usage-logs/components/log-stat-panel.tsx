@@ -18,8 +18,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
-import { formatLogQuota } from '@/lib/format'
-
 import { fetchUsageLogStat } from '../api'
 import { buildUsageLogStatQueryParams } from '../lib/query-params'
 import type { UsageLogsSearch } from '../lib/search-schema'
@@ -38,18 +36,22 @@ export function LogStatPanel(props: LogStatPanelProps) {
     queryKey: ['usage-logs', 'stat', props.admin, params],
     queryFn: () => fetchUsageLogStat(props.admin, params),
     placeholderData: (previous) => previous,
+    refetchInterval: 10_000,
   })
+
+  const tps = data?.tps != null ? data.tps : Math.round((data?.tpm ?? 0) / 60)
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-6 sharp-card border-zinc-800">
       <div>
         <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2 mono">
-          {t('Total Quota')}
+          {t('Realtime TPS')}
         </p>
         <div className="flex items-baseline space-x-2">
           <span className="text-3xl font-light text-white mono">
-            {isPending ? '…' : formatLogQuota(data?.quota ?? 0)}
+            {isPending ? '…' : formatRateStat(tps)}
           </span>
+          <span className="text-xs text-zinc-500 mono">tokens/s</span>
         </div>
       </div>
       <div>
