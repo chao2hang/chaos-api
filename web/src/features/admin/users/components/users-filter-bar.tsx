@@ -107,8 +107,8 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
   const groupLabel = props.group ? props.group : t('All groups')
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-4 bg-[#0a0a0a] border border-zinc-800 sharp-card">
-      <div className="relative flex-1 min-w-[200px]">
+    <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 p-3 sm:p-4 bg-[#0a0a0a] border border-zinc-800 sharp-card">
+      <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
         <Input
           placeholder={t('Search users by username, email, display name...')}
           value={keywordInput}
@@ -124,7 +124,7 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
       <button
         type="button"
         onClick={commitKeyword}
-        className="btn-industrial-secondary mono text-xs h-9 cursor-pointer"
+        className="btn-industrial-secondary mono text-xs h-9 cursor-pointer shrink-0"
       >
         <SearchIcon className="size-3.5" />
         {t('Search')}
@@ -134,7 +134,7 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
         value={props.status || ALL_VALUE}
         onValueChange={(value) => handleStatusChange(String(value))}
       >
-        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
+        <SelectTrigger className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
           <SelectValue>{statusLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
@@ -151,7 +151,7 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
         value={props.role || ALL_VALUE}
         onValueChange={(value) => handleRoleChange(String(value))}
       >
-        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
+        <SelectTrigger className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
           <SelectValue>{roleLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
@@ -168,7 +168,7 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
         value={props.group || ALL_VALUE}
         onValueChange={(value) => handleGroupChange(String(value))}
       >
-        <SelectTrigger className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
+        <SelectTrigger className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9">
           <SelectValue>{groupLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
@@ -185,7 +185,7 @@ export function UsersFilterBar(props: UsersFilterBarProps) {
         <button
           type="button"
           onClick={handleReset}
-          className="btn-industrial-secondary text-xs mono text-zinc-400 hover:text-white h-9 cursor-pointer"
+          className="btn-industrial-secondary text-xs mono text-zinc-400 hover:text-white h-9 cursor-pointer shrink-0"
         >
           <RotateCcwIcon className="size-3.5" />
           {t('Reset')}

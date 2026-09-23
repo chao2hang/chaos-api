@@ -82,8 +82,8 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
   const groupLabel = props.group !== '' ? props.group : t('All groups')
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-4 bg-[#0a0a0a] border border-zinc-800 sharp-card">
-      <div className="relative flex-1 min-w-[200px]">
+    <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 p-3 sm:p-4 bg-[#0a0a0a] border border-zinc-800 sharp-card">
+      <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
         <Input
           value={keywordDraft}
           onChange={(e) => setKeywordDraft(e.target.value)}
@@ -100,7 +100,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
       <button
         type="button"
         onClick={applyKeyword}
-        className="btn-industrial-secondary mono text-xs h-9 cursor-pointer"
+        className="btn-industrial-secondary mono text-xs h-9 cursor-pointer shrink-0"
       >
         <SearchIcon className="size-3.5" />
         {t('Search')}
@@ -114,7 +114,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Status')}>
+        <SelectTrigger size="sm" className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Status')}>
           <SelectValue>{statusLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
@@ -132,7 +132,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-44 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Type')}>
+        <SelectTrigger size="sm" className="w-32 sm:w-44 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Type')}>
           <SelectValue>{typeLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
@@ -153,7 +153,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Group')}>
+        <SelectTrigger size="sm" className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Group')}>
           <SelectValue>{groupLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
@@ -173,7 +173,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
         <button
           type="button"
           onClick={resetAll}
-          className="btn-industrial-secondary text-xs mono text-zinc-400 hover:text-white h-9 cursor-pointer"
+          className="btn-industrial-secondary text-xs mono text-zinc-400 hover:text-white h-9 cursor-pointer shrink-0"
         >
           <RotateCcwIcon className="size-3.5" />
           {t('Reset')}

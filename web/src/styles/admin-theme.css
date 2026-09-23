@@ -204,12 +204,26 @@ body {
   color: #f87171;
 }
 
-/* 隐藏滚动条 */
+/* 隐藏滚动条但支持触摸/鼠标平滑横向拖拽 */
 .admin-no-scrollbar::-webkit-scrollbar {
+  height: 4px;
   width: 0px;
-  display: none;
+}
+.admin-no-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
 }
 .admin-no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+@media (min-width: 768px) {
+  .admin-no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0px;
+    height: 0px;
+  }
+  .admin-no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

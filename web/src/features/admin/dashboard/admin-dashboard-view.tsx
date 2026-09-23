@@ -203,9 +203,9 @@ export function AdminDashboardView() {
   }, [trafficQuery.data, recentLogs])
 
   return (
-    <div className="space-y-16">
+    <div className="space-y-8 sm:space-y-12 lg:space-y-16">
       {/* 核心数据：大字号、细字重 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
         <div>
           <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2 mono">
             {t('Total Balance')}
