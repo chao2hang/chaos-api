@@ -143,11 +143,13 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
 
 type UnlimitedQuotaBadgeProps = {
   used: number
+  tokens?: number
 }
 
 export function UnlimitedQuotaBadge(props: UnlimitedQuotaBadgeProps) {
   const { t } = useTranslation()
   const formattedUsed = formatQuota(props.used)
+  const tokenCount = props.tokens ?? 0
 
   return (
     <Popover>
@@ -167,9 +169,16 @@ export function UnlimitedQuotaBadge(props: UnlimitedQuotaBadgeProps) {
         />
       </PopoverTrigger>
       <PopoverContent className='w-auto p-2' side='top'>
-        <span className='text-xs'>
-          {t('Used:')} {formattedUsed}
-        </span>
+        <div className='flex flex-col gap-1 text-xs'>
+          <span>
+            {t('Used:')} {formattedUsed}
+          </span>
+          {tokenCount > 0 && (
+            <span>
+              {t('Used Tokens:')} {tokenCount.toLocaleString()}
+            </span>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   )

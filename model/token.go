@@ -29,6 +29,7 @@ type Token struct {
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	AutoGroups         string         `json:"-" gorm:"type:text"`
+	UsedTokens         int            `json:"used_tokens,omitempty" gorm:"-"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
 
@@ -107,7 +108,70 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
 	var err error
 	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
-	return tokens, err
+	if err != nil {
+		return nil, err
+	}
+	PopulateTokensUsedTokens(tokens)
+	return tokens, nil
+}
+
+func PopulateTokensUsedTokens(tokens []*Token) {
+	if len(tokens) == 0 {
+		return
+	}
+	tokenIDs := make([]int, 0, len(tokens))
+	for _, t := range tokens {
+		if t != nil && t.Id > 0 {
+			tokenIDs = append(tokenIDs, t.Id)
+		}
+	}
+	if len(tokenIDs) == 0 {
+		return
+	}
+
+	tokenUsedMap := make(map[int]int)
+
+	// 1. Try querying aggregated token_used from quota_data first
+	var quotaDataStats []struct {
+		TokenID   int `gorm:"column:token_id"`
+		TokenUsed int `gorm:"column:total_tokens"`
+	}
+	if err := DB.Table("quota_data").
+		Select("token_id, COALESCE(SUM(token_used), 0) AS total_tokens").
+		Where("token_id IN ?", tokenIDs).
+		Group("token_id").
+		Find(&quotaDataStats).Error; err == nil {
+		for _, s := range quotaDataStats {
+			tokenUsedMap[s.TokenID] = s.TokenUsed
+		}
+	}
+
+	// 2. Query logs to get total prompt_tokens + completion_tokens for any token not fully covered
+	logDB := LOG_DB
+	if logDB == nil {
+		logDB = DB
+	}
+	var logStats []struct {
+		TokenID   int `gorm:"column:token_id"`
+		TotalUsed int `gorm:"column:total_used"`
+	}
+	if err := logDB.Table("logs").
+		Select("token_id, COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS total_used").
+		Where("token_id IN ? AND type = ?", tokenIDs, LogTypeConsume).
+		Group("token_id").
+		Find(&logStats).Error; err == nil {
+		for _, s := range logStats {
+			if s.TotalUsed > tokenUsedMap[s.TokenID] {
+				tokenUsedMap[s.TokenID] = s.TotalUsed
+			}
+		}
+	}
+
+	for _, t := range tokens {
+		if t != nil {
+			t.UsedTokens = tokenUsedMap[t.Id]
+		}
+	}
 }
 
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
@@ -214,6 +278,7 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 		common.SysError("failed to search tokens: " + err.Error())
 		return nil, 0, errors.New("搜索令牌失败")
 	}
+	PopulateTokensUsedTokens(tokens)
 	return tokens, total, nil
 }
 
@@ -264,7 +329,11 @@ func GetTokenByIds(id int, userId int) (*Token, error) {
 	token := Token{Id: id, UserId: userId}
 	var err error = nil
 	err = DB.First(&token, "id = ? and user_id = ?", id, userId).Error
-	return &token, err
+	if err != nil {
+		return nil, err
+	}
+	PopulateTokensUsedTokens([]*Token{&token})
+	return &token, nil
 }
 
 func GetTokenById(id int) (*Token, error) {
@@ -274,7 +343,11 @@ func GetTokenById(id int) (*Token, error) {
 	token := Token{Id: id}
 	var err error = nil
 	err = DB.First(&token, "id = ?", id).Error
-	return &token, err
+	if err != nil {
+		return nil, err
+	}
+	PopulateTokensUsedTokens([]*Token{&token})
+	return &token, nil
 }
 
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {

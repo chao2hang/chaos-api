@@ -31,7 +31,7 @@ import { useMediaQuery } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 import { getUserGroups } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
-import { formatQuota } from '@/lib/format'
+import { formatQuota, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { API_KEY_STATUSES } from '../constants'
@@ -145,8 +145,16 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       header: t('Quota'),
       cell: ({ row }) => {
         const apiKey = row.original
+        const usedTokens = apiKey.used_tokens ?? 0
+        const formattedTokens = formatTokens(usedTokens)
+
         if (apiKey.unlimited_quota) {
-          return <UnlimitedQuotaBadge used={apiKey.used_quota} />
+          return (
+            <UnlimitedQuotaBadge
+              used={apiKey.used_quota}
+              tokens={usedTokens}
+            />
+          )
         }
 
         const used = apiKey.used_quota
@@ -169,6 +177,10 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
                 value={percentage}
                 className={cn('h-1.5', getQuotaProgressColor(percentage))}
               />
+              <div className='text-muted-foreground/80 flex items-center justify-between text-[11px] tabular-nums'>
+                <span>{t('Used Tokens:')}</span>
+                <span>{formattedTokens}</span>
+              </div>
             </TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>
@@ -181,6 +193,9 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
                 </div>
                 <div>
                   {t('Total:')} {formatQuota(total)}
+                </div>
+                <div>
+                  {t('Used Tokens:')} {usedTokens.toLocaleString()}
                 </div>
               </div>
             </TooltipContent>

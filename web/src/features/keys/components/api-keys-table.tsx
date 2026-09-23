@@ -41,7 +41,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import { formatQuota } from '@/lib/format'
+import { formatQuota, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { getApiKeys, searchApiKeys } from '../api'
@@ -167,7 +167,10 @@ function ApiKeysMobileList({
             <div className='flex items-center justify-between gap-2 text-xs'>
               <span className='text-muted-foreground'>{t('Quota')}</span>
               {apiKey.unlimited_quota ? (
-                <UnlimitedQuotaBadge used={apiKey.used_quota} />
+                <UnlimitedQuotaBadge
+                  used={apiKey.used_quota}
+                  tokens={apiKey.used_tokens ?? 0}
+                />
               ) : (
                 <span className='font-medium tabular-nums'>
                   {formatQuota(apiKey.remain_quota)}
@@ -178,6 +181,15 @@ function ApiKeysMobileList({
                 </span>
               )}
             </div>
+
+            {(apiKey.used_tokens ?? 0) > 0 && (
+              <div className='flex items-center justify-between gap-2 text-xs'>
+                <span className='text-muted-foreground'>{t('Used Tokens')}</span>
+                <span className='font-medium tabular-nums'>
+                  {formatTokens(apiKey.used_tokens ?? 0)}
+                </span>
+              </div>
+            )}
           </div>
         )
       })}
