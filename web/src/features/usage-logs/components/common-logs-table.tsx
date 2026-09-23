@@ -52,11 +52,37 @@ function parseCachedTokens(otherStr?: string): number {
   }
 }
 
-function calculateTokensPerSecond(record: UsageLog): number | null {
+function calculateTokensPerSecond(record: UsageLog): string | null {
+  // 1. Generation speed (Completion TPS): completion_tokens / output_duration
+  // If streaming and first-response-time (frt) exists: output_duration = use_time - frt
+  if (record.completion_tokens > 0) {
+    let durationSec = record.use_time > 0 ? record.use_time : 0
+    if (record.other) {
+      try {
+        const parsed = JSON.parse(record.other)
+        if (typeof parsed.use_time_ms === 'number' && parsed.use_time_ms > 0) {
+          const totalMs = parsed.use_time_ms
+          const frtMs = typeof parsed.frt === 'number' && parsed.frt > 0 && parsed.frt < totalMs ? parsed.frt : 0
+          const genMs = totalMs - frtMs
+          if (genMs > 100) {
+            durationSec = genMs / 1000
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const safeDuration = durationSec > 0.1 ? durationSec : 1
+    const tps = record.completion_tokens / safeDuration
+    return tps >= 100 ? Math.round(tps).toString() : tps.toFixed(1)
+  }
+
+  // 2. Fallback to total tokens / total duration
   const totalTokens = (record.prompt_tokens || 0) + (record.completion_tokens || 0)
   if (totalTokens <= 0) return null
   const durationSec = record.use_time > 0 ? record.use_time : 1
-  return Math.round(totalTokens / durationSec)
+  const tps = totalTokens / durationSec
+  return tps >= 100 ? Math.round(tps).toString() : tps.toFixed(1)
 }
 
 type CommonLogsTableProps = {
@@ -165,7 +191,7 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger render={<span className="cursor-help font-medium underline decoration-zinc-700 underline-offset-4 decoration-dotted" />}>
-                    {formatNumber(tps)}
+                    {tps}
                   </TooltipTrigger>
                   <TooltipContent side="top" className="space-y-1 text-xs mono">
                     <div>
@@ -223,7 +249,7 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
               <th className="py-3 px-4 font-medium">{t('Type')}</th>
               <th className="py-3 px-4 font-medium">{t('Model')}</th>
               <th className="py-3 px-4 font-medium">{t('Use Time')}</th>
-              <th className="py-3 px-4 font-medium">tokens/s</th>
+              <th className="py-3 px-4 font-medium">Token/s</th>
               <th className="py-3 px-4 font-medium">{t('Prompt Tokens')}</th>
               <th className="py-3 px-4 font-medium">{t('Completion Tokens')}</th>
               <th className="py-3 px-4 font-medium">{t('Quota')}</th>
