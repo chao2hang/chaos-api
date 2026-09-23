@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Logo } from '@/assets/logo'
@@ -37,7 +37,7 @@ const AdminHeaderActionContext = createContext<AdminHeaderActionContextValue>({
 
 export function useAdminHeaderAction(actionNode: ReactNode | null) {
   const ctx = useContext(AdminHeaderActionContext)
-  useMemo(() => {
+  useEffect(() => {
     ctx.setHeaderAction(actionNode)
   }, [actionNode, ctx])
 }
@@ -99,11 +99,8 @@ export function AdminLayout(props: AdminLayoutProps) {
                   <ul className="space-y-3 text-sm">
                     {section.items.map((item) => {
                       const isActive =
-                        item.href === '/dashboard' || item.href === '/admin'
-                          ? pathname === '/dashboard' ||
-                            pathname.startsWith('/dashboard') ||
-                            pathname === '/admin' ||
-                            pathname === '/admin/'
+                        item.href === '/admin'
+                          ? pathname === '/admin' || pathname === '/admin/'
                           : pathname.startsWith(item.pathPrefix)
                       return (
                         <li key={item.key}>

@@ -53,8 +53,8 @@ const ADMIN_SECTIONS_CONFIG: NavSectionConfig[] = [
       {
         key: 'console',
         label: 'Console',
-        href: '/dashboard',
-        pathPrefix: '/dashboard',
+        href: '/admin',
+        pathPrefix: '/admin',
       },
       {
         key: 'distribution',
@@ -164,13 +164,11 @@ export function getAdminNavSections(role: number | undefined): AdminNavSection[]
  * Get path breadcrumb i18n keys based on the current pathname.
  */
 export function getAdminPathBreadcrumb(pathname: string): { sectionKey: string; pageKey: string } {
-  if (
-    pathname === '/dashboard' ||
-    pathname.startsWith('/dashboard') ||
-    pathname === '/admin' ||
-    pathname === '/admin/'
-  ) {
-    return { sectionKey: 'System', pageKey: 'Dashboard' }
+  if (pathname === '/admin' || pathname === '/admin/') {
+    return { sectionKey: 'Management', pageKey: 'Console' }
+  }
+  if (pathname === '/dashboard' || pathname.startsWith('/dashboard')) {
+    return { sectionKey: 'Analysis', pageKey: 'Usage Report' }
   }
   if (pathname.startsWith('/keys')) {
     return { sectionKey: 'Management', pageKey: 'Access Keys' }
