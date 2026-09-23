@@ -275,62 +275,65 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	return balance, nil
 }
 
-func parseDeepSeekBalance(response DeepSeekUsageResponse) (float64, error) {
-	if len(response.BalanceInfos) == 0 {
-		return 0, errors.New("no balance info found")
+func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float64) (float64, error) {
+	var usdBalance *string
+	var cnyBalance *string
+
+	for i := range response.BalanceInfos {
+		balanceInfo := &response.BalanceInfos[i]
+		switch balanceInfo.Currency {
+		case "USD":
+			if usdBalance == nil {
+				usdBalance = &balanceInfo.TotalBalance
+			}
+		case "CNY":
+			if cnyBalance == nil {
+				cnyBalance = &balanceInfo.TotalBalance
+			}
+		}
 	}
 
-	type parsedInfo struct {
-		currency string
-		balance  float64
-	}
-
-	parsed := make([]parsedInfo, 0, len(response.BalanceInfos))
-	for _, info := range response.BalanceInfos {
-		val, err := strconv.ParseFloat(info.TotalBalance, 64)
+	if usdBalance != nil {
+		balance, err := strconv.ParseFloat(*usdBalance, 64)
 		if err != nil {
-			continue
+			return 0, err
 		}
-		parsed = append(parsed, parsedInfo{
-			currency: strings.ToUpper(strings.TrimSpace(info.Currency)),
-			balance:  val,
-		})
+		if math.IsNaN(balance) || math.IsInf(balance, 0) {
+			return 0, errors.New("USD balance must be finite")
+		}
+		if balance < 0 {
+			return 0, errors.New("USD balance must be non-negative")
+		}
+		return balance, nil
+	}
+	if cnyBalance == nil {
+		return 0, errors.New("currency USD or CNY not found")
+	}
+	if math.IsNaN(usdExchangeRate) || math.IsInf(usdExchangeRate, 0) {
+		return 0, errors.New("USD exchange rate must be finite")
+	}
+	if usdExchangeRate <= 0 {
+		return 0, errors.New("USD exchange rate must be greater than zero")
 	}
 
-	if len(parsed) == 0 {
-		return 0, errors.New("failed to parse balance")
+	balanceCNY, err := strconv.ParseFloat(*cnyBalance, 64)
+	if err != nil {
+		return 0, err
 	}
-
-	for _, item := range parsed {
-		if item.currency == "USD" && item.balance > 0 {
-			return item.balance, nil
-		}
+	if math.IsNaN(balanceCNY) || math.IsInf(balanceCNY, 0) {
+		return 0, errors.New("CNY balance must be finite")
 	}
-
-	for _, item := range parsed {
-		if item.currency == "CNY" && item.balance > 0 {
-			return item.balance, nil
-		}
+	if balanceCNY < 0 {
+		return 0, errors.New("CNY balance must be non-negative")
 	}
-
-	for _, item := range parsed {
-		if item.balance > 0 {
-			return item.balance, nil
-		}
+	balanceUSD := decimal.NewFromFloat(balanceCNY).Div(decimal.NewFromFloat(usdExchangeRate)).InexactFloat64()
+	if math.IsNaN(balanceUSD) || math.IsInf(balanceUSD, 0) {
+		return 0, errors.New("converted USD balance must be finite")
 	}
-
-	for _, item := range parsed {
-		if item.currency == "USD" {
-			return item.balance, nil
-		}
+	if balanceUSD < 0 {
+		return 0, errors.New("converted USD balance must be non-negative")
 	}
-	for _, item := range parsed {
-		if item.currency == "CNY" {
-			return item.balance, nil
-		}
-	}
-
-	return parsed[0].balance, nil
+	return balanceUSD, nil
 }
 
 func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
@@ -347,7 +350,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	balance, err := parseDeepSeekBalance(response)
+	balance, err := getDeepSeekBalanceUSD(response, operation_setting.USDExchangeRate)
 	if err != nil {
 		return 0, err
 	}
