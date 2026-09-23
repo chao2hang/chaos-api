@@ -130,7 +130,7 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
       return (
         <tr>
           <td
-            colSpan={props.admin ? 12 : 10}
+            colSpan={props.admin ? 10 : 8}
             className="py-12 text-center text-zinc-600 mono"
           >
             {t('Loading...')}
@@ -142,7 +142,7 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
       return (
         <tr>
           <td
-            colSpan={props.admin ? 12 : 10}
+            colSpan={props.admin ? 10 : 8}
             className="py-12 text-center text-zinc-600 mono"
           >
             {t('No logs found')}
@@ -216,12 +216,6 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
             )
           })()}
         </td>
-        <td className="py-3.5 px-4 text-zinc-400">
-          {formatNumber(record.prompt_tokens)}
-        </td>
-        <td className="py-3.5 px-4 text-zinc-400">
-          {formatNumber(record.completion_tokens)}
-        </td>
         <td className="py-3.5 px-4 text-zinc-300 font-medium">
           {formatLogQuota(record.quota)}
         </td>
@@ -250,8 +244,6 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
               <th className="py-3 px-4 font-medium">{t('Model')}</th>
               <th className="py-3 px-4 font-medium">{t('Use Time')}</th>
               <th className="py-3 px-4 font-medium">Token/s</th>
-              <th className="py-3 px-4 font-medium">{t('Prompt Tokens')}</th>
-              <th className="py-3 px-4 font-medium">{t('Completion Tokens')}</th>
               <th className="py-3 px-4 font-medium">{t('Quota')}</th>
               <th className="py-3 px-4 font-medium">{t('Request ID')}</th>
             </tr>
