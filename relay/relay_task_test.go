@@ -1,6 +1,8 @@
 package relay
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -227,6 +229,85 @@ func TestRelayTaskSubmitAliasBillingIdentityAndExprFallback(t *testing.T) {
 				assert.Nil(t, info.TieredBillingSnapshot)
 				assert.Equal(t, "model_price_error", taskErr.Code)
 			}
+		})
+	}
+}
+
+type taskImageReservation struct {
+	limit int
+	held  int
+}
+
+func (s *taskImageReservation) Reserve(quota int) error {
+	if quota > s.limit {
+		return errors.New("insufficient quota")
+	}
+	s.held = quota
+	return nil
+}
+
+func (s *taskImageReservation) GetPreConsumedQuota() int { return s.held }
+func (*taskImageReservation) Settle(int) error           { return nil }
+func (*taskImageReservation) Refund(*gin.Context)        {}
+func (*taskImageReservation) NeedsRefund() bool          { return false }
+
+// Issue #7478: task APIs answer 201 Created or 202 Accepted on submission.
+// Every 2xx must reach parseSubmitResponse; only other statuses are upstream
+// failures that keep the upstream status and body.
+func TestRelayTaskSubmitAcceptsAnySuccessfulUpstreamStatus(t *testing.T) {
+	service.InitHttpClient()
+	const source = `
+export const meta = {apiVersion:1,key:"status-echo",name:"Status Echo",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl+"/submit", method:"POST", body:{model: ctx.model}, action:"text_to_video"}; }
+export function parseSubmitResponse(ctx, response) { return {taskId: response.body.id, taskData: {status: response.statusCode}}; }
+export function buildQueryRequest(ctx) { return {url: ctx.baseUrl+"/query"}; }
+export function parseTaskResult() { return {status:"SUCCESS"}; }
+`
+	for _, tc := range []struct {
+		status   int
+		wantCode string
+	}{
+		{status: http.StatusOK},
+		{status: http.StatusCreated},
+		{status: http.StatusAccepted},
+		{status: http.StatusBadRequest, wantCode: "fail_to_fetch_task"},
+		{status: http.StatusBadGateway, wantCode: "fail_to_fetch_task"},
+	} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			saveBillingConfig(t)
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+				"billing_setting.billing_mode": `{"declared-model":"tiered_expr"}`,
+				"billing_setting.billing_expr": `{"declared-model":"tier(\"flat\", 3)"}`,
+			}))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"id":"job-42","message":"upstream body"}`))
+			}))
+			defer server.Close()
+
+			c, info := newTaskSubmitContext(t, "declared-model", "")
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+			c.Set("group", "default")
+			info.UserGroup, info.UsingGroup = "default", "default"
+			info.OriginModelName = "declared-model"
+			// An existing reservation skips pre-consume so the fixture reaches the upstream call.
+			info.Billing = &taskImageReservation{limit: 1 << 30}
+			pinMappingOrderPlugin(t, c, source)
+
+			result, taskErr := RelayTaskSubmit(c, info)
+			if tc.wantCode != "" {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, tc.wantCode, taskErr.Code)
+				assert.Equal(t, tc.status, taskErr.StatusCode)
+				assert.Contains(t, taskErr.Message, "upstream body")
+				assert.Nil(t, result)
+				return
+			}
+			require.Nil(t, taskErr, "submission error: %+v", taskErr)
+			require.NotNil(t, result)
+			assert.Equal(t, "job-42", result.UpstreamTaskID)
+			assert.JSONEq(t, fmt.Sprintf(`{"status":%d}`, tc.status), string(result.TaskData))
 		})
 	}
 }
