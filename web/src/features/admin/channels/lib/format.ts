@@ -47,13 +47,20 @@ export function summarizeModels(models: string, maxItems: number = 3): ModelSumm
 }
 
 /**
- * Normalize free-form model input (comma / newline / whitespace separated)
- * into the canonical comma-separated string stored on the channel.
+ * Split free-form model input (comma / newline / whitespace separated) into
+ * the normalized model-name list stored on the channel.
  */
-export function parseModelsInput(input: string): string {
+export function splitModelNames(input: string): string[] {
   return input
     .split(/[\n,，;；\s]+/)
     .map((item) => item.trim())
     .filter((item) => item !== '')
-    .join(',')
+}
+
+/**
+ * Normalize free-form model input (comma / newline / whitespace separated)
+ * into the canonical comma-separated string stored on the channel.
+ */
+export function parseModelsInput(input: string): string {
+  return splitModelNames(input).join(',')
 }

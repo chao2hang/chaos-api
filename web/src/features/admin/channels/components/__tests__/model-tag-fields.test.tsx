@@ -93,17 +93,41 @@ function renderEditDialog(channel: Channel) {
   )
 }
 
-describe('ChannelDialog model mapping field', () => {
-  test('shows the stored model mapping when editing a channel', () => {
+type TagHost = HTMLElement & { values?: string[] }
+
+/** Find the AdminTagInput host whose current tags match the predicate. */
+function findTagHost(match: (values: string[]) => boolean): TagHost {
+  const hosts = [...document.querySelectorAll<TagHost>('aui-tag-input')]
+  const host = hosts.find((item) => match(item.values ?? []))
+  expect(host, 'expected a matching tag input').toBeTruthy()
+  return host as TagHost
+}
+
+/** Simulate the user editing tags on an AdminTagInput host. */
+function changeTags(host: TagHost, values: string[]): void {
+  fireEvent(
+    host,
+    new CustomEvent('aui-tags-change', { detail: { values } })
+  )
+}
+
+describe('ChannelDialog model tag fields', () => {
+  test('seeds model and mapping tags from the stored channel record', async () => {
     renderEditDialog(editedChannel)
 
-    const mappingField = screen.getByLabelText(
-      'Model mapping'
-    ) as HTMLTextAreaElement
-    expect(mappingField.value).toBe('{"qwen3.8-27b": "qwen3.8-27b-upstream"}')
+    await waitFor(() => {
+      const modelsHost = findTagHost((values) => values.length === 1)
+      expect(modelsHost.values).toEqual(['qwen3.8-27b'])
+      const mappingHost = findTagHost((values) =>
+        values.includes('qwen3.8-27b=qwen3.8-27b-upstream')
+      )
+      expect(mappingHost.values).toEqual([
+        'qwen3.8-27b=qwen3.8-27b-upstream',
+      ])
+    })
   })
 
-  test('blocks saving and shows a validation error for invalid JSON', async () => {
+  test('blocks saving and shows a validation error for malformed mapping tags', async () => {
     let putCalls = 0
     apiClient.put = async () => {
       putCalls += 1
@@ -111,20 +135,25 @@ describe('ChannelDialog model mapping field', () => {
     }
     renderEditDialog(editedChannel)
 
-    fireEvent.change(screen.getByLabelText('Model mapping'), {
-      target: { value: '{not-json' },
-    })
+    const mappingHost = await waitFor(() =>
+      findTagHost((values) =>
+        values.includes('qwen3.8-27b=qwen3.8-27b-upstream')
+      )
+    )
+    changeTags(mappingHost, ['broken-entry'])
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(
-        screen.getByText('Model mapping must be a valid JSON object')
+        screen.getByText(
+          'Model mapping entries must be in the model=target format'
+        )
       ).toBeTruthy()
     })
     expect(putCalls).toBe(0)
   })
 
-  test('sends the edited model mapping with the update request', async () => {
+  test('sends edited model and mapping tags with the update request', async () => {
     const payloads: Array<Record<string, unknown>> = []
     apiClient.put = async (_url, data) => {
       payloads.push(data as Record<string, unknown>)
@@ -132,16 +161,24 @@ describe('ChannelDialog model mapping field', () => {
     }
     renderEditDialog(editedChannel)
 
-    fireEvent.change(screen.getByLabelText('Model mapping'), {
-      target: { value: '{"qwen3.8-27b": "qwen3.8-27b-full"}' },
-    })
+    const modelsHost = await waitFor(() =>
+      findTagHost((values) => values.includes('qwen3.8-27b'))
+    )
+    const mappingHost = await waitFor(() =>
+      findTagHost((values) =>
+        values.includes('qwen3.8-27b=qwen3.8-27b-upstream')
+      )
+    )
+    changeTags(modelsHost, ['qwen3.8-27b', 'qwen3.8-flash'])
+    changeTags(mappingHost, ['qwen3.8-27b=qwen3.8-27b-full'])
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(payloads).toHaveLength(1)
     })
+    expect(payloads[0]['models']).toBe('qwen3.8-27b,qwen3.8-flash')
     expect(payloads[0]['model_mapping']).toBe(
-      '{"qwen3.8-27b": "qwen3.8-27b-full"}'
+      '{"qwen3.8-27b":"qwen3.8-27b-full"}'
     )
   })
 })

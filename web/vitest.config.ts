@@ -26,10 +26,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@chaos_team/blbui-core': path.resolve(
-        __dirname,
-        '../packages/blbui/core/src/index.ts'
-      ),
+      // Subpath aliases must precede the base package alias: alias matching
+      // replaces the matched prefix, so a longer key first keeps
+      // `@chaos_team/blbui-core/register` from resolving as
+      // `<base>/register` against the base file path.
       '@chaos_team/blbui-core/register': path.resolve(
         __dirname,
         '../packages/blbui/core/src/register.ts'
@@ -37,6 +37,10 @@ export default defineConfig({
       '@chaos_team/blbui-core/styles.css': path.resolve(
         __dirname,
         '../packages/blbui/core/src/styles.css'
+      ),
+      '@chaos_team/blbui-core': path.resolve(
+        __dirname,
+        '../packages/blbui/core/src/index.ts'
       ),
       '@chaos_team/blbui-react': path.resolve(
         __dirname,

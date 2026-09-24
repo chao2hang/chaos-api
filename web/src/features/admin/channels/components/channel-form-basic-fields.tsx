@@ -20,6 +20,7 @@ import { CloudDownloadIcon, Loader2Icon } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AdminTagInput } from '@chaos_team/blbui-react'
 import {
   Button,
   FormControl,
@@ -35,10 +36,10 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-  Textarea,
 } from '@chaos_team/chaos-ui'
 
 import { CHANNEL_TYPES, CODING_PLAN_TYPES } from '../constants'
+import { splitModelNames } from '../lib/format'
 import type { ChannelFormValues } from '../lib/schema'
 import type { UseFormReturn } from 'react-hook-form'
 
@@ -85,7 +86,9 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
       form.setValue('type', preset.type, { shouldValidate: true })
       form.setValue('base_url', preset.planBase, { shouldValidate: true })
       if (preset.models) {
-        form.setValue('models', preset.models, { shouldValidate: true })
+        form.setValue('models', splitModelNames(preset.models), {
+          shouldValidate: true,
+        })
       }
       return
     }
@@ -203,13 +206,11 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel required>{t('Models')}</FormLabel>
-            <FormControl>
-              <Textarea
-                {...field}
-                rows={3}
-                placeholder={t('Comma-separated model names')}
-              />
-            </FormControl>
+            <AdminTagInput
+              values={field.value}
+              onChange={field.onChange}
+              placeholder={t('Type a model name and press Enter')}
+            />
             <div className='flex items-center justify-between'>
               <FormMessage />
               <Button
@@ -236,13 +237,11 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('Model mapping')}</FormLabel>
-            <FormControl>
-              <Textarea
-                {...field}
-                rows={2}
-                placeholder='{"gpt-4o": "gpt-4o-2024-08-06"}'
-              />
-            </FormControl>
+            <AdminTagInput
+              values={field.value}
+              onChange={field.onChange}
+              placeholder={t('Add a mapping as model=target')}
+            />
             <FormMessage />
           </FormItem>
         )}

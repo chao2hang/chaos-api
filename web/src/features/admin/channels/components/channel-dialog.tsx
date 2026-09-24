@@ -85,7 +85,7 @@ export function ChannelDialog(props: ChannelDialogProps) {
       if (!res.success || !res.data) {
         return
       }
-      form.setValue('models', res.data.join(','), { shouldValidate: true })
+      form.setValue('models', res.data, { shouldValidate: true })
       toast.success(t('Fetched {{count}} models', { count: res.data.length }))
     },
   })

@@ -29,27 +29,18 @@ export function getChannelFormSchema(t: TFunction) {
     type: z.string().min(1),
     key: z.string(),
     base_url: z.string(),
-    models: z.string().min(1),
+    models: z.array(z.string().min(1)).min(1),
     model_mapping: z
-      .string()
+      .array(z.string().min(1))
       .refine(
-        (value) => {
-          const trimmed = value.trim()
-          if (trimmed === '') {
-            return true
-          }
-          try {
-            const parsed: unknown = JSON.parse(trimmed)
-            return (
-              typeof parsed === 'object' &&
-              parsed !== null &&
-              !Array.isArray(parsed)
-            )
-          } catch {
-            return false
-          }
-        },
-        { message: t('Model mapping must be a valid JSON object') }
+        (entries) =>
+          entries.every((entry) => {
+            const separator = entry.indexOf('=')
+            return separator > 0 && separator < entry.length - 1
+          }),
+        {
+          message: t('Model mapping entries must be in the model=target format'),
+        }
       ),
     group: z.string().min(1),
     priority: z.string(),

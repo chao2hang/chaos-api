@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
 import type { Channel, ChannelPayload } from '../types'
-import { parseModelsInput } from './format'
+import { splitModelNames } from './format'
 import type { ChannelFormValues } from './schema'
 
 /** Default form values for the create-channel dialog. */
@@ -26,14 +26,56 @@ export const EMPTY_CHANNEL_FORM: ChannelFormValues = {
   type: '1',
   key: '',
   base_url: '',
-  models: '',
-  model_mapping: '',
+  models: [],
+  model_mapping: [],
   group: 'default',
   priority: '0',
   weight: '0',
   tag: '',
   remark: '',
   test_model: '',
+}
+
+/**
+ * Convert the stored model-mapping JSON object into `model=target` tag
+ * entries. Values that do not parse as an object are dropped so the tag
+ * editor only ever shows editable entries.
+ */
+function storedMappingToEntries(mapping: string): string[] {
+  const raw = mapping.trim()
+  if (raw === '') {
+    return []
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return []
+    }
+    return Object.entries(parsed as Record<string, unknown>)
+      .filter(
+        ([name, target]) =>
+          name !== '' && typeof target === 'string' && target !== ''
+      )
+      .map(([name, target]) => `${name}=${target}`)
+  } catch {
+    return []
+  }
+}
+
+/** Convert `model=target` tag entries back into the stored JSON object. */
+function mappingEntriesToStored(entries: string[]): string {
+  const mapping: Record<string, string> = {}
+  for (const entry of entries) {
+    const separator = entry.indexOf('=')
+    if (separator <= 0 || separator === entry.length - 1) {
+      continue
+    }
+    mapping[entry.slice(0, separator)] = entry.slice(separator + 1)
+  }
+  if (Object.keys(mapping).length === 0) {
+    return ''
+  }
+  return JSON.stringify(mapping)
 }
 
 /** Seed the create/edit form from an existing channel record. */
@@ -43,8 +85,8 @@ export function channelToFormValues(channel: Channel): ChannelFormValues {
     type: String(channel.type),
     key: '',
     base_url: channel.base_url ?? '',
-    models: channel.models ?? '',
-    model_mapping: channel.model_mapping ?? '',
+    models: splitModelNames(channel.models ?? ''),
+    model_mapping: storedMappingToEntries(channel.model_mapping ?? ''),
     group: channel.group !== '' ? channel.group : 'default',
     priority: String(channel.priority ?? 0),
     weight: String(channel.weight ?? 0),
@@ -68,8 +110,8 @@ export function buildChannelPayload(
     type: Number(values.type) || 0,
     key: key !== '' ? key : undefined,
     base_url: values.base_url.trim(),
-    models: parseModelsInput(values.models),
-    model_mapping: values.model_mapping.trim(),
+    models: values.models.join(','),
+    model_mapping: mappingEntriesToStored(values.model_mapping),
     group: values.group.trim(),
     priority: Number(values.priority) || 0,
     weight: Number(values.weight) || 0,
