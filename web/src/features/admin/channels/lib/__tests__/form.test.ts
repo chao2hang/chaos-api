@@ -68,6 +68,16 @@ describe('channelToFormValues', () => {
     const patched = { ...minimalChannel, group: '' }
     expect(channelToFormValues(patched).group).toBe('default')
   })
+
+  it('seeds the model mapping from the stored channel record', () => {
+    const patched = {
+      ...minimalChannel,
+      model_mapping: '{"gpt-4o": "gpt-4o-2024-08-06"}',
+    }
+    expect(channelToFormValues(patched).model_mapping).toBe(
+      '{"gpt-4o": "gpt-4o-2024-08-06"}'
+    )
+  })
 })
 
 describe('buildChannelPayload', () => {
@@ -78,6 +88,7 @@ describe('buildChannelPayload', () => {
       key: '',
       base_url: '',
       models: 'gpt-4o',
+      model_mapping: '',
       group: 'default',
       priority: '0',
       weight: '0',
@@ -98,6 +109,7 @@ describe('buildChannelPayload', () => {
       key: '  sk-1234 ',
       base_url: '',
       models: 'gpt-4o',
+      model_mapping: '',
       group: 'default',
       priority: '0',
       weight: '0',
@@ -106,6 +118,24 @@ describe('buildChannelPayload', () => {
       test_model: '',
     })
     expect(payload.key).toBe('sk-1234')
+  })
+
+  it('sends the trimmed model mapping so edits can update or clear it', () => {
+    const payload = buildChannelPayload({
+      name: 'OpenAI Test',
+      type: '1',
+      key: '',
+      base_url: '',
+      models: 'gpt-4o',
+      model_mapping: ' {"gpt-4o": "gpt-4o-2024-08-06"} ',
+      group: 'default',
+      priority: '0',
+      weight: '0',
+      tag: '',
+      remark: '',
+      test_model: '',
+    })
+    expect(payload.model_mapping).toBe('{"gpt-4o": "gpt-4o-2024-08-06"}')
   })
 
   it('supports channel with status_reason for auto-disabled diagnostics', () => {

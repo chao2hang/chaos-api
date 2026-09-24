@@ -59,11 +59,12 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
   const selectedPlan = CODING_PLAN_TYPES.find(
     (p) => p.type === form.getValues('type') && p.planBase === baseUrl
   )
-  const typeSelectValue = selectedPlan
-    ? `plan:${selectedPlan.planBase}`
-    : form.getValues('type')
-      ? `type:${form.getValues('type')}`
-      : undefined
+  let typeSelectValue: string | undefined
+  if (selectedPlan) {
+    typeSelectValue = `plan:${selectedPlan.planBase}`
+  } else if (form.getValues('type')) {
+    typeSelectValue = `type:${form.getValues('type')}`
+  }
   // Base UI renders the raw value in the trigger unless an items map is given.
   const typeSelectItems = useMemo(() => {
     const items: Record<string, React.ReactNode> = {}
@@ -226,6 +227,23 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
                 {t('Fetch models')}
               </Button>
             </div>
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name='model_mapping'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('Model mapping')}</FormLabel>
+            <FormControl>
+              <Textarea
+                {...field}
+                rows={2}
+                placeholder='{"gpt-4o": "gpt-4o-2024-08-06"}'
+              />
+            </FormControl>
+            <FormMessage />
           </FormItem>
         )}
       />

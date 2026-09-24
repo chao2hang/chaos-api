@@ -39,10 +39,7 @@ import {
   channelToFormValues,
   EMPTY_CHANNEL_FORM,
 } from '../lib/form'
-import {
-  channelFormSchema,
-  type ChannelFormValues,
-} from '../lib/schema'
+import { getChannelFormSchema, type ChannelFormValues } from '../lib/schema'
 import type { Channel } from '../types'
 import { ChannelFormFields } from './channel-form-fields'
 
@@ -61,7 +58,7 @@ export function ChannelDialog(props: ChannelDialogProps) {
   const editing = editingChannel !== null
 
   const form = useForm<ChannelFormValues>({
-    resolver: zodResolverAdapter(channelFormSchema),
+    resolver: zodResolverAdapter(getChannelFormSchema(t)),
     defaultValues: EMPTY_CHANNEL_FORM,
   })
 

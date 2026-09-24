@@ -16,24 +16,48 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 
 /**
  * Create/edit channel form schema. All inputs are text-based; numeric fields
  * are parsed in the payload builder so empty input degrades to 0.
  */
-export const channelFormSchema = z.object({
-  name: z.string().min(1),
-  type: z.string().min(1),
-  key: z.string(),
-  base_url: z.string(),
-  models: z.string().min(1),
-  group: z.string().min(1),
-  priority: z.string(),
-  weight: z.string(),
-  tag: z.string(),
-  remark: z.string(),
-  test_model: z.string(),
-})
+export function getChannelFormSchema(t: TFunction) {
+  return z.object({
+    name: z.string().min(1),
+    type: z.string().min(1),
+    key: z.string(),
+    base_url: z.string(),
+    models: z.string().min(1),
+    model_mapping: z
+      .string()
+      .refine(
+        (value) => {
+          const trimmed = value.trim()
+          if (trimmed === '') {
+            return true
+          }
+          try {
+            const parsed: unknown = JSON.parse(trimmed)
+            return (
+              typeof parsed === 'object' &&
+              parsed !== null &&
+              !Array.isArray(parsed)
+            )
+          } catch {
+            return false
+          }
+        },
+        { message: t('Model mapping must be a valid JSON object') }
+      ),
+    group: z.string().min(1),
+    priority: z.string(),
+    weight: z.string(),
+    tag: z.string(),
+    remark: z.string(),
+    test_model: z.string(),
+  })
+}
 
-export type ChannelFormValues = z.infer<typeof channelFormSchema>
+export type ChannelFormValues = z.infer<ReturnType<typeof getChannelFormSchema>>

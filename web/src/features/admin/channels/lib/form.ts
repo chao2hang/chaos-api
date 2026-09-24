@@ -27,6 +27,7 @@ export const EMPTY_CHANNEL_FORM: ChannelFormValues = {
   key: '',
   base_url: '',
   models: '',
+  model_mapping: '',
   group: 'default',
   priority: '0',
   weight: '0',
@@ -43,6 +44,7 @@ export function channelToFormValues(channel: Channel): ChannelFormValues {
     key: '',
     base_url: channel.base_url ?? '',
     models: channel.models ?? '',
+    model_mapping: channel.model_mapping ?? '',
     group: channel.group !== '' ? channel.group : 'default',
     priority: String(channel.priority ?? 0),
     weight: String(channel.weight ?? 0),
@@ -54,7 +56,8 @@ export function channelToFormValues(channel: Channel): ChannelFormValues {
 
 /**
  * Build the create/update request body from form values. On update an empty
- * key means "keep the existing key", so it is omitted from the payload.
+ * key means "keep the existing key", so it is omitted from the payload. An
+ * empty model mapping is sent as "" to clear the stored mapping.
  */
 export function buildChannelPayload(
   values: ChannelFormValues
@@ -66,6 +69,7 @@ export function buildChannelPayload(
     key: key !== '' ? key : undefined,
     base_url: values.base_url.trim(),
     models: parseModelsInput(values.models),
+    model_mapping: values.model_mapping.trim(),
     group: values.group.trim(),
     priority: Number(values.priority) || 0,
     weight: Number(values.weight) || 0,
