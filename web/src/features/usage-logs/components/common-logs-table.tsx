@@ -195,20 +195,20 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
                   </TooltipTrigger>
                   <TooltipContent side="top" className="space-y-1 text-xs mono">
                     <div>
-                      <span className="text-zinc-400">{t('Prompt Tokens:')} </span>
-                      <span className="text-white font-medium">{formatNumber(record.prompt_tokens)}</span>
+                      <span className="text-background/60">{t('Prompt Tokens:')} </span>
+                      <span className="text-background font-medium">{formatNumber(record.prompt_tokens)}</span>
                     </div>
                     <div>
-                      <span className="text-zinc-400">{t('Completion Tokens:')} </span>
-                      <span className="text-white font-medium">{formatNumber(record.completion_tokens)}</span>
+                      <span className="text-background/60">{t('Completion Tokens:')} </span>
+                      <span className="text-background font-medium">{formatNumber(record.completion_tokens)}</span>
                     </div>
                     <div>
-                      <span className="text-zinc-400">{t('Cached Tokens:')} </span>
-                      <span className="text-white font-medium">{formatNumber(cachedTokens)}</span>
+                      <span className="text-background/60">{t('Cached Tokens:')} </span>
+                      <span className="text-background font-medium">{formatNumber(cachedTokens)}</span>
                     </div>
-                    <div className="pt-1 border-t border-zinc-800 text-[11px] text-zinc-400">
+                    <div className="pt-1 border-t border-background/20 text-[11px] text-background/60">
                       <span>{t('Total Tokens:')} </span>
-                      <span className="text-white font-medium">{formatNumber((record.prompt_tokens || 0) + (record.completion_tokens || 0))}</span>
+                      <span className="text-background font-medium">{formatNumber((record.prompt_tokens || 0) + (record.completion_tokens || 0))}</span>
                     </div>
                   </TooltipContent>
                 </Tooltip>

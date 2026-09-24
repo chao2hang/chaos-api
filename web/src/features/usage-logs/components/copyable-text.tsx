@@ -15,8 +15,10 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { CopyButton, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@chaos_team/chaos-ui'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@chaos_team/chaos-ui'
 import { useTranslation } from 'react-i18next'
+
+import { CopyButton } from '@/components/copy-button'
 
 type CopyableTextProps = {
   text: string
@@ -46,7 +48,7 @@ export function CopyableText(props: CopyableTextProps) {
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <CopyButton text={text} icon variant='ghost' size='icon-xs' aria-label={t('Copy to clipboard')} />
+      <CopyButton value={text} variant='ghost' size='icon' className='size-6' iconClassName='size-3' aria-label={t('Copy to clipboard')} />
     </span>
   )
 }
