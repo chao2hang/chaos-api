@@ -5,8 +5,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/chaos-api/chaos-api/constant"
 	"github.com/andybalholm/brotli"
+	"github.com/chaos-api/chaos-api/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/klauspost/compress/zstd"
 )

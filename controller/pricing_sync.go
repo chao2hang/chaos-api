@@ -105,9 +105,9 @@ func PricingUpstreamCatalog(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"models":        upstream,
+			"models":         upstream,
 			"upstream_count": len(upstream),
-			"models_url":    modelsURL,
+			"models_url":     modelsURL,
 		},
 	})
 }
@@ -156,8 +156,8 @@ func PricingUpstreamApply(c *gin.Context) {
 
 	applied := make([]string, 0, len(req.Items))
 	type skippedItem struct {
-		Model   string `json:"model"`
-		Reason  string `json:"reason"`
+		Model  string `json:"model"`
+		Reason string `json:"reason"`
 	}
 	skipped := make([]skippedItem, 0)
 	for _, item := range req.Items {
@@ -289,6 +289,16 @@ func upstreamInputRatio(entry upstreamPricingEntry) *float64 {
 		return &v
 	}
 	return nil
+}
+
+func containsField(fields []string, key string) bool {
+	key = strings.ToLower(strings.TrimSpace(key))
+	for _, f := range fields {
+		if strings.ToLower(strings.TrimSpace(f)) == key {
+			return true
+		}
+	}
+	return false
 }
 
 func getUnsetPricedModels(enabled []string) []string {

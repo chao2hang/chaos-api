@@ -9,9 +9,9 @@ import (
 
 	"github.com/chaos-api/chaos-api/common"
 	channelconstant "github.com/chaos-api/chaos-api/constant"
+	"github.com/chaos-api/chaos-api/relay/channel/openai"
 	relaycommon "github.com/chaos-api/chaos-api/relay/common"
 	"github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relay/channel/openai"
 	"github.com/chaos-api/chaos-api/relaykit/dto"
 	"github.com/chaos-api/chaos-api/relaykit/types"
 	"github.com/chaos-api/chaos-api/service"

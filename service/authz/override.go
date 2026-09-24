@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/casbin/casbin/v2"
 	"github.com/chaos-api/chaos-api/common"
 	"github.com/chaos-api/chaos-api/model"
-	"github.com/casbin/casbin/v2"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

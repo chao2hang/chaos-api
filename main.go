@@ -25,6 +25,7 @@ import (
 	"github.com/chaos-api/chaos-api/oauth"
 	"github.com/chaos-api/chaos-api/pkg/jsplugin"
 	perfmetrics "github.com/chaos-api/chaos-api/pkg/perf_metrics"
+	"github.com/chaos-api/chaos-api/pkg/wsmanager"
 	"github.com/chaos-api/chaos-api/relay"
 	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
 	"github.com/chaos-api/chaos-api/router"
@@ -104,6 +105,7 @@ func main() {
 
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
+	wsmanager.StartSubscriber(context.Background())
 
 	// Warm pricing after channel cache initialization so Advanced Custom
 	// endpoint inference can read cached route settings on first request.

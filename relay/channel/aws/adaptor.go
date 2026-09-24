@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/chaos-api/chaos-api/relay/channel"
 	"github.com/chaos-api/chaos-api/relay/channel/claude"
 	relaycommon "github.com/chaos-api/chaos-api/relay/common"
 	"github.com/chaos-api/chaos-api/relaykit/dto"
 	"github.com/chaos-api/chaos-api/relaykit/types"
 	"github.com/chaos-api/chaos-api/service"
-	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/pkg/errors"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +39,10 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	claudeAdaptor := claude.Adaptor{}
+	if _, err := claudeAdaptor.ConvertClaudeRequest(c, info, request); err != nil {
+		return nil, err
+	}
 	for i, message := range request.Messages {
 		updated := false
 		if !message.IsStringContent() {

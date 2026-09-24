@@ -15,8 +15,8 @@ import (
 )
 
 type trafficResponse struct {
-	Success bool                            `json:"success"`
-	Message string                          `json:"message"`
+	Success bool                             `json:"success"`
+	Message string                           `json:"message"`
 	Data    *model.TrafficDistributionResult `json:"data"`
 }
 

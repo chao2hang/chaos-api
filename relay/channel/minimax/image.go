@@ -27,8 +27,8 @@ type MiniMaxImageRequest struct {
 }
 
 type MiniMaxImageResponse struct {
-	ID       string          `json:"id"`
-	Data     struct {
+	ID   string `json:"id"`
+	Data struct {
 		ImageURLs   []string `json:"image_urls"`
 		ImageBase64 []string `json:"image_base64"`
 	} `json:"data"`

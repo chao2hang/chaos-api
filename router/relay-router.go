@@ -65,6 +65,11 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
+	{
+		// Responses WebSocket route. Channel selection happens after the first
+		// response.create event; each event runs the ordinary request limiter.
+		relayV1Router.GET("/responses", controller.ResponsesWebSocket)
+	}
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	{
 		// WebSocket 路由（统一到 Relay）
@@ -80,6 +85,8 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.Use(middleware.Distribute())
 
 		// claude related routes
+		// TODO: /messages/count_tokens is disabled. The current controller.CountClaudeTokens
+		// httpRouter.POST("/messages/count_tokens", controller.CountClaudeTokens)
 		httpRouter.POST("/messages", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatClaude)
 		})
@@ -102,14 +109,10 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAlphaSearch)
 		})
 
-		// image related routes
+		// image related routes. /images/generations and /images/edits are
+		// host protocol endpoints (openai_image) registered by
+		// SetTaskPluginProtocolRouter; unclaimed models fall back to Relay.
 		httpRouter.POST("/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
-		httpRouter.POST("/images/generations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
-		httpRouter.POST("/images/edits", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
 

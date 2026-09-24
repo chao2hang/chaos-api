@@ -1,13 +1,16 @@
 package oaichat
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
 	"github.com/samber/lo"
 )
 
@@ -102,7 +105,7 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 	return textRaw
 }
 
-func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
+func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
 	}
@@ -287,8 +290,8 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 				}
 				// Chat completions nests `strict` inside `function`; the
 				// Responses API expects it at the tool's top level.
-				if len(tool.Function.Strict) > 0 && string(tool.Function.Strict) != "null" {
-					fn["strict"] = tool.Function.Strict
+				if tool.Function.Strict != nil {
+					fn["strict"] = *tool.Function.Strict
 				}
 				tools = append(tools, fn)
 			default:
@@ -352,9 +355,8 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	textRaw := convertChatResponseFormatToResponsesText(req.ResponseFormat)
 
 	maxOutputTokens := lo.FromPtrOr(req.MaxTokens, uint(0))
-	maxCompletionTokens := lo.FromPtrOr(req.MaxCompletionTokens, uint(0))
-	if maxCompletionTokens > maxOutputTokens {
-		maxOutputTokens = maxCompletionTokens
+	if req.MaxCompletionTokens != nil {
+		maxOutputTokens = *req.MaxCompletionTokens
 	}
 	// OpenAI Responses API rejects max_output_tokens < 16 when explicitly provided.
 	//if maxOutputTokens > 0 && maxOutputTokens < 16 {
@@ -408,13 +410,13 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
 	}
 
-	if req.ReasoningEffort != "" {
-		// `auto` is the only summary mode accepted by every reasoning model
-		// (the Codex family rejects `concise`/`detailed`).
-		out.Reasoning = &dto.Reasoning{
-			Effort:  req.ReasoningEffort,
-			Summary: "auto",
-		}
+	reasoningIntent, diagnostics, err := reasoning.FromOpenAIChat(req)
+	if err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
+	convdiag.Add(ctx, diagnostics...)
+	if err := reasoning.ApplyToOpenAIResponses(out, reasoningIntent); err != nil {
+		return nil, reasoning.AsClientError(err)
 	}
 
 	return out, nil

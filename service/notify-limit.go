@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/chaos-api/chaos-api/common"
 	"github.com/chaos-api/chaos-api/constant"
-	"github.com/bytedance/gopkg/util/gopool"
 )
 
 // notifyLimitStore is used for in-memory rate limiting when Redis is disabled
@@ -33,7 +33,7 @@ func startCleanupTask() {
 		for {
 			time.Sleep(time.Hour)
 			now := time.Now()
-			notifyLimitStore.Range(func(key, value interface{}) bool {
+			notifyLimitStore.Range(func(key, value any) bool {
 				if limit, ok := value.(limitCount); ok {
 					if now.Sub(limit.Timestamp) >= getDuration() {
 						notifyLimitStore.Delete(key)
