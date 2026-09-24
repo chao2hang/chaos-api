@@ -1241,16 +1241,44 @@ type fetchModelsRequest struct {
 	Proxy          *string `json:"proxy"`
 }
 
-func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Channel, error) {
+// buildSavedChannelForModelFetch applies optional fetch_models request
+// overrides (key / base_url / header_override / proxy) on top of a saved
+// ordinary channel, so edit-mode previews reuse the stored credentials unless
+// the request carries fresher values.
+func buildSavedChannelForModelFetch(channel *model.Channel, req fetchModelsRequest) *model.Channel {
+	if req.Key != "" {
+		key := strings.TrimSpace(req.Key)
+		if req.Type != constant.ChannelTypeCodex {
+			key = strings.Split(key, "\n")[0]
+		}
+		if key != "" {
+			channel.Key = key
+			// A freshly typed key replaces stored multi-key state for this preview.
+			channel.ChannelInfo = model.ChannelInfo{}
+		}
+	}
+	if req.BaseURL != nil {
+		baseURL := strings.TrimSpace(*req.BaseURL)
+		channel.BaseURL = &baseURL
+	}
+	if req.HeaderOverride != nil {
+		rawHeaderOverride := strings.TrimSpace(*req.HeaderOverride)
+		channel.HeaderOverride = &rawHeaderOverride
+	}
+	if req.Proxy != nil {
+		channelSettings := channel.GetSetting()
+		channelSettings.Proxy = strings.TrimSpace(*req.Proxy)
+		channel.SetSetting(channelSettings)
+	}
+	return channel
+}
+
+// buildAdvancedCustomModelPreviewChannel builds the channel used to preview an
+// advanced custom upstream model list. savedChannel may be nil for the
+// create-dialog preview, where the whole channel comes from the request.
+func buildAdvancedCustomModelPreviewChannel(savedChannel *model.Channel, req fetchModelsRequest) (*model.Channel, error) {
 	var channel *model.Channel
-	if req.ChannelID > 0 {
-		savedChannel, err := model.GetChannelById(req.ChannelID, true)
-		if err != nil {
-			return nil, err
-		}
-		if savedChannel.Type != constant.ChannelTypeAdvancedCustom {
-			return nil, fmt.Errorf("channel %d is not an advanced custom channel", req.ChannelID)
-		}
+	if savedChannel != nil {
 		channel = savedChannel
 	} else {
 		key := strings.TrimSpace(req.Key)
@@ -1264,7 +1292,12 @@ func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Chan
 	}
 
 	if channel.Type != constant.ChannelTypeAdvancedCustom {
-		return nil, fmt.Errorf("channel type must be advanced custom")
+		// The saved channel is ordinary but the form already switched the type
+		// to advanced custom without saving: preview with the request config.
+		if req.Type != constant.ChannelTypeAdvancedCustom {
+			return nil, fmt.Errorf("channel %d is not an advanced custom channel; omit channel_id to fetch models by type/base_url", req.ChannelID)
+		}
+		channel.Type = req.Type
 	}
 	if req.BaseURL != nil {
 		baseURL := strings.TrimSpace(*req.BaseURL)
@@ -1282,7 +1315,7 @@ func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Chan
 			return nil, err
 		}
 		settings.AdvancedCustom = &config
-	} else if req.ChannelID <= 0 {
+	} else if settings.AdvancedCustom == nil {
 		return nil, fmt.Errorf("advanced_custom is required")
 	}
 	channel.SetOtherSettings(settings)
@@ -1321,9 +1354,30 @@ func FetchModels(c *gin.Context) {
 	}
 
 	var channel *model.Channel
-	if req.Type == constant.ChannelTypeAdvancedCustom || req.ChannelID > 0 {
+	if req.ChannelID > 0 {
+		savedChannel, err := model.GetChannelById(req.ChannelID, true)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		if savedChannel.Type == constant.ChannelTypeAdvancedCustom || req.Type == constant.ChannelTypeAdvancedCustom {
+			channel, err = buildAdvancedCustomModelPreviewChannel(savedChannel, req)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+		} else {
+			channel = buildSavedChannelForModelFetch(savedChannel, req)
+		}
+	} else if req.Type == constant.ChannelTypeAdvancedCustom {
 		var err error
-		channel, err = buildAdvancedCustomModelPreviewChannel(req)
+		channel, err = buildAdvancedCustomModelPreviewChannel(nil, req)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

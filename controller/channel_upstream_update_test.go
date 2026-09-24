@@ -265,7 +265,9 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 	savedChannel.SetSetting(dto.ChannelSettings{Proxy: "http://127.0.0.1:1"})
 	require.NoError(t, db.Create(savedChannel).Error)
 
-	preserved, err := buildAdvancedCustomModelPreviewChannel(fetchModelsRequest{ChannelID: savedChannel.Id})
+	loaded, err := model.GetChannelById(savedChannel.Id, true)
+	require.NoError(t, err)
+	preserved, err := buildAdvancedCustomModelPreviewChannel(loaded, fetchModelsRequest{ChannelID: savedChannel.Id})
 	require.NoError(t, err)
 	require.Equal(t, "http://127.0.0.1:1", preserved.GetBaseURL())
 	require.Equal(t, savedHeaderOverride, *preserved.HeaderOverride)
@@ -290,7 +292,7 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 		HeaderOverride: &explicitEmpty,
 		Proxy:          &explicitEmpty,
 	}
-	cleared, err := buildAdvancedCustomModelPreviewChannel(fetchModelsRequest{
+	cleared, err := buildAdvancedCustomModelPreviewChannel(savedChannel, fetchModelsRequest{
 		ChannelID:      savedChannel.Id,
 		BaseURL:        &explicitEmpty,
 		AdvancedCustom: &rawConfig,
@@ -327,6 +329,150 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 	headers := <-receivedHeaders
 	require.Equal(t, "Bearer enabled-saved-key", headers.Get("Authorization"))
 	require.Empty(t, headers.Get("X-Saved"))
+}
+
+func TestFetchModelsOrdinaryChannelWithChannelIDUsesSavedChannel(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	receivedAuthorization := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuthorization <- r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"GLM-5.3-Flash"},{"id":"qwen3.8-27b-fp8"}]}`))
+	}))
+	defer server.Close()
+
+	savedBaseURL := server.URL
+	savedChannel := &model.Channel{
+		Name:    "bai_nopay3",
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "saved-key",
+		BaseURL: &savedBaseURL,
+		Models:  "old-model",
+	}
+	require.NoError(t, db.Create(savedChannel).Error)
+
+	body, err := common.Marshal(fetchModelsRequest{
+		ChannelID: savedChannel.Id,
+		Type:      constant.ChannelTypeOpenAI,
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	var response struct {
+		Success bool     `json:"success"`
+		Message string   `json:"message"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success, response.Message)
+	require.Equal(t, []string{"GLM-5.3-Flash", "qwen3.8-27b-fp8"}, response.Data)
+	require.Equal(t, "Bearer saved-key", <-receivedAuthorization)
+}
+
+func TestFetchModelsOrdinaryChannelUsesEnabledSavedMultiKey(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	receivedAuthorization := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuthorization <- r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"multi-key-model"}]}`))
+	}))
+	defer server.Close()
+
+	savedBaseURL := server.URL
+	savedChannel := &model.Channel{
+		Name:    "saved multi-key",
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "disabled-saved-key\nenabled-saved-key",
+		BaseURL: &savedBaseURL,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey: true,
+			MultiKeyStatusList: map[int]int{
+				0: common.ChannelStatusManuallyDisabled,
+				1: common.ChannelStatusEnabled,
+			},
+		},
+	}
+	require.NoError(t, db.Create(savedChannel).Error)
+
+	body, err := common.Marshal(fetchModelsRequest{
+		ChannelID: savedChannel.Id,
+		Type:      constant.ChannelTypeOpenAI,
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	var response struct {
+		Success bool     `json:"success"`
+		Message string   `json:"message"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success, response.Message)
+	require.Equal(t, []string{"multi-key-model"}, response.Data)
+	require.Equal(t, "Bearer enabled-saved-key", <-receivedAuthorization)
+}
+
+func TestFetchModelsOrdinaryChannelAppliesRequestOverrides(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	receivedAuthorization := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuthorization <- r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"override-model"}]}`))
+	}))
+	defer server.Close()
+
+	savedBaseURL := "http://127.0.0.1:1"
+	savedChannel := &model.Channel{
+		Name:    "saved ordinary",
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "disabled-saved-key\nenabled-saved-key",
+		BaseURL: &savedBaseURL,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey: true,
+			MultiKeyStatusList: map[int]int{
+				0: common.ChannelStatusEnabled,
+				1: common.ChannelStatusEnabled,
+			},
+		},
+	}
+	require.NoError(t, db.Create(savedChannel).Error)
+
+	requestBaseURL := server.URL
+	body, err := common.Marshal(fetchModelsRequest{
+		ChannelID: savedChannel.Id,
+		Type:      constant.ChannelTypeOpenAI,
+		BaseURL:   &requestBaseURL,
+		Key:       "typed-key",
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	var response struct {
+		Success bool     `json:"success"`
+		Message string   `json:"message"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success, response.Message)
+	require.Equal(t, []string{"override-model"}, response.Data)
+	require.Equal(t, "Bearer typed-key", <-receivedAuthorization)
 }
 
 func TestFailedAdvancedCustomDetectionDoesNotStageFullRemoval(t *testing.T) {
