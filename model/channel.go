@@ -1231,3 +1231,21 @@ func CountChannelsGroupByType() (map[int64]int64, error) {
 	}
 	return counts, nil
 }
+
+// Return map[status]count for all channels
+func CountChannelsGroupByStatus() (map[int64]int64, error) {
+	type result struct {
+		Status int64 `gorm:"column:status"`
+		Count  int64 `gorm:"column:count"`
+	}
+	var results []result
+	err := DB.Model(&Channel{}).Select("status, count(*) as count").Group("status").Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[int64]int64)
+	for _, r := range results {
+		counts[r.Status] = r.Count
+	}
+	return counts, nil
+}

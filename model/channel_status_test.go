@@ -101,6 +101,26 @@ func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.
 	assert.Equal(t, float64(1234), otherInfo["status_time"])
 }
 
+func TestCountChannelsGroupByStatusCoversAllChannels(t *testing.T) {
+	setupChannelStatusTest(t)
+
+	channels := []Channel{
+		{Name: "enabled-1", Key: "key-1", Status: common.ChannelStatusEnabled, Models: "gpt-4", Group: "default"},
+		{Name: "enabled-2", Key: "key-2", Status: common.ChannelStatusEnabled, Models: "gpt-4", Group: "default"},
+		{Name: "manual-disabled", Key: "key-3", Status: common.ChannelStatusManuallyDisabled, Models: "gpt-4", Group: "default"},
+		{Name: "auto-disabled", Key: "key-4", Status: common.ChannelStatusAutoDisabled, Models: "gpt-4", Group: "default"},
+	}
+	for i := range channels {
+		require.NoError(t, DB.Create(&channels[i]).Error)
+	}
+
+	counts, err := CountChannelsGroupByStatus()
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), counts[common.ChannelStatusEnabled])
+	assert.Equal(t, int64(1), counts[common.ChannelStatusManuallyDisabled])
+	assert.Equal(t, int64(1), counts[common.ChannelStatusAutoDisabled])
+}
+
 func TestUpdateChannelStatus_StatusReasonPopulation(t *testing.T) {
 	setupChannelStatusTest(t)
 

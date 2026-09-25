@@ -64,7 +64,7 @@ export async function fetchUsageLogStat(
     admin ? '/api/log/stat' : '/api/log/self/stat',
     { params }
   )
-  return res.data.data ?? { quota: 0, rpm: 0, tpm: 0, tps: 0 }
+  return res.data.data ?? { quota: 0, rpm: 0, tpm: 0, tps: 0, token: 0 }
 }
 
 /** Fetch drawing (Midjourney) logs. Admin sees all, otherwise the self view. */

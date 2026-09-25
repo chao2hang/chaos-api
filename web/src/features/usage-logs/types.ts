@@ -62,6 +62,8 @@ export type UsageLogStat = {
   rpm: number
   tpm: number
   tps?: number
+  /** Total consumed tokens (prompt + completion) within the queried range. */
+  token?: number
 }
 
 /** Midjourney drawing log (`GET /api/mj` and `/api/mj/self`). */

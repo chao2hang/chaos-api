@@ -23,6 +23,7 @@ import type {
   ApiResponse,
   Channel,
   ChannelListData,
+  ChannelStatusCounts,
   FetchModelsRequest,
   TestChannelResponse,
   UpdateChannelRequest,
@@ -33,6 +34,14 @@ export async function getChannelList(
   query: ChannelListQuery
 ): Promise<ApiResponse<ChannelListData>> {
   const res = await api.get(query.path, { params: query.params })
+  return res.data
+}
+
+/** Channel counts per status, aggregated over all channels. */
+export async function getChannelStatusCounts(): Promise<
+  ApiResponse<ChannelStatusCounts>
+> {
+  const res = await api.get('/api/channel/status_counts')
   return res.data
 }
 

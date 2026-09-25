@@ -21,10 +21,12 @@ import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getChannelList } from '@/features/admin/channels/api'
+import { getChannelStatusCounts } from '@/features/admin/channels/api'
 import { getTrafficDistribution } from '@/features/dashboard/api'
-import { fetchUsageLogs } from '@/features/usage-logs/api'
+import { fetchUsageLogs, fetchUsageLogStat } from '@/features/usage-logs/api'
 import type { UsageLog } from '@/features/usage-logs/types'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -38,7 +40,7 @@ interface BarData {
 }
 
 export function AdminDashboardView() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const user = useAuthStore((s) => s.auth.user)
   const [activeTab, setActiveTab] = useState<ChartTab>('volume')
 
@@ -50,15 +52,13 @@ export function AdminDashboardView() {
     refetchInterval: 60_000,
   })
 
-  // All channels, aggregated into enabled / disabled / auto-disabled counts.
-  const channelsQuery = useQuery({
-    queryKey: ['admin-dashboard-channels'],
-    queryFn: () =>
-      getChannelList({
-        path: '/api/channel',
-        params: { p: 1, page_size: 1000 },
-      }),
+  // Channel status counts aggregated server-side over ALL channels, so the
+  // numbers stay real regardless of list pagination limits.
+  const channelStatusQuery = useQuery({
+    queryKey: ['admin-dashboard-channel-status'],
+    queryFn: getChannelStatusCounts,
     staleTime: 30_000,
+    refetchInterval: 60_000,
   })
 
   // Live execution logs
@@ -68,32 +68,32 @@ export function AdminDashboardView() {
     staleTime: 15_000,
   })
 
-  // Balance calculation (default conversion: 500,000 quota = 1 USD)
-  const quota = user?.quota ?? 0
-  const balanceUsd = (quota / 500000).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  // All-time consumed tokens. Admins see the whole system, other users see
+  // their own usage; the stat endpoint filters to consume logs server-side.
+  const isAdmin = !!(user?.role && user.role >= 10)
+  const tokenStatQuery = useQuery({
+    queryKey: ['admin-dashboard-token-stat', isAdmin],
+    queryFn: () => fetchUsageLogStat(isAdmin, {}),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   })
+  const totalTokensUsed = formatNumber(
+    tokenStatQuery.data?.token ?? 0,
+    toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  )
 
   const recentLogs: UsageLog[] = useMemo(
     () => logsQuery.data?.items ?? [],
     [logsQuery.data]
   )
 
-  // Aggregate channel statuses: 1 = enabled, 2 = manually disabled, 3 = auto disabled.
-  const channelStatusCounts = useMemo(() => {
-    const counts = { enabled: 0, disabled: 0, autoDisabled: 0 }
-    for (const channel of channelsQuery.data?.data?.items ?? []) {
-      if (channel.status === 3) {
-        counts.autoDisabled += 1
-      } else if (channel.status === 2) {
-        counts.disabled += 1
-      } else {
-        counts.enabled += 1
-      }
-    }
-    return counts
-  }, [channelsQuery.data])
+  // Server-aggregated counts: enabled = status 1, disabled = 2 (manual),
+  // auto_disabled = 3. Zeroed while the first fetch is in flight.
+  const channelStatusCounts = channelStatusQuery.data?.data ?? {
+    enabled: 0,
+    disabled: 0,
+    auto_disabled: 0,
+  }
 
   // Dynamic real data bars for Traffic Distribution
   const points = useMemo(
@@ -208,11 +208,12 @@ export function AdminDashboardView() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
         <div>
           <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2 mono">
-            {t('Total Balance')}
+            {t('Total Tokens Used')}
           </p>
           <div className="flex items-baseline space-x-2">
-            <span className="text-4xl font-light text-white mono">{balanceUsd}</span>
-            <span className="text-zinc-600 text-sm mono">USD</span>
+            <span className="text-4xl font-light text-white mono">
+              {totalTokensUsed}
+            </span>
           </div>
         </div>
         <div>
@@ -336,7 +337,7 @@ export function AdminDashboardView() {
                 {t('Auto Disabled Channels')}
               </span>
               <span className="text-sm mono text-red-500 font-bold">
-                {channelStatusCounts.autoDisabled}
+                {channelStatusCounts.auto_disabled}
               </span>
             </div>
           </div>

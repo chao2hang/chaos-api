@@ -2,6 +2,7 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,4 +71,25 @@ func TestPopulateTokensUsedTokens(t *testing.T) {
 	require.NotNil(t, foundToken2)
 	assert.Equal(t, 450, foundToken1.UsedTokens) // 100+50 + 200+100 = 450
 	assert.Equal(t, 0, foundToken2.UsedTokens)
+}
+
+func TestSumUsedQuotaSumsConsumeLogTokens(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, LOG_DB.Exec("DELETE FROM logs").Error)
+
+	now := time.Now().Unix()
+	logs := []Log{
+		{UserId: 1, Type: LogTypeConsume, ModelName: "gpt-4", PromptTokens: 100, CompletionTokens: 50, Quota: 300, CreatedAt: now},
+		{UserId: 1, Type: LogTypeConsume, ModelName: "gpt-4", PromptTokens: 200, CompletionTokens: 100, Quota: 600, CreatedAt: now},
+		// Non-consume logs must not contribute to the token total.
+		{UserId: 1, Type: LogTypeError, ModelName: "gpt-4", PromptTokens: 999, CompletionTokens: 999, Quota: 0, CreatedAt: now},
+	}
+	for i := range logs {
+		require.NoError(t, LOG_DB.Create(&logs[i]).Error)
+	}
+
+	stat, err := SumUsedQuota(0, 0, 0, "", "", "", 0, "")
+	require.NoError(t, err)
+	assert.Equal(t, 450, stat.Token) // 100+50 + 200+100 = 450
+	assert.Equal(t, 900, stat.Quota)
 }

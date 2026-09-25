@@ -97,6 +97,16 @@ export interface ChannelListData {
   page_size: number
 }
 
+/**
+ * Aggregated channel status counts of GET /api/channel/status_counts,
+ * computed server-side over ALL channels regardless of pagination.
+ */
+export interface ChannelStatusCounts {
+  enabled: number
+  disabled: number
+  auto_disabled: number
+}
+
 /** Result payload of GET /api/channel/test/:id. */
 export interface TestChannelResult {
   response_time?: number

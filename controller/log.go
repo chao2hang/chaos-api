@@ -123,6 +123,7 @@ func GetLogsStat(c *gin.Context) {
 			"rpm":   stat.Rpm,
 			"tpm":   stat.Tpm,
 			"tps":   stat.Tps,
+			"token": stat.Token,
 		},
 	})
 	return
@@ -151,6 +152,7 @@ func GetLogsSelfStat(c *gin.Context) {
 			"rpm":   quotaNum.Rpm,
 			"tpm":   quotaNum.Tpm,
 			"tps":   quotaNum.Tps,
+			"token": quotaNum.Token,
 			//"token": tokenNum,
 		},
 	})

@@ -289,6 +289,23 @@ func GetAllChannels(c *gin.Context) {
 	return
 }
 
+// GetChannelStatusCounts aggregates channel counts per status over the whole
+// table, so consumers get real totals instead of counts limited by list
+// pagination.
+func GetChannelStatusCounts(c *gin.Context) {
+	statusCounts, err := model.CountChannelsGroupByStatus()
+	if err != nil {
+		common.SysError("failed to count channel statuses: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道状态统计失败，请稍后重试"})
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"enabled":       statusCounts[common.ChannelStatusEnabled],
+		"disabled":      statusCounts[common.ChannelStatusManuallyDisabled],
+		"auto_disabled": statusCounts[common.ChannelStatusAutoDisabled],
+	})
+}
+
 func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, error) {
 	var headers http.Header
 	switch channel.Type {
