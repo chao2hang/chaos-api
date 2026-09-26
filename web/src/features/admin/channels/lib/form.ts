@@ -18,7 +18,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import type { Channel, ChannelPayload } from '../types'
 import { splitModelNames } from './format'
-import type { ChannelFormValues } from './schema'
+import type { ChannelFormValues, ModelMappingEntry } from './schema'
 
 /** Default form values for the create-channel dialog. */
 export const EMPTY_CHANNEL_FORM: ChannelFormValues = {
@@ -36,12 +36,20 @@ export const EMPTY_CHANNEL_FORM: ChannelFormValues = {
   test_model: '',
 }
 
+let mappingRowCounter = 0
+
+/** Create a stable unique identity for a mapping row (UI-only). */
+export function createMappingRowId(): string {
+  mappingRowCounter += 1
+  return `mapping-row-${mappingRowCounter}`
+}
+
 /**
- * Convert the stored model-mapping JSON object into `model=target` tag
- * entries. Values that do not parse as an object are dropped so the tag
+ * Convert the stored model-mapping JSON object into mapping entries for the
+ * row editor. Values that do not parse as an object are dropped so the
  * editor only ever shows editable entries.
  */
-function storedMappingToEntries(mapping: string): string[] {
+function storedMappingToEntries(mapping: string): ModelMappingEntry[] {
   const raw = mapping.trim()
   if (raw === '') {
     return []
@@ -53,24 +61,33 @@ function storedMappingToEntries(mapping: string): string[] {
     }
     return Object.entries(parsed as Record<string, unknown>)
       .filter(
-        ([name, target]) =>
-          name !== '' && typeof target === 'string' && target !== ''
+        (entry): entry is [string, string] =>
+          entry[0] !== '' && typeof entry[1] === 'string' && entry[1] !== ''
       )
-      .map(([name, target]) => `${name}=${target}`)
+      .map(([name, target]) => ({
+        rowId: createMappingRowId(),
+        source: name,
+        target,
+      }))
   } catch {
     return []
   }
 }
 
-/** Convert `model=target` tag entries back into the stored JSON object. */
-function mappingEntriesToStored(entries: string[]): string {
+/**
+ * Convert mapping entries back into the stored JSON object. Rows with a
+ * blank side are still being typed (or added by accident) and are dropped;
+ * a repeated source keeps the last target, matching JSON object semantics.
+ */
+function mappingEntriesToStored(entries: ModelMappingEntry[]): string {
   const mapping: Record<string, string> = {}
-  for (const entry of entries) {
-    const separator = entry.indexOf('=')
-    if (separator <= 0 || separator === entry.length - 1) {
+  for (const { source, target } of entries) {
+    const trimmedSource = source.trim()
+    const trimmedTarget = target.trim()
+    if (trimmedSource === '' || trimmedTarget === '') {
       continue
     }
-    mapping[entry.slice(0, separator)] = entry.slice(separator + 1)
+    mapping[trimmedSource] = trimmedTarget
   }
   if (Object.keys(mapping).length === 0) {
     return ''

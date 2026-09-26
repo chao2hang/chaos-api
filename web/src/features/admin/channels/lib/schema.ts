@@ -19,6 +19,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
 
+/** One model mapping row of the channel form: alias -> upstream model. */
+export interface ModelMappingEntry {
+  /** Stable UI identity of the row; generated, never persisted. */
+  rowId: string
+  source: string
+  target: string
+}
+
 /**
  * Create/edit channel form schema. All inputs are text-based; numeric fields
  * are parsed in the payload builder so empty input degrades to 0.
@@ -31,15 +39,23 @@ export function getChannelFormSchema(t: TFunction) {
     base_url: z.string(),
     models: z.array(z.string().min(1)).min(1),
     model_mapping: z
-      .array(z.string().min(1))
+      .array(
+        z.object({
+          rowId: z.string(),
+          source: z.string(),
+          target: z.string(),
+        })
+      )
       .refine(
         (entries) =>
-          entries.every((entry) => {
-            const separator = entry.indexOf('=')
-            return separator > 0 && separator < entry.length - 1
-          }),
+          entries.every(
+            (entry) =>
+              (entry.source.trim() === '') === (entry.target.trim() === '')
+          ),
         {
-          message: t('Model mapping entries must be in the model=target format'),
+          message: t(
+            'Each model mapping needs a source model and a target model'
+          ),
         }
       ),
     group: z.string().min(1),

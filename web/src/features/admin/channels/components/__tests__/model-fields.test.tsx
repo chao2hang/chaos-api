@@ -111,23 +111,29 @@ function changeTags(host: TagHost, values: string[]): void {
   )
 }
 
-describe('ChannelDialog model tag fields', () => {
-  test('seeds model and mapping tags from the stored channel record', async () => {
+function queryMappingInputs(): HTMLInputElement[] {
+  return screen.queryAllByLabelText('Source model') as HTMLInputElement[]
+}
+
+describe('ChannelDialog model fields', () => {
+  test('seeds model tags and mapping rows from the stored channel record', async () => {
     renderEditDialog(editedChannel)
 
     await waitFor(() => {
       const modelsHost = findTagHost((values) => values.length === 1)
       expect(modelsHost.values).toEqual(['qwen3.8-27b'])
-      const mappingHost = findTagHost((values) =>
-        values.includes('qwen3.8-27b=qwen3.8-27b-upstream')
-      )
-      expect(mappingHost.values).toEqual([
-        'qwen3.8-27b=qwen3.8-27b-upstream',
-      ])
+    })
+    await waitFor(() => {
+      const sourceInputs = queryMappingInputs()
+      expect(sourceInputs).toHaveLength(1)
+      expect(sourceInputs[0].value).toBe('qwen3.8-27b')
+      expect(
+        (screen.getByLabelText('Target model') as HTMLInputElement).value
+      ).toBe('qwen3.8-27b-upstream')
     })
   })
 
-  test('blocks saving and shows a validation error for malformed mapping tags', async () => {
+  test('blocks saving and shows a validation error for an incomplete mapping row', async () => {
     let putCalls = 0
     apiClient.put = async () => {
       putCalls += 1
@@ -135,25 +141,23 @@ describe('ChannelDialog model tag fields', () => {
     }
     renderEditDialog(editedChannel)
 
-    const mappingHost = await waitFor(() =>
-      findTagHost((values) =>
-        values.includes('qwen3.8-27b=qwen3.8-27b-upstream')
-      )
+    const targetInput = await waitFor(
+      () => screen.getByLabelText('Target model') as HTMLInputElement
     )
-    changeTags(mappingHost, ['broken-entry'])
+    fireEvent.change(targetInput, { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(
         screen.getByText(
-          'Model mapping entries must be in the model=target format'
+          'Each model mapping needs a source model and a target model'
         )
       ).toBeTruthy()
     })
     expect(putCalls).toBe(0)
   })
 
-  test('sends edited model and mapping tags with the update request', async () => {
+  test('sends edited model tags and mapping with the update request', async () => {
     const payloads: Array<Record<string, unknown>> = []
     apiClient.put = async (_url, data) => {
       payloads.push(data as Record<string, unknown>)
@@ -164,13 +168,11 @@ describe('ChannelDialog model tag fields', () => {
     const modelsHost = await waitFor(() =>
       findTagHost((values) => values.includes('qwen3.8-27b'))
     )
-    const mappingHost = await waitFor(() =>
-      findTagHost((values) =>
-        values.includes('qwen3.8-27b=qwen3.8-27b-upstream')
-      )
+    const targetInput = await waitFor(
+      () => screen.getByLabelText('Target model') as HTMLInputElement
     )
     changeTags(modelsHost, ['qwen3.8-27b', 'qwen3.8-flash'])
-    changeTags(mappingHost, ['qwen3.8-27b=qwen3.8-27b-full'])
+    fireEvent.change(targetInput, { target: { value: 'qwen3.8-27b-full' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
@@ -180,5 +182,21 @@ describe('ChannelDialog model tag fields', () => {
     expect(payloads[0]['model_mapping']).toBe(
       '{"qwen3.8-27b":"qwen3.8-27b-full"}'
     )
+  })
+
+  test('adds and removes mapping rows from the editor', async () => {
+    renderEditDialog(editedChannel)
+
+    await waitFor(() => {
+      expect(queryMappingInputs()).toHaveLength(1)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add mapping' }))
+    expect(queryMappingInputs()).toHaveLength(2)
+
+    // The seeded row keeps its values while the new empty row exists.
+    expect(queryMappingInputs()[0].value).toBe('qwen3.8-27b')
+
+    fireEvent.click(screen.getAllByLabelText('Remove this mapping')[0])
+    expect(queryMappingInputs()).toHaveLength(1)
   })
 })

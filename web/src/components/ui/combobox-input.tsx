@@ -38,6 +38,7 @@ interface ComboboxInputProps {
   id?: string
   allowCustomValue?: boolean
   openOnFocus?: boolean
+  'aria-label'?: string
 }
 
 export function ComboboxInput({
@@ -50,6 +51,7 @@ export function ComboboxInput({
   id,
   allowCustomValue = false,
   openOnFocus = true,
+  'aria-label': ariaLabel,
 }: ComboboxInputProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -164,6 +166,7 @@ export function ComboboxInput({
         id={id}
         type='text'
         role='combobox'
+        aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup='listbox'
         aria-autocomplete='list'

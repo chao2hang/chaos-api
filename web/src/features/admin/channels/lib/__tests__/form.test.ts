@@ -74,14 +74,16 @@ describe('channelToFormValues', () => {
     expect(channelToFormValues(patched).models).toEqual(['a', 'b', 'c'])
   })
 
-  it('seeds model mapping tags from the stored JSON object', () => {
+  it('seeds model mapping rows from the stored JSON object', () => {
     const patched = {
       ...minimalChannel,
       model_mapping: '{"gpt-4o": "gpt-4o-2024-08-06"}',
     }
-    expect(channelToFormValues(patched).model_mapping).toEqual([
-      'gpt-4o=gpt-4o-2024-08-06',
-    ])
+    const mapping = channelToFormValues(patched).model_mapping
+    expect(mapping).toHaveLength(1)
+    expect(mapping[0]['source']).toBe('gpt-4o')
+    expect(mapping[0]['target']).toBe('gpt-4o-2024-08-06')
+    expect(mapping[0]['rowId']).toMatch(/^mapping-row-\d+$/)
   })
 })
 
@@ -143,14 +145,17 @@ describe('buildChannelPayload', () => {
     expect(payload.models).toBe('gpt-4o,gpt-4.1')
   })
 
-  it('serializes model mapping tags into the stored JSON object', () => {
+  it('serializes mapping rows into the stored JSON object', () => {
     const payload = buildChannelPayload({
       name: 'OpenAI Test',
       type: '1',
       key: '',
       base_url: '',
       models: ['gpt-4o'],
-      model_mapping: ['gpt-4o=gpt-4o-2024-08-06', 'alias=upstream'],
+      model_mapping: [
+        { rowId: 'row-1', source: 'gpt-4o', target: 'gpt-4o-2024-08-06' },
+        { rowId: 'row-2', source: 'alias', target: 'upstream' },
+      ],
       group: 'default',
       priority: '0',
       weight: '0',
@@ -161,6 +166,29 @@ describe('buildChannelPayload', () => {
     expect(payload.model_mapping).toBe(
       '{"gpt-4o":"gpt-4o-2024-08-06","alias":"upstream"}'
     )
+  })
+
+  it('drops blank or half-filled mapping rows when serializing', () => {
+    const payload = buildChannelPayload({
+      name: 'OpenAI Test',
+      type: '1',
+      key: '',
+      base_url: '',
+      models: ['gpt-4o'],
+      model_mapping: [
+        { rowId: 'row-1', source: 'gpt-4o', target: 'gpt-4o-2024-08-06' },
+        { rowId: 'row-2', source: '', target: '' },
+        { rowId: 'row-3', source: 'half', target: '' },
+        { rowId: 'row-4', source: '  ', target: 'upstream' },
+      ],
+      group: 'default',
+      priority: '0',
+      weight: '0',
+      tag: '',
+      remark: '',
+      test_model: '',
+    })
+    expect(payload.model_mapping).toBe('{"gpt-4o":"gpt-4o-2024-08-06"}')
   })
 
   it('clears the stored model mapping when all tags are removed', () => {

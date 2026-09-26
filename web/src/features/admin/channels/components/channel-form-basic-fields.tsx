@@ -42,6 +42,7 @@ import { CHANNEL_TYPES, CODING_PLAN_TYPES } from '../constants'
 import { splitModelNames } from '../lib/format'
 import type { ChannelFormValues } from '../lib/schema'
 import type { UseFormReturn } from 'react-hook-form'
+import { ModelMappingEditor } from './model-mapping-editor'
 
 interface ChannelFormFieldsProps {
   form: UseFormReturn<ChannelFormValues>
@@ -99,6 +100,16 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
       form.setValue('base_url', '')
     }
   }
+
+  // Mapping suggestions come from the models selected in the Models field.
+  const models = form.watch('models')
+  const modelOptions = useMemo(
+    () =>
+      models
+        .filter((model) => model.trim() !== '')
+        .map((model) => ({ value: model, label: model })),
+    [models]
+  )
 
   return (
     <>
@@ -237,11 +248,13 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('Model mapping')}</FormLabel>
-            <AdminTagInput
-              values={field.value}
-              onChange={field.onChange}
-              placeholder={t('Add a mapping as model=target')}
-            />
+            <FormControl>
+              <ModelMappingEditor
+                value={field.value}
+                onChange={field.onChange}
+                modelOptions={modelOptions}
+              />
+            </FormControl>
             <FormMessage />
           </FormItem>
         )}
