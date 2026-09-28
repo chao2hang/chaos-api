@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
 	"github.com/chaos-api/chaos-api/logger"
 	relaycommon "github.com/chaos-api/chaos-api/relay/common"
 	"github.com/chaos-api/chaos-api/relay/helper"
@@ -139,16 +138,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-		if httpResp.StatusCode != http.StatusOK {
-			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
-				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
-				httpResp.StatusCode = http.StatusOK
-			} else {
-				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-				// reset status code 重置状态码
-				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-				return newAPIError
-			}
+		if !service.IsUpstreamSuccess(httpResp.StatusCode) {
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+			// reset status code 重置状态码
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
 		}
 	}
 

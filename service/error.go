@@ -84,6 +84,13 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
+// IsUpstreamSuccess reports whether an upstream HTTP status code represents a
+// successful relay response. Upstreams occasionally answer POST endpoints with
+// other 2xx codes (e.g. 201 Created); only the 2xx range counts as success.
+func IsUpstreamSuccess(statusCode int) bool {
+	return statusCode >= 200 && statusCode < 300
+}
+
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
@@ -126,9 +133,11 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	}
 	message := errResponse.ToMessage()
 	if message == "" {
-		// The body parsed as JSON but carried no usable error message; log the
-		// raw body so the upstream failure remains diagnosable.
+		// The body parsed as JSON but carried no usable error message. Log the
+		// raw body so the upstream failure remains diagnosable, and surface a
+		// masked body preview to the client instead of an empty message.
 		logger.LogError(ctx, fmt.Sprintf("bad response status code %d with empty error message, body: %s", resp.StatusCode, responseBodyPreview))
+		message = fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, common.MaskSensitiveInfo(responseBodyPreview))
 	}
 	newApiErr = types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 	if showBodyWhenFail {

@@ -121,6 +121,33 @@ func TestRelayErrorHandlerKeepsOpenAIErrorMessage(t *testing.T) {
 	require.Equal(t, message, newAPIError.Error())
 }
 
+func TestRelayErrorHandlerExtractsAggregatorErrorsArray(t *testing.T) {
+	body := `{"success":false,"errors":[{"code":7000,"message":"No route for that URI"}],"messages":[],"result":null}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, false)
+
+	require.NotNil(t, newAPIError)
+	require.Equal(t, "No route for that URI", newAPIError.Error())
+}
+
+func TestRelayErrorHandlerNeverReturnsEmptyMessage(t *testing.T) {
+	body := `{"model":"deepseek-flash"}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, false)
+
+	require.NotNil(t, newAPIError)
+	require.Contains(t, newAPIError.Error(), "bad response status code 400")
+	require.Contains(t, newAPIError.Error(), body)
+}
+
 func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	withDebugEnabled(t, true)
 

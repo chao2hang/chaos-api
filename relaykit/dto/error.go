@@ -20,14 +20,20 @@ type OpenAIErrorWithStatusCode struct {
 	LocalError bool
 }
 
+type GeneralErrorItem struct {
+	Message string `json:"message"`
+	Code    any    `json:"code,omitempty"`
+}
+
 type GeneralErrorResponse struct {
-	Error    json.RawMessage `json:"error"`
-	Message  string          `json:"message"`
-	Msg      string          `json:"msg"`
-	Err      string          `json:"err"`
-	ErrorMsg string          `json:"error_msg"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-	Detail   string          `json:"detail,omitempty"`
+	Error    json.RawMessage    `json:"error"`
+	Message  string             `json:"message"`
+	Msg      string             `json:"msg"`
+	Err      string             `json:"err"`
+	ErrorMsg string             `json:"error_msg"`
+	Metadata json.RawMessage    `json:"metadata,omitempty"`
+	Detail   string             `json:"detail,omitempty"`
+	Errors   []GeneralErrorItem `json:"errors,omitempty"`
 	Header   struct {
 		Message string `json:"message"`
 	} `json:"header"`
@@ -82,6 +88,11 @@ func (e GeneralErrorResponse) ToMessage() string {
 	}
 	if e.Detail != "" {
 		return e.Detail
+	}
+	for i := range e.Errors {
+		if e.Errors[i].Message != "" {
+			return e.Errors[i].Message
+		}
 	}
 	if e.Header.Message != "" {
 		return e.Header.Message
