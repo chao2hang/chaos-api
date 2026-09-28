@@ -301,9 +301,8 @@ func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float
 		if math.IsNaN(balance) || math.IsInf(balance, 0) {
 			return 0, errors.New("USD balance must be finite")
 		}
-		if balance < 0 {
-			return 0, errors.New("USD balance must be non-negative")
-		}
+		// A negative balance is legitimate upstream data (an account in
+		// arrears); report it instead of failing the query.
 		return balance, nil
 	}
 	if cnyBalance == nil {
@@ -323,15 +322,9 @@ func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float
 	if math.IsNaN(balanceCNY) || math.IsInf(balanceCNY, 0) {
 		return 0, errors.New("CNY balance must be finite")
 	}
-	if balanceCNY < 0 {
-		return 0, errors.New("CNY balance must be non-negative")
-	}
 	balanceUSD := decimal.NewFromFloat(balanceCNY).Div(decimal.NewFromFloat(usdExchangeRate)).InexactFloat64()
 	if math.IsNaN(balanceUSD) || math.IsInf(balanceUSD, 0) {
 		return 0, errors.New("converted USD balance must be finite")
-	}
-	if balanceUSD < 0 {
-		return 0, errors.New("converted USD balance must be non-negative")
 	}
 	return balanceUSD, nil
 }
