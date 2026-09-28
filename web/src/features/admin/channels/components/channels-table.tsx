@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
 import { useTranslation } from 'react-i18next'
+import { Tag } from 'lucide-react'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@chaos_team/chaos-ui'
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@chaos_team/chaos-ui'
 
 import { formatCurrencyUSD } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -54,6 +55,121 @@ export interface ChannelsTableProps {
   onCopy: (channel: Channel) => void
   onDelete: (channel: Channel) => void
   onQueryBalance: (channel: Channel) => void
+  onManageKeys?: (channel: Channel) => void
+  onOllamaModels?: (channel: Channel) => void
+  onCodexUsage?: (channel: Channel) => void
+  onUpstreamUpdates?: (channel: Channel) => void
+  /** Tag-mode rendering: one aggregated row per tag. */
+  tagMode?: boolean
+  onTagStatus?: (tag: string, status: number) => void
+}
+
+/**
+ * Tag-mode table: one aggregated row per tag with group enable/disable
+ * actions. The tag-mode endpoint returns the channels of the page's tags
+ * flattened, so rows are grouped client-side by tag.
+ */
+function TagModeTable(props: {
+  data: Channel[]
+  total: number
+  loading: boolean
+  onTagStatus: (tag: string, status: number) => void
+}) {
+  const { t } = useTranslation()
+  const groups = new Map<string, Channel[]>()
+  for (const channel of props.data) {
+    const tag = channel.tag !== '' ? channel.tag : t('Untagged')
+    const bucket = groups.get(tag)
+    if (bucket) {
+      bucket.push(channel)
+    } else {
+      groups.set(tag, [channel])
+    }
+  }
+
+  if (props.loading) {
+    return (
+      <div className='w-full border border-zinc-800 bg-[#0a0a0a] py-12 text-center text-zinc-600 mono text-xs'>
+        {t('Loading...')}
+      </div>
+    )
+  }
+  if (groups.size === 0) {
+    return (
+      <div className='w-full border border-zinc-800 bg-[#0a0a0a] py-12 text-center text-zinc-600 mono text-xs'>
+        {t('No channels found')}
+      </div>
+    )
+  }
+
+  return (
+    <div className='w-full border border-zinc-800 bg-[#0a0a0a] overflow-x-auto admin-no-scrollbar'>
+      <table className='w-full text-left text-xs mono whitespace-nowrap'>
+        <thead className='bg-zinc-900 text-zinc-500 uppercase border-b border-zinc-800'>
+          <tr>
+            <th className='py-3 px-4 font-medium'>{t('Tag')}</th>
+            <th className='py-3 px-4 font-medium'>{t('Channels')}</th>
+            <th className='py-3 px-4 font-medium'>{t('Enabled')}</th>
+            <th className='py-3 px-4 font-medium'>{t('Disabled')}</th>
+            <th className='py-3 px-4 font-medium'>{t('Models')}</th>
+            <th className='py-3 px-4 font-medium text-right'>{t('Actions')}</th>
+          </tr>
+        </thead>
+        <tbody className='divide-y divide-zinc-900 text-zinc-300'>
+          {[...groups.entries()].map(([tag, channels]) => {
+            const enabledCount = channels.filter(
+              (channel) => channel.status === 1
+            ).length
+            return (
+              <tr key={tag} className='hover:bg-zinc-900/50 transition-colors'>
+                <td className='py-3 px-4 font-medium text-white'>
+                  <Tag className='size-3 inline-block me-1 text-zinc-500' />
+                  {tag}
+                </td>
+                <td className='py-3 px-4 tabular-nums'>{channels.length}</td>
+                <td className='py-3 px-4 tabular-nums text-emerald-500'>
+                  {enabledCount}
+                </td>
+                <td className='py-3 px-4 tabular-nums text-zinc-500'>
+                  {channels.length - enabledCount}
+                </td>
+                <td className='py-3 px-4 max-w-[280px] truncate text-zinc-400'>
+                  {summarizeModels(
+                    channels.map((channel) => channel.models).join(',')
+                  ).display || '-'}
+                </td>
+                <td className='py-3 px-4 text-right'>
+                  <span className='inline-flex items-center gap-1'>
+                    <Button
+                      variant='ghost'
+                      size='xs'
+                      disabled={enabledCount === channels.length}
+                      onClick={() => props.onTagStatus(tag, 1)}
+                      className='mono text-xs'
+                    >
+                      {t('Enable')}
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='xs'
+                      disabled={enabledCount === 0}
+                      onClick={() => props.onTagStatus(tag, 2)}
+                      className='mono text-xs'
+                    >
+                      {t('Disable')}
+                    </Button>
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className='mono text-xs text-zinc-600 px-4 py-2'>
+        {t('{{count}} tags', { count: props.total })}
+      </p>
+    </div>
+  )
 }
 
 /**
@@ -62,6 +178,16 @@ export interface ChannelsTableProps {
  * uppercase headers, .status-tag badges, and minimalist pagination.
  */
 export function ChannelsTable(props: ChannelsTableProps) {
+  if (props.tagMode) {
+    return (
+      <TagModeTable
+        data={props.data}
+        total={props.total}
+        loading={props.loading}
+        onTagStatus={(tag, status) => props.onTagStatus?.(tag, status)}
+      />
+    )
+  }
   const { t } = useTranslation()
 
   const allSelected =
@@ -236,6 +362,10 @@ export function ChannelsTable(props: ChannelsTableProps) {
                         onTest={props.onTest}
                         onCopy={props.onCopy}
                         onDelete={props.onDelete}
+                        onManageKeys={props.onManageKeys}
+                        onOllamaModels={props.onOllamaModels}
+                        onCodexUsage={props.onCodexUsage}
+                        onUpstreamUpdates={props.onUpstreamUpdates}
                       />
                     </td>
                   </tr>

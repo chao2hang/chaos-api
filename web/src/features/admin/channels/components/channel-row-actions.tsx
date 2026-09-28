@@ -18,10 +18,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import {
   ActivityIcon,
+  BoxesIcon,
   CopyIcon,
+  GaugeIcon,
   PencilIcon,
   PowerIcon,
+  FileDiffIcon,
   Trash2Icon,
+  VaultIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -44,6 +48,10 @@ export interface ChannelRowActionsProps {
   onTest: (channel: Channel) => void
   onCopy: (channel: Channel) => void
   onDelete: (channel: Channel) => void
+  onManageKeys?: (channel: Channel) => void
+  onOllamaModels?: (channel: Channel) => void
+  onCodexUsage?: (channel: Channel) => void
+  onUpstreamUpdates?: (channel: Channel) => void
 }
 
 function ActionButton(props: {
@@ -79,6 +87,8 @@ export function ChannelRowActions(props: ChannelRowActionsProps) {
   const { channel, disabled } = props
   const enabled = channel.status === 1
   const toggleLabel = enabled ? t('Disable channel') : t('Enable channel')
+  const isOllama = channel.type === 4
+  const isCodex = channel.type === 57
 
   return (
     <div className='flex items-center justify-end gap-0.5'>
@@ -99,6 +109,36 @@ export function ChannelRowActions(props: ChannelRowActionsProps) {
         label={t('Test channel')}
         disabled={disabled}
         onClick={() => props.onTest(channel)}
+      />
+      {channel.channel_info?.is_multi_key && (
+        <ActionButton
+          icon={<VaultIcon />}
+          label={t('Multi-key management')}
+          disabled={disabled}
+          onClick={() => props.onManageKeys?.(channel)}
+        />
+      )}
+      {isOllama && (
+        <ActionButton
+          icon={<BoxesIcon />}
+          label={t('Ollama models')}
+          disabled={disabled}
+          onClick={() => props.onOllamaModels?.(channel)}
+        />
+      )}
+      {isCodex && (
+        <ActionButton
+          icon={<GaugeIcon />}
+          label={t('Codex usage')}
+          disabled={disabled}
+          onClick={() => props.onCodexUsage?.(channel)}
+        />
+      )}
+      <ActionButton
+        icon={<FileDiffIcon />}
+        label={t('Upstream model updates')}
+        disabled={disabled}
+        onClick={() => props.onUpstreamUpdates?.(channel)}
       />
       <ActionButton
         icon={<CopyIcon />}

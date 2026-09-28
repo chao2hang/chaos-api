@@ -30,6 +30,16 @@ import {
   DialogHeader,
   DialogTitle,
   Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Checkbox,
 } from '@chaos_team/chaos-ui'
 import { zodResolverAdapter } from '@chaos_team/chaos-ui/hooks'
 
@@ -42,6 +52,106 @@ import {
 import { getChannelFormSchema, type ChannelFormValues } from '../lib/schema'
 import type { Channel } from '../types'
 import { ChannelFormFields } from './channel-form-fields'
+
+/** Creation mode picker + multi-key options, shown only when creating. */
+function CreateModeFields({
+  form,
+}: {
+  form: ReturnType<typeof useForm<ChannelFormValues>>
+}) {
+  const { t } = useTranslation()
+  const createMode = form.watch('createMode')
+  const multiKey = createMode === 'multi_to_single'
+
+  return (
+    <div className='grid gap-3 rounded-none border border-zinc-800 bg-[#0a0a0a] p-3'>
+      <FormField
+        control={form.control}
+        name='createMode'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className='mono text-xs text-zinc-400'>
+              {t('Creation mode')}
+            </FormLabel>
+            <Select value={field.value} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger
+                  size='sm'
+                  className='mono text-xs rounded-none bg-[#0a0a0a] border-zinc-800'
+                  aria-label={t('Creation mode')}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent className='rounded-none border-zinc-800 bg-[#0a0a0a]'>
+                <SelectItem value='single'>{t('Single channel')}</SelectItem>
+                <SelectItem value='batch'>
+                  {t('Batch: one channel per key')}
+                </SelectItem>
+                <SelectItem value='multi_to_single'>
+                  {t('Multi-key: one channel, many keys')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </FormItem>
+        )}
+      />
+      {multiKey && (
+        <>
+          <FormField
+            control={form.control}
+            name='multi_key_mode'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className='mono text-xs text-zinc-400'>
+                  {t('Multi-key polling mode')}
+                </FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger
+                      size='sm'
+                      className='mono text-xs rounded-none bg-[#0a0a0a] border-zinc-800'
+                      aria-label={t('Multi-key polling mode')}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className='rounded-none border-zinc-800 bg-[#0a0a0a]'>
+                    <SelectItem value='random'>{t('Random')}</SelectItem>
+                    <SelectItem value='polling'>{t('Polling')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='batch_prefix_name'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center gap-2'>
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    aria-label={t('Prefix channel names with the key')}
+                  />
+                </FormControl>
+                <FormLabel className='mono text-xs text-zinc-400'>
+                  {t('Prefix channel names with the key')}
+                </FormLabel>
+              </FormItem>
+            )}
+          />
+        </>
+      )}
+      {createMode !== 'single' && (
+        <p className='mono text-xs text-zinc-500'>
+          {t('Enter one key per line in the key field below.')}
+        </p>
+      )}
+    </div>
+  )
+}
 
 export interface ChannelDialogProps {
   open: boolean
@@ -107,7 +217,19 @@ export function ChannelDialog(props: ChannelDialogProps) {
       }
       return
     }
-    const res = await createChannel({ mode: 'single', channel: payload })
+    if (
+      values.createMode !== 'single' &&
+      values.key.trim() === ''
+    ) {
+      toast.error(t('Enter at least one key, one per line'))
+      return
+    }
+    const res = await createChannel({
+      mode: values.createMode,
+      channel: payload,
+      multi_key_mode: values.multi_key_mode,
+      batch_add_set_key_prefix_2_name: values.batch_prefix_name,
+    })
     if (res.success) {
       toast.success(t('Channel created'))
       invalidate()
@@ -130,9 +252,13 @@ export function ChannelDialog(props: ChannelDialogProps) {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={submit} className='flex flex-col gap-4'>
+            {!editing && (
+              <CreateModeFields form={form} />
+            )}
             <ChannelFormFields
               form={form}
               groups={props.groups}
+              editing={editing}
               fetching={fetchModels.isPending}
               onFetchModels={() => fetchModels.mutate()}
             />

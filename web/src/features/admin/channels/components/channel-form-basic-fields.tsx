@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@chaos_team/chaos-ui'
+import { Textarea } from '@/components/ui/textarea'
 
 import { CHANNEL_TYPES, CODING_PLAN_TYPES } from '../constants'
 import { splitModelNames } from '../lib/format'
@@ -47,6 +48,8 @@ import { ModelMappingEditor } from './model-mapping-editor'
 interface ChannelFormFieldsProps {
   form: UseFormReturn<ChannelFormValues>
   groups: string[]
+  /** False while creating an existing channel; gates multi-key inputs. */
+  editing?: boolean
   fetching: boolean
   onFetchModels: () => void
 }
@@ -54,6 +57,8 @@ interface ChannelFormFieldsProps {
 /** Name, type, key, base URL and models fields of the channel form. */
 export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
   const { t } = useTranslation()
+  const multiKeyMode =
+    !props.editing && props.form.watch('createMode') !== 'single'
   const { form } = props
   const baseUrl = form.watch('base_url')
   // A coding-plan selection matches when both the type and the base URL
@@ -174,12 +179,23 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
           <FormItem>
             <FormLabel>{t('Key')}</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                type='password'
-                autoComplete='new-password'
-                placeholder={t('Leave empty to keep the existing key')}
-              />
+              {multiKeyMode ? (
+                <Textarea
+                  {...field}
+                  rows={4}
+                  className='mono text-xs'
+                  autoComplete='off'
+                  spellCheck={false}
+                  placeholder={t('One key per line')}
+                />
+              ) : (
+                <Input
+                  {...field}
+                  type='password'
+                  autoComplete='new-password'
+                  placeholder={t('Leave empty to keep the existing key')}
+                />
+              )}
             </FormControl>
             <FormMessage />
           </FormItem>

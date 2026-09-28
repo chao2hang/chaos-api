@@ -34,6 +34,9 @@ export const EMPTY_CHANNEL_FORM: ChannelFormValues = {
   tag: '',
   remark: '',
   test_model: '',
+  createMode: 'single',
+  multi_key_mode: 'random',
+  batch_prefix_name: true,
 }
 
 let mappingRowCounter = 0
@@ -110,6 +113,9 @@ export function channelToFormValues(channel: Channel): ChannelFormValues {
     tag: channel.tag ?? '',
     remark: channel.remark ?? '',
     test_model: channel.test_model ?? '',
+    createMode: 'single',
+    multi_key_mode: channel.channel_info?.multi_key_mode ?? 'random',
+    batch_prefix_name: true,
   }
 }
 

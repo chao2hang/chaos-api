@@ -25,6 +25,7 @@ export interface ChannelListFilters {
   status: string[]
   type: string[]
   group: string
+  tagMode: boolean
 }
 
 export interface ChannelListQuery {
@@ -73,6 +74,9 @@ export function buildChannelListQuery(
   const useSearch = keyword !== ''
   if (useSearch) {
     params.keyword = keyword
+  }
+  if (filters.tagMode) {
+    params.tag_mode = 'true'
   }
 
   const statuses = normalizeStatusFilter(filters.status)

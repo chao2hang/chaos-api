@@ -24,8 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@chaos_team/chaos-ui'
-import { RotateCcwIcon, SearchIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { RotateCcwIcon, SearchIcon, TagIcon } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CHANNEL_TYPES } from '../constants'
@@ -37,6 +37,7 @@ type ChannelFilterBarProps = {
   type: string[]
   group: string
   groups: string[]
+  tagMode: boolean
   onFilterChange: (patch: Partial<ChannelsSearch>) => void
 }
 
@@ -48,10 +49,13 @@ const ALL_VALUE = '__all__'
 export function ChannelFilterBar(props: ChannelFilterBarProps) {
   const { t } = useTranslation()
   const [keywordDraft, setKeywordDraft] = useState(props.keyword)
-
-  useEffect(() => {
+  // Sync the draft with the URL keyword during render (React-recommended
+  // alternative to a setState-in-effect), so external resets propagate.
+  const [lastSyncedKeyword, setLastSyncedKeyword] = useState(props.keyword)
+  if (lastSyncedKeyword !== props.keyword) {
+    setLastSyncedKeyword(props.keyword)
     setKeywordDraft(props.keyword)
-  }, [props.keyword])
+  }
 
   const applyKeyword = () => {
     const trimmed = keywordDraft.trim()
@@ -70,12 +74,12 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
     })
   }
 
-  const statusLabel =
-    props.status[0] === 'enabled'
-      ? t('Enabled')
-      : props.status[0] === 'disabled'
-        ? t('Disabled')
-        : t('All statuses')
+  let statusLabel = t('All statuses')
+  if (props.status[0] === 'enabled') {
+    statusLabel = t('Enabled')
+  } else if (props.status[0] === 'disabled') {
+    statusLabel = t('Disabled')
+  }
 
   const selectedTypeOption = CHANNEL_TYPES.find((opt) => opt.value === props.type[0])
   const typeLabel = selectedTypeOption ? selectedTypeOption.label : t('All types')
@@ -104,6 +108,20 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
       >
         <SearchIcon className="size-3.5" />
         {t('Search')}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => props.onFilterChange({ tag_mode: !props.tagMode, page: 1 })}
+        aria-pressed={props.tagMode}
+        className={
+          props.tagMode
+            ? 'btn-industrial-primary mono text-xs h-9 cursor-pointer shrink-0'
+            : 'btn-industrial-secondary mono text-xs h-9 cursor-pointer shrink-0'
+        }
+      >
+        <TagIcon className="size-3.5" />
+        {t('Tag mode')}
       </button>
 
       <Select

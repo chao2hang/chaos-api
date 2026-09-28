@@ -25,6 +25,8 @@ import { ChannelFormExtraFields } from './channel-form-extra-fields'
 export interface ChannelFormFieldsProps {
   form: UseFormReturn<ChannelFormValues>
   groups: string[]
+  /** False while creating; gates the multi-key/batch key textarea. */
+  editing?: boolean
   fetching: boolean
   onFetchModels: () => void
 }
@@ -36,6 +38,7 @@ export function ChannelFormFields(props: ChannelFormFieldsProps) {
       <ChannelFormBasicFields
         form={props.form}
         groups={props.groups}
+        editing={props.editing}
         fetching={props.fetching}
         onFetchModels={props.onFetchModels}
       />

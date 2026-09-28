@@ -64,6 +64,10 @@ export function getChannelFormSchema(t: TFunction) {
     tag: z.string(),
     remark: z.string(),
     test_model: z.string(),
+    // Creation-only fields (ignored when editing):
+    createMode: z.enum(['single', 'batch', 'multi_to_single']),
+    multi_key_mode: z.enum(['random', 'polling']),
+    batch_prefix_name: z.boolean(),
   })
 }
 

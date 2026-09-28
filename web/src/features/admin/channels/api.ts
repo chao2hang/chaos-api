@@ -24,10 +24,15 @@ import type {
   Channel,
   ChannelBalanceResponse,
   ChannelListData,
+  ChannelOpsInfo,
   ChannelStatusCounts,
   FetchModelsRequest,
+  MultiKeyManageRequest,
+  MultiKeyStatusResponse,
+  SystemTaskResponse,
   TestChannelResponse,
   UpdateChannelRequest,
+  UpstreamModelUpdate,
 } from './types'
 import type { ChannelListQuery } from './lib/query'
 
@@ -90,6 +95,134 @@ export async function batchDeleteChannels(
   ids: number[]
 ): Promise<ApiResponse<number>> {
   const res = await api.post('/api/channel/batch', { ids })
+  return res.data
+}
+
+/** Set one tag on the selected channels (POST /api/channel/batch/tag). */
+export async function batchSetChannelTag(
+  ids: number[],
+  tag: string
+): Promise<ApiResponse> {
+  const res = await api.post('/api/channel/batch/tag', { ids, tag })
+  return res.data
+}
+
+/** Enable or disable every channel sharing one tag. */
+export async function setTagChannels(
+  tag: string,
+  status: number
+): Promise<ApiResponse> {
+  const res = await api.post(
+    status === 1 ? '/api/channel/tag/enabled' : '/api/channel/tag/disabled',
+    { tag }
+  )
+  return res.data
+}
+
+/** Fix the channel/abilities consistency (POST /api/channel/fix). */
+export async function fixChannelAbilities(): Promise<
+  ApiResponse<{ success: boolean; fails: number } | undefined>
+> {
+  const res = await api.post('/api/channel/fix')
+  return res.data
+}
+
+/** Delete all manually-disabled channels (DELETE /api/channel/disabled). */
+export async function deleteDisabledChannels(): Promise<ApiResponse<number>> {
+  const res = await api.delete('/api/channel/disabled')
+  return res.data
+}
+
+/** Retry/automatic-disable policy snapshot (GET /api/channel/ops). */
+export async function getChannelOps(): Promise<
+  ApiResponse<ChannelOpsInfo | undefined>
+> {
+  const res = await api.get('/api/channel/ops')
+  return res.data
+}
+
+/** Enqueue a system task testing all enabled channels. */
+export async function testAllChannels(): Promise<SystemTaskResponse> {
+  const res = await api.get('/api/channel/test')
+  return res.data
+}
+
+/** Refresh the balance of every enabled channel (synchronous). */
+export async function updateAllChannelsBalance(): Promise<ApiResponse> {
+  const res = await api.get('/api/channel/update_balance')
+  return res.data
+}
+
+/** Run one multi-key management action (GET /api/channel/multi_key/manage). */
+export async function manageMultiKeys(
+  params: MultiKeyManageRequest
+): Promise<ApiResponse<MultiKeyStatusResponse | undefined>> {
+  const res = await api.post('/api/channel/multi_key/manage', params)
+  return res.data
+}
+
+/** Codex account usage snapshot (GET /api/channel/:id/codex/usage). */
+export async function getCodexUsage(
+  channelId: number
+): Promise<ApiResponse<unknown>> {
+  const res = await api.get(`/api/channel/${channelId}/codex/usage`)
+  return res.data
+}
+
+/** Refresh the Codex OAuth credential (POST /api/channel/:id/codex/refresh). */
+export async function refreshCodexCredential(
+  channelId: number
+): Promise<ApiResponse> {
+  const res = await api.post(`/api/channel/${channelId}/codex/refresh`, {})
+  return res.data
+}
+
+/** Reset the Codex usage window (POST /api/channel/:id/codex/usage/reset). */
+export async function resetCodexUsage(channelId: number): Promise<ApiResponse> {
+  const res = await api.post(`/api/channel/${channelId}/codex/usage/reset`, {})
+  return res.data
+}
+
+/** Delete a model from an Ollama channel (DELETE /api/channel/ollama/delete). */
+export async function deleteOllamaModel(
+  channelId: number,
+  modelName: string
+): Promise<ApiResponse> {
+  const res = await api.delete('/api/channel/ollama/delete', {
+    data: { channel_id: channelId, model_name: modelName },
+  })
+  return res.data
+}
+
+/** Ollama server version info (GET /api/channel/ollama/version/:id). */
+export async function getOllamaVersion(
+  channelId: number
+): Promise<ApiResponse<unknown>> {
+  const res = await api.get(`/api/channel/ollama/version/${channelId}`)
+  return res.data
+}
+
+/** Detect model drift of one channel against its upstream. */
+export async function detectChannelUpstreamUpdates(
+  channelId: number
+): Promise<ApiResponse<UpstreamModelUpdate | undefined>> {
+  const res = await api.post('/api/channel/upstream_updates/detect', {
+    id: channelId,
+  })
+  return res.data
+}
+
+/** Apply detected model updates of one channel. */
+export async function applyChannelUpstreamUpdates(
+  channelId: number,
+  addModels: string[],
+  removeModels: string[]
+): Promise<ApiResponse> {
+  const res = await api.post('/api/channel/upstream_updates/apply', {
+    id: channelId,
+    add_models: addModels,
+    remove_models: removeModels,
+  })
   return res.data
 }
 

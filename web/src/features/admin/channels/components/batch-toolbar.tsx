@@ -20,6 +20,14 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@chaos_team/chaos-ui/business'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from '@chaos_team/chaos-ui'
 
 export interface BatchToolbarProps {
   selectedIds: number[]
@@ -27,12 +35,15 @@ export interface BatchToolbarProps {
   onClear: () => void
   onBatchStatus: (ids: number[], status: number) => void
   onBatchDelete: (ids: number[]) => void
+  onBatchTag: (ids: number[], tag: string) => void
 }
 
-/** Actions shown when rows are selected: batch enable/disable/delete. */
+/** Actions shown when rows are selected: batch enable/disable/tag/delete. */
 export function BatchToolbar(props: BatchToolbarProps) {
   const { t } = useTranslation()
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [tagOpen, setTagOpen] = useState(false)
+  const [tagDraft, setTagDraft] = useState('')
   if (props.selectedIds.length === 0) {
     return null
   }
@@ -61,6 +72,17 @@ export function BatchToolbar(props: BatchToolbarProps) {
       <button
         type="button"
         disabled={props.disabled}
+        onClick={() => {
+          setTagDraft('')
+          setTagOpen(true)
+        }}
+        className="btn-industrial-secondary text-xs disabled:opacity-30 cursor-pointer"
+      >
+        {t('Set tag')}
+      </button>
+      <button
+        type="button"
+        disabled={props.disabled}
         onClick={() => setDeleteOpen(true)}
         className="btn-industrial-danger text-xs disabled:opacity-30 cursor-pointer"
       >
@@ -73,6 +95,46 @@ export function BatchToolbar(props: BatchToolbarProps) {
       >
         {t('Clear selection')}
       </button>
+      <Dialog open={tagOpen} onOpenChange={setTagOpen}>
+        <DialogContent className='max-w-sm bg-[#0f0f0f] border-zinc-800 text-white rounded-none'>
+          <DialogHeader>
+            <DialogTitle className='mono text-base text-white'>
+              {t('Set tag for selected channels?')}
+            </DialogTitle>
+            <DialogDescription className='mono text-xs text-zinc-500'>
+              {t('Applies one tag to {{count}} channels. Leave empty to remove the tag.', {
+                count: props.selectedIds.length,
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={tagDraft}
+            onChange={(event) => setTagDraft(event.target.value)}
+            placeholder={t('Tag name')}
+            className='mono text-xs'
+            aria-label={t('Tag name')}
+          />
+          <div className='flex justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => setTagOpen(false)}
+              className='btn-industrial-secondary mono text-xs'
+            >
+              {t('Cancel')}
+            </button>
+            <button
+              type='button'
+              onClick={() => {
+                props.onBatchTag(props.selectedIds, tagDraft.trim())
+                setTagOpen(false)
+              }}
+              className='btn-industrial-primary mono text-xs'
+            >
+              {t('Save')}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

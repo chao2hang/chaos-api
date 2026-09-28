@@ -102,6 +102,9 @@ describe('buildChannelPayload', () => {
       tag: '',
       remark: '',
       test_model: '',
+    createMode: 'single' as const,
+    multi_key_mode: 'random' as const,
+    batch_prefix_name: true,
     })
     expect(payload.key).toBeUndefined()
     expect(payload.name).toBe('OpenAI Test')
@@ -123,6 +126,9 @@ describe('buildChannelPayload', () => {
       tag: '',
       remark: '',
       test_model: '',
+    createMode: 'single' as const,
+    multi_key_mode: 'random' as const,
+    batch_prefix_name: true,
     })
     expect(payload.key).toBe('sk-1234')
   })
@@ -141,6 +147,9 @@ describe('buildChannelPayload', () => {
       tag: '',
       remark: '',
       test_model: '',
+    createMode: 'single' as const,
+    multi_key_mode: 'random' as const,
+    batch_prefix_name: true,
     })
     expect(payload.models).toBe('gpt-4o,gpt-4.1')
   })
@@ -162,6 +171,9 @@ describe('buildChannelPayload', () => {
       tag: '',
       remark: '',
       test_model: '',
+    createMode: 'single' as const,
+    multi_key_mode: 'random' as const,
+    batch_prefix_name: true,
     })
     expect(payload.model_mapping).toBe(
       '{"gpt-4o":"gpt-4o-2024-08-06","alias":"upstream"}'
@@ -187,6 +199,9 @@ describe('buildChannelPayload', () => {
       tag: '',
       remark: '',
       test_model: '',
+    createMode: 'single' as const,
+    multi_key_mode: 'random' as const,
+    batch_prefix_name: true,
     })
     expect(payload.model_mapping).toBe('{"gpt-4o":"gpt-4o-2024-08-06"}')
   })
@@ -205,6 +220,9 @@ describe('buildChannelPayload', () => {
       tag: '',
       remark: '',
       test_model: '',
+    createMode: 'single' as const,
+    multi_key_mode: 'random' as const,
+    batch_prefix_name: true,
     })
     expect(payload.model_mapping).toBe('')
   })

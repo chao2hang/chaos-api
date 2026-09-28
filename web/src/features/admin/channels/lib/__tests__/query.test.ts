@@ -35,6 +35,7 @@ const emptyFilters = {
   status: [] as string[],
   type: [] as string[],
   group: '',
+  tagMode: false,
 }
 
 describe('normalizeStatusFilter', () => {

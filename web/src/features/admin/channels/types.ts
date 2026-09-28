@@ -69,12 +69,6 @@ export type Channel = {
   channel_info: ChannelInfo | null
 }
 
-/** Body for POST /api/channel (mode: 'single'). */
-export interface AddChannelRequest {
-  mode: 'single'
-  channel: ChannelPayload
-}
-
 /** Partial channel fields accepted by create/update endpoints. */
 export type ChannelPayload = Partial<Omit<Channel, 'id' | 'channel_info'>>
 
@@ -87,6 +81,79 @@ export interface FetchModelsRequest {
   type: number
   key?: string
   channel_id?: number
+}
+
+/**
+ * Creation mode of POST /api/channel: single channel, one channel per key
+ * line (batch), or one multi-key channel holding every key.
+ */
+export type ChannelCreateMode = 'single' | 'batch' | 'multi_to_single'
+
+/** Body for POST /api/channel (all creation modes). */
+export interface AddChannelRequest {
+  mode: ChannelCreateMode
+  channel: ChannelPayload
+  multi_key_mode?: 'random' | 'polling'
+  batch_add_set_key_prefix_2_name?: boolean
+}
+
+/** Envelope of the async system tasks (channel test all, balance refresh...). */
+export interface SystemTaskResponse {
+  success: boolean
+  message?: string
+  data?: { task_id: string; status: string }
+}
+
+/** Policy snapshot of GET /api/channel/ops. */
+export interface ChannelOpsInfo {
+  retry_times: number
+  request_policy: { automatic_disable: boolean; source: string }
+}
+
+/** One key of a multi-key channel, from action=get_key_status. */
+export interface MultiKeyStatus {
+  index: number
+  status: number
+  disabled_time?: number
+  reason?: string
+  key_preview: string
+}
+
+/** Response of the multi-key manage endpoint (action=get_key_status). */
+export interface MultiKeyStatusResponse {
+  keys: MultiKeyStatus[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+  enabled_count: number
+  manual_disabled_count: number
+  auto_disabled_count: number
+}
+
+/** Request of POST /api/channel/multi_key/manage. */
+export interface MultiKeyManageRequest {
+  channel_id: number
+  action:
+    | 'disable_key'
+    | 'enable_key'
+    | 'delete_key'
+    | 'delete_disabled_keys'
+    | 'get_key_status'
+  key_index?: number
+  page?: number
+  page_size?: number
+  status?: number
+}
+
+/** Detection result of the upstream model updates for one channel. */
+export interface UpstreamModelUpdate {
+  channel_id: number
+  channel_name: string
+  add_models: string[]
+  remove_models: string[]
+  last_check_time: number
+  auto_added_models: number
 }
 
 /** Paginated channel list payload. */
@@ -138,4 +205,5 @@ export interface ChannelsSearch {
   status: string[]
   type: string[]
   group: string
+  tag_mode: boolean
 }
