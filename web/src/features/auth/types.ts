@@ -61,16 +61,29 @@ export interface BindEmailPayload {
 // API Responses
 // ============================================================================
 
+/** One offered verification method inside a login challenge. */
+export interface LoginChallengeMethod {
+  method: string
+  available: boolean
+}
+
+/**
+ * Challenge returned by POST /api/user/login when the account must complete a
+ * secondary verification (passkey / 2FA) before a session is issued.
+ */
+export interface LoginChallenge {
+  require_verification?: boolean
+  /** Legacy pre-unified-verification flag; no longer sent by the backend. */
+  require_2fa?: boolean
+  flow_token?: string
+  expires_at?: number
+  methods?: LoginChallengeMethod[]
+}
+
 export interface LoginResponse {
   success: boolean
   message: string
-  data?:
-    | AuthBundle
-    | {
-        require_2fa?: boolean
-        flow_token?: string
-        expires_at?: number
-      }
+  data?: AuthBundle | LoginChallenge
 }
 
 export interface Login2FAResponse {

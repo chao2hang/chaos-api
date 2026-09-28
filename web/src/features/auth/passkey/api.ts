@@ -88,6 +88,42 @@ export async function finishPasskeyLogin(
   return res.data
 }
 
+/**
+ * Begin the passkey factor of a password-login verification challenge
+ * (POST /api/user/login returned require_verification).
+ */
+export async function beginLoginVerificationPasskey(
+  flowToken: string
+): Promise<ApiResponse<PasskeyOptionsPayload>> {
+  const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
+    '/api/user/login/passkey/begin',
+    { flow_token: flowToken },
+    { skipAuthRefresh: true }
+  )
+  return res.data
+}
+
+/**
+ * Finish the passkey factor of a password-login verification challenge; the
+ * response carries the authenticated session bundle.
+ */
+export async function finishLoginVerificationPasskey(
+  flowToken: string,
+  passkeyFlowToken: string,
+  payload: Record<string, unknown>
+): Promise<ApiResponse> {
+  const res = await api.post<ApiResponse>(
+    '/api/user/login/passkey/finish',
+    {
+      flow_token: flowToken,
+      passkey_flow_token: passkeyFlowToken,
+      credential: payload,
+    },
+    { skipAuthRefresh: true }
+  )
+  return res.data
+}
+
 export async function beginPasskeyVerification(
   scope: SecurityProofScope
 ): Promise<ApiResponse<PasskeyOptionsPayload>> {
