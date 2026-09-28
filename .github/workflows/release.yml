@@ -39,6 +39,9 @@ jobs:
         run: |
           cd web
           bun install --frozen-lockfile
+          cd ../packages/blbui
+          bun add lit@3.3.3
+          cd ../../web
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
@@ -93,6 +96,9 @@ jobs:
         run: |
           cd web
           bun install --frozen-lockfile
+          cd ../packages/blbui
+          bun add lit@3.3.3
+          cd ../../web
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
@@ -144,6 +150,9 @@ jobs:
         run: |
           cd web
           bun install --frozen-lockfile
+          cd ../packages/blbui
+          bun add lit@3.3.3
+          cd ../../web
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go

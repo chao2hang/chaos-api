@@ -4,6 +4,12 @@ WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY ./web ./
+# web/rsbuild.config.ts aliases @chaos_team/blbui-* into ../packages/blbui/**/src,
+# so the packages tree must exist next to web/ for the frontend build to resolve.
+COPY ./packages /build/packages
+# blbui sources import "lit", which only resolves from packages/blbui/node_modules;
+# module lookup walks up from packages/blbui/core/src and never reaches web/node_modules.
+RUN cd /build/packages/blbui && bun add lit@3.3.3
 COPY ./VERSION /build/VERSION
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
 

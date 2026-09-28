@@ -81,6 +81,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install lit for blbui sources
+        run: cd ../packages/blbui && bun add lit@3.3.3
+
       - name: Typecheck
         run: bun run typecheck
 

@@ -48,6 +48,9 @@ jobs:
         run: |
           cd web
           bun install --frozen-lockfile
+          cd ../packages/blbui
+          bun add lit@3.3.3
+          cd ../../web
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
           cd ..
 
