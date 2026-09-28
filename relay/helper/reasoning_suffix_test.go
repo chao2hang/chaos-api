@@ -218,6 +218,45 @@ func TestApplyReasoningModelSuffixStillParsesOpenAIEffortTail(t *testing.T) {
 	assert.Equal(t, "high", info.ReasoningConversion.Effort)
 }
 
+func TestApplyReasoningModelSuffixKeepsNameWhenChannelListsModelVerbatim(t *testing.T) {
+	tests := []struct {
+		name        string
+		originModel string
+		upstream    string
+	}{
+		{
+			name:        "requested suffix id is kept verbatim",
+			originModel: "gemini-3.8-flash-high",
+			upstream:    "gemini-3.8-flash-high",
+		},
+		{
+			name:        "mapped target is kept verbatim",
+			originModel: "gemini-3.8-flash-high",
+			upstream:    "gpt-5.2-xhigh",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := &dto.GeneralOpenAIRequest{Model: tt.upstream}
+			info := &relaycommon.RelayInfo{
+				OriginModelName: tt.originModel,
+				Request:         request,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: tt.upstream,
+					ModelLiteralMatch: true,
+				},
+			}
+
+			mustApplyReasoningModelSuffix(t, info, request)
+			assert.Equal(t, tt.upstream, info.UpstreamModelName)
+			assert.Equal(t, tt.upstream, request.Model)
+			assert.Nil(t, info.ReasoningConversion)
+			assert.Empty(t, info.ConversionDiagnostics())
+		})
+	}
+}
+
 func TestApplyReasoningModelSuffixLeavesUnknownOpenRouterThinkingModel(t *testing.T) {
 	openRouter := &relaycommon.RelayInfo{
 		OriginModelName: "some-model-thinking",

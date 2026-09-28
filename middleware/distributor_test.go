@@ -341,3 +341,22 @@ func TestSharedEndpointRebindsToBoundNewAPIExtension(t *testing.T) {
 	assert.Equal(t, "alpha", c.GetString("task_plugin_key"), "the first bound candidate executes regardless of the earlier pin")
 	assert.Equal(t, "alpha", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
 }
+
+func TestSetupContextForSelectedChannelMarksLiteralModelMatch(t *testing.T) {
+	channel := &model.Channel{Id: 1, Type: constant.ChannelTypeOpenAI, Key: "sk-test"}
+	channel.Models = "gemini-3.8-flash,gemini-3.8-flash-high"
+
+	newCtx := func() *gin.Context {
+		c, _ := gin.CreateTestContext(nil)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		return c
+	}
+
+	matched := newCtx()
+	require.Nil(t, SetupContextForSelectedChannel(matched, channel, "gemini-3.8-flash-high"))
+	assert.True(t, common.GetContextKeyBool(matched, constant.ContextKeyChannelModelLiteralMatch))
+
+	fallback := newCtx()
+	require.Nil(t, SetupContextForSelectedChannel(fallback, channel, "gemini-3.8-flash-medium"))
+	assert.False(t, common.GetContextKeyBool(fallback, constant.ContextKeyChannelModelLiteralMatch))
+}

@@ -30,6 +30,13 @@ func ApplyReasoningModelSuffix(c *gin.Context, info *relaycommon.RelayInfo, outb
 		info.ChannelMeta != nil && info.ChannelSetting.PassThroughBodyEnabled {
 		return nil
 	}
+	if info.ChannelMeta != nil && info.ChannelMeta.ModelLiteralMatch {
+		// The selected channel's model list contains the requested model id
+		// verbatim, so its effort-looking tail is part of the real upstream
+		// name. Keep the (mapped or unmapped) name untouched; suffix-to-effort
+		// parsing stays on the fallback path where only a base name matched.
+		return nil
+	}
 
 	opts := info.ConvOptions()
 	origin := info.GetOriginModelName()

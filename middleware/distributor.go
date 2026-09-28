@@ -651,6 +651,10 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelAutoBan, channel.GetAutoBan())
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
+	// The channel lists the requested model id verbatim (e.g. an upstream whose
+	// real ids carry effort suffixes like gemini-3.8-flash-high); downstream
+	// suffix parsing must keep the name intact for this attempt.
+	common.SetContextKey(c, constant.ContextKeyChannelModelLiteralMatch, slices.Contains(channel.GetModels(), modelName))
 
 	key, index, newAPIError := channel.GetNextEnabledKey()
 	if newAPIError != nil {

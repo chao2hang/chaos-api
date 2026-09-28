@@ -73,6 +73,7 @@ type ChannelMeta struct {
 	ChannelOtherSettings dto.ChannelOtherSettings
 	UpstreamModelName    string
 	IsModelMapped        bool
+	ModelLiteralMatch    bool // 渠道 models 字面包含请求模型名时为 true，下发名不做后缀剥离
 	SupportStreamOptions bool // 是否支持流式选项
 }
 
@@ -271,6 +272,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		HeadersOverride:      headerOverride,
 		UpstreamModelName:    common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 		IsModelMapped:        false,
+		ModelLiteralMatch:    common.GetContextKeyBool(c, constant.ContextKeyChannelModelLiteralMatch),
 		SupportStreamOptions: false,
 	}
 
