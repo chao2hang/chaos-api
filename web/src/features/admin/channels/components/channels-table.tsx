@@ -53,6 +53,7 @@ export interface ChannelsTableProps {
   onTest: (channel: Channel) => void
   onCopy: (channel: Channel) => void
   onDelete: (channel: Channel) => void
+  onQueryBalance: (channel: Channel) => void
 }
 
 /**
@@ -199,7 +200,24 @@ export function ChannelsTable(props: ChannelsTableProps) {
                       {formatResponseTime(channel.response_time)}
                     </td>
                     <td className="py-3.5 px-4 text-zinc-400">
-                      {formatCurrencyUSD(channel.balance)}
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              disabled={props.actionPending}
+                              aria-label={t('Click to query balance')}
+                              className="cursor-pointer tabular-nums text-zinc-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                              onClick={() => props.onQueryBalance(channel)}
+                            >
+                              {formatCurrencyUSD(channel.balance)}
+                            </button>
+                          }
+                        />
+                        <TooltipContent side="top">
+                          {t('Click to query balance')}
+                        </TooltipContent>
+                      </Tooltip>
                     </td>
                     <td className="py-3.5 px-4 text-zinc-400">{channel.priority}</td>
                     <td className="py-3.5 px-4 text-zinc-400">{channel.weight}</td>

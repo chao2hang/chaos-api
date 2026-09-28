@@ -80,6 +80,7 @@ export function ChannelsPage(props: ChannelsPageProps) {
     actions.toggleStatus.isPending ||
     actions.test.isPending ||
     actions.copy.isPending ||
+    actions.queryBalance.isPending ||
     actions.remove.isPending ||
     actions.batchStatus.isPending ||
     actions.batchDelete.isPending
@@ -149,6 +150,7 @@ export function ChannelsPage(props: ChannelsPageProps) {
         onTest={(channel) => actions.test.mutate(channel.id)}
         onCopy={(channel) => actions.copy.mutate(channel.id)}
         onDelete={(channel) => actions.remove.mutate(channel.id)}
+        onQueryBalance={(channel) => actions.queryBalance.mutate(channel)}
       />
       <ChannelDialog
         open={dialogOpen}

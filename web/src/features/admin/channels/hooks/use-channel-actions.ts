@@ -20,16 +20,19 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { formatCurrencyUSD } from '@/lib/format'
+
 import {
   batchDeleteChannels,
   batchUpdateChannelStatus,
   copyChannel,
   deleteChannel,
   testChannel,
+  updateChannelBalance,
   updateChannelStatus,
 } from '../api'
 import { formatResponseTime } from '../lib/format'
-import type { TestChannelResponse } from '../types'
+import type { Channel, TestChannelResponse } from '../types'
 
 export interface UseChannelActionsParams {
   /** Called after a batch mutation succeeds so the caller can clear selection. */
@@ -83,6 +86,26 @@ export function useChannelActions(params: UseChannelActionsParams) {
     },
   })
 
+  const queryBalance = useMutation({
+    mutationFn: (channel: Channel) => updateChannelBalance(channel.id),
+    onSuccess: (res, channel) => {
+      if (!res.success) {
+        toast.error(res.message ? res.message : t('Failed to update balance'))
+        return
+      }
+      if (res.raw_response !== undefined && res.raw_response !== '') {
+        toast(t('Balance response'), { description: res.raw_response })
+        return
+      }
+      toast.success(
+        t('Balance updated: {{balance}}', {
+          balance: formatCurrencyUSD(res.balance ?? channel.balance),
+        })
+      )
+      invalidate()
+    },
+  })
+
   const remove = useMutation({
     mutationFn: (id: number) => deleteChannel(id),
     onSuccess: (res) => {
@@ -119,5 +142,5 @@ export function useChannelActions(params: UseChannelActionsParams) {
     },
   })
 
-  return { toggleStatus, test, copy, remove, batchStatus, batchDelete }
+  return { toggleStatus, test, copy, queryBalance, remove, batchStatus, batchDelete }
 }

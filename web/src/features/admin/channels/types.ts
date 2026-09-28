@@ -118,6 +118,18 @@ export interface TestChannelResponse extends ApiResponse<TestChannelResult> {
   time?: number
 }
 
+/**
+ * Envelope returned by GET /api/channel/update_balance/:id. Channels whose
+ * balance API answers with a non-numeric body come back as raw_response
+ * instead of a parsed balance number.
+ */
+export interface ChannelBalanceResponse {
+  success: boolean
+  message?: string
+  balance?: number
+  raw_response?: string
+}
+
 /** URL search params of the admin channels page. */
 export interface ChannelsSearch {
   page: number

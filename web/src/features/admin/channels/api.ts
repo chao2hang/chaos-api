@@ -22,6 +22,7 @@ import type {
   AddChannelRequest,
   ApiResponse,
   Channel,
+  ChannelBalanceResponse,
   ChannelListData,
   ChannelStatusCounts,
   FetchModelsRequest,
@@ -101,6 +102,14 @@ export async function copyChannel(
 
 export async function testChannel(id: number): Promise<TestChannelResponse> {
   const res = await api.get(`/api/channel/test/${id}`)
+  return res.data
+}
+
+/** Query the upstream balance of one channel. */
+export async function updateChannelBalance(
+  id: number
+): Promise<ChannelBalanceResponse> {
+  const res = await api.get(`/api/channel/update_balance/${id}`)
   return res.data
 }
 
