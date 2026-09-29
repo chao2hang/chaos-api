@@ -36,6 +36,8 @@ const emptyFilters = {
   type: [] as string[],
   group: '',
   tagMode: false,
+  sortBy: '',
+  sortOrder: '',
 }
 
 describe('normalizeStatusFilter', () => {
@@ -102,6 +104,36 @@ describe('buildChannelListQuery', () => {
     const query = buildChannelListQuery({ ...emptyFilters, page: -3, pageSize: 0 })
     expect(query.params.p).toBe(1)
     expect(query.params.page_size).toBe(10)
+  })
+
+  it('sends sort_by and sort_order for a sortable field', () => {
+    const query = buildChannelListQuery({
+      ...emptyFilters,
+      sortBy: 'priority',
+      sortOrder: 'desc',
+    })
+    expect(query.params.sort_by).toBe('priority')
+    expect(query.params.sort_order).toBe('desc')
+  })
+
+  it('normalizes a non-asc sort order to desc', () => {
+    const query = buildChannelListQuery({
+      ...emptyFilters,
+      sortBy: 'balance',
+      sortOrder: 'DESC ',
+    })
+    expect(query.params.sort_by).toBe('balance')
+    expect(query.params.sort_order).toBe('desc')
+  })
+
+  it('omits sort params for unknown sort fields', () => {
+    const query = buildChannelListQuery({
+      ...emptyFilters,
+      sortBy: 'weight',
+      sortOrder: 'asc',
+    })
+    expect('sort_by' in query.params).toBe(false)
+    expect('sort_order' in query.params).toBe(false)
   })
 })
 

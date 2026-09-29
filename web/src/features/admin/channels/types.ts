@@ -206,4 +206,8 @@ export interface ChannelsSearch {
   type: string[]
   group: string
   tag_mode: boolean
+  /** Active header sort column; empty means the backend default order. */
+  sortBy: string
+  /** Direction of the active sort ('asc' / 'desc'); ignored when sortBy is empty. */
+  sortOrder: string
 }

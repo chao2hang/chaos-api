@@ -82,6 +82,22 @@ export const CHANNEL_STATUS_META: Record<number, ChannelStatusMeta> = {
 export const STATUS_FILTER_VALUES = ['enabled', 'disabled'] as const
 
 /**
+ * Channel columns the list endpoint can sort by (see `channelSortColumns` in
+ * `model/channel.go`, minus `test_time` which the table does not display).
+ */
+export const CHANNEL_SORT_FIELDS = [
+  'id',
+  'name',
+  'priority',
+  'balance',
+  'response_time',
+] as const
+
+export type ChannelSortField = (typeof CHANNEL_SORT_FIELDS)[number]
+
+export type ChannelSortOrder = 'asc' | 'desc'
+
+/**
  * Domestic coding-plan channel presets, rendered as a "Coding Plan" group
  * inside the Type menu. Selecting one sets the channel type (mirroring backend
  * IDs in `constant/channel.go`), the `base_url` plan key (mirroring

@@ -59,6 +59,8 @@ export function ChannelsPage(props: ChannelsPageProps) {
     type: props.search.type,
     group: props.search.group,
     tagMode: props.search.tag_mode,
+    sortBy: props.search.sortBy,
+    sortOrder: props.search.sortOrder,
   }
   const listQuery = useMemo(
     () => buildChannelListQuery(filters),
@@ -187,6 +189,9 @@ export function ChannelsPage(props: ChannelsPageProps) {
         actionPending={actionPending}
         tagMode={props.search.tag_mode}
         onTagStatus={(tag, status) => tagStatus.mutate({ tag, status })}
+        sortBy={props.search.sortBy}
+        sortOrder={props.search.sortOrder}
+        onSortChange={(sortBy, sortOrder) => props.onFilterChange({ sortBy, sortOrder })}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         onPageChange={(page, pageSize) => {

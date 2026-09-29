@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-import { STATUS_FILTER_VALUES } from '../constants'
+import { CHANNEL_SORT_FIELDS, STATUS_FILTER_VALUES } from '../constants'
 
 export interface ChannelListFilters {
   page: number
@@ -26,6 +26,8 @@ export interface ChannelListFilters {
   type: string[]
   group: string
   tagMode: boolean
+  sortBy: string
+  sortOrder: string
 }
 
 export interface ChannelListQuery {
@@ -92,6 +94,12 @@ export function buildChannelListQuery(
   const group = filters.group.trim()
   if (group !== '') {
     params.group = group
+  }
+
+  const sortBy = filters.sortBy.trim().toLowerCase()
+  if ((CHANNEL_SORT_FIELDS as readonly string[]).includes(sortBy)) {
+    params.sort_by = sortBy
+    params.sort_order = filters.sortOrder.trim().toLowerCase() === 'asc' ? 'asc' : 'desc'
   }
 
   return {

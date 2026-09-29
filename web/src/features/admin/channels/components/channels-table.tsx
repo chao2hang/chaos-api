@@ -17,14 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
 import { useTranslation } from 'react-i18next'
-import { Tag } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsUpDown, Tag } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@chaos_team/chaos-ui'
 
 import { formatCurrencyUSD } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { getChannelTypeLabel } from '../constants'
+import {
+  getChannelTypeLabel,
+  type ChannelSortField,
+  type ChannelSortOrder,
+} from '../constants'
 import { formatResponseTime, summarizeModels } from '../lib/format'
 import type { Channel } from '../types'
 import { ChannelRowActions } from './channel-row-actions'
@@ -62,6 +67,67 @@ export interface ChannelsTableProps {
   /** Tag-mode rendering: one aggregated row per tag. */
   tagMode?: boolean
   onTagStatus?: (tag: string, status: number) => void
+  /** Active server-side sort column; empty means the backend default order. */
+  sortBy?: string
+  /** Direction of the active sort ('asc' / 'desc'). */
+  sortOrder?: string
+  /**
+   * Header sort toggle. Clicking cycles desc → asc → backend default.
+   * Omitted to render plain, non-interactive headers.
+   */
+  onSortChange?: (field: ChannelSortField, order: ChannelSortOrder | '') => void
+}
+
+/** Next direction in the header click cycle: none → desc → asc → none. */
+const NEXT_SORT_ORDER: Record<string, ChannelSortOrder | ''> = {
+  '': 'desc',
+  desc: 'asc',
+  asc: '',
+}
+
+/**
+ * Table header cell of a server-sortable column: a button cycling through
+ * desc/asc/default with a direction indicator, plus `aria-sort` on the th.
+ */
+function SortableTh(props: {
+  label: string
+  field: ChannelSortField
+  sortBy: string
+  sortOrder: string
+  onSortChange?: (field: ChannelSortField, order: ChannelSortOrder | '') => void
+}) {
+  const { t } = useTranslation()
+  if (!props.onSortChange) {
+    return <th className='py-3 px-4 font-medium'>{t(props.label)}</th>
+  }
+  const isActive = props.field === props.sortBy
+  const order =
+    isActive && (props.sortOrder === 'asc' || props.sortOrder === 'desc')
+      ? props.sortOrder
+      : ''
+  let ariaSort: 'ascending' | 'descending' | 'none' = 'none'
+  let icon: ReactNode
+  if (order === 'asc') {
+    ariaSort = 'ascending'
+    icon = <ArrowUp className='size-3 text-white' aria-hidden='true' />
+  } else if (order === 'desc') {
+    ariaSort = 'descending'
+    icon = <ArrowDown className='size-3 text-white' aria-hidden='true' />
+  } else {
+    icon = <ChevronsUpDown className='size-3 text-zinc-600' aria-hidden='true' />
+  }
+  return (
+    <th className='py-3 px-4 font-medium' aria-sort={ariaSort}>
+      <button
+        type='button'
+        onClick={() => props.onSortChange?.(props.field, NEXT_SORT_ORDER[order] ?? 'desc')}
+        className='inline-flex cursor-pointer items-center gap-1 uppercase transition-colors hover:text-zinc-300'
+      >
+        {t(props.label)}
+        {icon}
+      </button>
+    </th>
+  )
 }
 
 /**
@@ -178,6 +244,7 @@ function TagModeTable(props: {
  * uppercase headers, .status-tag badges, and minimalist pagination.
  */
 export function ChannelsTable(props: ChannelsTableProps) {
+  const { t } = useTranslation()
   if (props.tagMode) {
     return (
       <TagModeTable
@@ -188,7 +255,6 @@ export function ChannelsTable(props: ChannelsTableProps) {
       />
     )
   }
-  const { t } = useTranslation()
 
   const allSelected =
     props.data.length > 0 &&
@@ -212,6 +278,16 @@ export function ChannelsTable(props: ChannelsTableProps) {
 
   const totalPages = Math.ceil(props.total / props.pageSize)
 
+  const sortHeader = (label: string, field: ChannelSortField) => (
+    <SortableTh
+      label={label}
+      field={field}
+      sortBy={props.sortBy ?? ''}
+      sortOrder={props.sortOrder ?? ''}
+      onSortChange={props.onSortChange}
+    />
+  )
+
   return (
     <div className="w-full border border-zinc-800 bg-[#0a0a0a] overflow-hidden">
       <div className="w-full overflow-x-auto admin-no-scrollbar">
@@ -227,13 +303,13 @@ export function ChannelsTable(props: ChannelsTableProps) {
                   className="rounded-none accent-white cursor-pointer"
                 />
               </th>
-              <th className="py-3 px-4 font-medium">{t('ID')}</th>
-              <th className="py-3 px-4 font-medium">{t('Name')}</th>
+              {sortHeader('ID', 'id')}
+              {sortHeader('Name', 'name')}
               <th className="py-3 px-4 font-medium">{t('Type')}</th>
               <th className="py-3 px-4 font-medium">{t('Status')}</th>
-              <th className="py-3 px-4 font-medium">{t('Response Time')}</th>
-              <th className="py-3 px-4 font-medium">{t('Balance')}</th>
-              <th className="py-3 px-4 font-medium">{t('Priority')}</th>
+              {sortHeader('Response Time', 'response_time')}
+              {sortHeader('Balance', 'balance')}
+              {sortHeader('Priority', 'priority')}
               <th className="py-3 px-4 font-medium">{t('Weight')}</th>
               <th className="py-3 px-4 font-medium">{t('Models')}</th>
               <th className="py-3 px-4 font-medium text-right">{t('Actions')}</th>
