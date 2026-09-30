@@ -77,6 +77,9 @@ function useElementProperties(
     for (const [name, value] of Object.entries(properties)) {
       if (value !== undefined) Reflect.set(node, name, value);
     }
+    if (typeof (node as unknown as { requestUpdate?: () => void }).requestUpdate === "function") {
+      (node as unknown as { requestUpdate: () => void }).requestUpdate();
+    }
   }, [element, properties]);
 }
 

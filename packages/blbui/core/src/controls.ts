@@ -876,28 +876,39 @@ export class AdminTagInputElement extends AdminElement {
       color: var(--aui-text-muted);
     }
   `;
-  values: string[] = [];
-  placeholder = "Add tag and press Enter";
-  disabled = false;
+  declare values: string[];
+  declare placeholder: string;
+  declare disabled: boolean;
+
+  constructor() {
+    super();
+    this.values = [];
+    this.placeholder = "Add tag and press Enter";
+    this.disabled = false;
+  }
+
   private add(event: KeyboardEvent): void {
     if (event.key !== "Enter" && event.key !== ",") return;
     event.preventDefault();
     const input = event.target as HTMLInputElement;
     const value = input.value.trim().replace(/,$/, "");
-    if (!value || this.values.includes(value)) return;
-    this.values = [...this.values, value];
+    const current = this.values || [];
+    if (!value || current.includes(value)) return;
+    this.values = [...current, value];
     input.value = "";
     this.dispatchDetail("aui-tags-change", { values: this.values });
     this.requestUpdate();
   }
   private removeValue(value: string): void {
-    this.values = this.values.filter((item) => item !== value);
+    const current = this.values || [];
+    this.values = current.filter((item) => item !== value);
     this.dispatchDetail("aui-tags-change", { values: this.values });
     this.requestUpdate();
   }
   render() {
+    const current = this.values || [];
     return html`<div class="input">
-      ${this.values.map(
+      ${current.map(
         (value) =>
           html`<span class="tag"
             >${value}<button

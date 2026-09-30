@@ -16,12 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-
 import {
   Dialog,
   DialogContent,
@@ -42,6 +36,12 @@ import {
   Checkbox,
 } from '@chaos_team/chaos-ui'
 import { zodResolverAdapter } from '@chaos_team/chaos-ui/hooks'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Loader2Icon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { createChannel, fetchUpstreamModels, updateChannel } from '../api'
 import {
@@ -52,6 +52,7 @@ import {
 import { getChannelFormSchema, type ChannelFormValues } from '../lib/schema'
 import type { Channel } from '../types'
 import { ChannelFormFields } from './channel-form-fields'
+import { FetchModelsSelectDialog } from './fetch-models-select-dialog'
 
 /** Creation mode picker + multi-key options, shown only when creating. */
 function CreateModeFields({
@@ -77,7 +78,7 @@ function CreateModeFields({
               <FormControl>
                 <SelectTrigger
                   size='sm'
-                  className='mono text-xs rounded-none bg-[#0a0a0a] border-zinc-800'
+                  className='mono rounded-none border-zinc-800 bg-[#0a0a0a] text-xs'
                   aria-label={t('Creation mode')}
                 >
                   <SelectValue />
@@ -110,7 +111,7 @@ function CreateModeFields({
                   <FormControl>
                     <SelectTrigger
                       size='sm'
-                      className='mono text-xs rounded-none bg-[#0a0a0a] border-zinc-800'
+                      className='mono rounded-none border-zinc-800 bg-[#0a0a0a] text-xs'
                       aria-label={t('Multi-key polling mode')}
                     >
                       <SelectValue />
@@ -132,7 +133,9 @@ function CreateModeFields({
                 <FormControl>
                   <Checkbox
                     checked={field.value}
-                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
                     aria-label={t('Prefix channel names with the key')}
                   />
                 </FormControl>
@@ -166,6 +169,10 @@ export function ChannelDialog(props: ChannelDialogProps) {
   const queryClient = useQueryClient()
   const editingChannel = props.channel
   const editing = editingChannel !== null
+  const [selectModelsOpen, setSelectModelsOpen] = useState(false)
+  const [fetchedCandidateModels, setFetchedCandidateModels] = useState<
+    string[]
+  >([])
 
   const form = useForm<ChannelFormValues>({
     resolver: zodResolverAdapter(getChannelFormSchema(t)),
@@ -192,69 +199,98 @@ export function ChannelDialog(props: ChannelDialogProps) {
       })
     },
     onSuccess: (res) => {
-      if (!res.success || !res.data) {
+      if (!res.success) {
         return
       }
-      form.setValue('models', res.data, { shouldValidate: true })
-      toast.success(t('Fetched {{count}} models', { count: res.data.length }))
+      if (!res.data || res.data.length === 0) {
+        toast.warning(t('No models fetched from upstream'))
+        return
+      }
+      const fetched = res.data.map((m) => m.trim()).filter(Boolean)
+      if (fetched.length === 0) {
+        toast.warning(t('No models fetched from upstream'))
+        return
+      }
+      setFetchedCandidateModels(fetched)
+      setSelectModelsOpen(true)
+      toast.success(t('Fetched {{count}} models', { count: fetched.length }))
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : t('Failed to fetch models')
+      )
     },
   })
 
-  const submit = form.handleSubmit(async (values) => {
-    const payload = buildChannelPayload(values)
-    const invalidate = () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'channels'] })
-    }
-    if (editingChannel !== null) {
-      const res = await updateChannel({
-        ...payload,
-        id: editingChannel.id,
+  const handleApplySelectedModels = (selected: string[]) => {
+    form.setValue('models', selected, {
+      shouldValidate: true,
+      shouldDirty: true,
+      shouldTouch: true,
+    })
+    toast.success(t('Models filled to form'))
+  }
+
+  const submit = form.handleSubmit(
+    async (values) => {
+      const payload = buildChannelPayload(values)
+      const invalidate = () => {
+        void queryClient.invalidateQueries({ queryKey: ['admin', 'channels'] })
+      }
+      if (editingChannel !== null) {
+        const res = await updateChannel({
+          ...payload,
+          id: editingChannel.id,
+        })
+        if (res.success) {
+          toast.success(t('Channel updated'))
+          invalidate()
+          props.onOpenChange(false)
+        }
+        return
+      }
+      if (values.createMode !== 'single' && values.key.trim() === '') {
+        toast.error(t('Enter at least one key, one per line'))
+        return
+      }
+      const res = await createChannel({
+        mode: values.createMode,
+        channel: payload,
+        multi_key_mode: values.multi_key_mode,
+        batch_add_set_key_prefix_2_name: values.batch_prefix_name,
       })
       if (res.success) {
-        toast.success(t('Channel updated'))
+        toast.success(t('Channel created'))
         invalidate()
         props.onOpenChange(false)
       }
-      return
+    },
+    (errors) => {
+      const firstError = Object.values(errors)[0]
+      if (firstError?.message) {
+        toast.error(String(firstError.message))
+      }
     }
-    if (
-      values.createMode !== 'single' &&
-      values.key.trim() === ''
-    ) {
-      toast.error(t('Enter at least one key, one per line'))
-      return
-    }
-    const res = await createChannel({
-      mode: values.createMode,
-      channel: payload,
-      multi_key_mode: values.multi_key_mode,
-      batch_add_set_key_prefix_2_name: values.batch_prefix_name,
-    })
-    if (res.success) {
-      toast.success(t('Channel created'))
-      invalidate()
-      props.onOpenChange(false)
-    }
-  })
+  )
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-lg bg-[#0f0f0f] border-zinc-800 text-white rounded-none'>
+      <DialogContent className='max-h-[85vh] overflow-y-auto rounded-none border-zinc-800 bg-[#0f0f0f] text-white sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle className='mono text-base text-white'>
             {editing ? t('Edit channel') : t('Create channel')}
           </DialogTitle>
           <DialogDescription className='mono text-xs text-zinc-500'>
             {editing
-              ? t('Update the channel configuration. Leave the key empty to keep it.')
+              ? t(
+                  'Update the channel configuration. Leave the key empty to keep it.'
+                )
               : t('Add a new upstream provider channel.')}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={submit} className='flex flex-col gap-4'>
-            {!editing && (
-              <CreateModeFields form={form} />
-            )}
+            {!editing && <CreateModeFields form={form} />}
             <ChannelFormFields
               form={form}
               groups={props.groups}
@@ -262,7 +298,7 @@ export function ChannelDialog(props: ChannelDialogProps) {
               fetching={fetchModels.isPending}
               onFetchModels={() => fetchModels.mutate()}
             />
-            <DialogFooter className='gap-2 pt-2 border-t border-zinc-900'>
+            <DialogFooter className='gap-2 border-t border-zinc-900 pt-2'>
               <button
                 type='button'
                 onClick={() => props.onOpenChange(false)}
@@ -270,13 +306,31 @@ export function ChannelDialog(props: ChannelDialogProps) {
               >
                 {t('Cancel')}
               </button>
-              <button type='submit' className='btn-industrial-primary mono text-xs'>
-                {t('Save')}
+              <button
+                type='submit'
+                disabled={form.formState.isSubmitting || fetchModels.isPending}
+                className='btn-industrial-primary mono text-xs disabled:cursor-not-allowed disabled:opacity-50'
+              >
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Loader2Icon className='size-3.5 animate-spin' />
+                    {t('Saving...')}
+                  </>
+                ) : (
+                  t('Save')
+                )}
               </button>
             </DialogFooter>
           </form>
         </Form>
       </DialogContent>
+      <FetchModelsSelectDialog
+        open={selectModelsOpen}
+        models={fetchedCandidateModels}
+        currentSelected={form.getValues('models')}
+        onOpenChange={setSelectModelsOpen}
+        onConfirm={handleApplySelectedModels}
+      />
     </Dialog>
   )
 }

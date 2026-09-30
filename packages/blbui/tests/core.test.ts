@@ -149,4 +149,23 @@ describe("expanded component contracts", () => {
 
     expect(selected).toBe("refresh");
   });
+
+  it("updates tag list immediately when values property is set dynamically", async () => {
+    const tagInput = document.createElement("aui-tag-input") as HTMLElement & {
+      values: string[];
+      updateComplete: Promise<boolean>;
+    };
+    document.body.append(tagInput);
+    await tagInput.updateComplete;
+
+    expect(tagInput.shadowRoot?.querySelectorAll(".tag").length).toBe(0);
+
+    tagInput.values = ["gpt-4o", "claude-3-5-sonnet"];
+    await tagInput.updateComplete;
+
+    const tags = tagInput.shadowRoot?.querySelectorAll(".tag");
+    expect(tags?.length).toBe(2);
+    expect(tags?.[0].textContent).toContain("gpt-4o");
+    expect(tags?.[1].textContent).toContain("claude-3-5-sonnet");
+  });
 });

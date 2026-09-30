@@ -60,16 +60,29 @@ function useBinding(
   const setRef = useCallback(
     (node: CustomElement | null) => {
       element.current = node;
+      if (node) {
+        for (const [name, value] of Object.entries(properties)) {
+          if (value !== undefined) Reflect.set(node, name, value);
+        }
+        if (
+          typeof (node as unknown as { requestUpdate?: () => void }).requestUpdate === "function"
+        ) {
+          (node as unknown as { requestUpdate: () => void }).requestUpdate();
+        }
+      }
       if (typeof externalRef === "function") externalRef(node);
       else if (externalRef) Reflect.set(externalRef, "current", node);
     },
-    [externalRef],
+    [externalRef, properties],
   );
   useEffect(() => {
     const node = element.current;
     if (!node) return;
     for (const [name, value] of Object.entries(properties)) {
       if (value !== undefined) Reflect.set(node, name, value);
+    }
+    if (typeof (node as unknown as { requestUpdate?: () => void }).requestUpdate === "function") {
+      (node as unknown as { requestUpdate: () => void }).requestUpdate();
     }
   }, [properties, element]);
   useEffect(() => {

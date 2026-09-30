@@ -16,10 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-import { CloudDownloadIcon, Loader2Icon } from 'lucide-react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import { AdminTagInput } from '@chaos_team/blbui-react'
 import {
   Button,
@@ -37,12 +33,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@chaos_team/chaos-ui'
+import { CloudDownloadIcon, Loader2Icon } from 'lucide-react'
+import { useMemo } from 'react'
+import type { UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import { Textarea } from '@/components/ui/textarea'
 
 import { CHANNEL_TYPES, CODING_PLAN_TYPES } from '../constants'
 import { splitModelNames } from '../lib/format'
 import type { ChannelFormValues } from '../lib/schema'
-import type { UseFormReturn } from 'react-hook-form'
 import { ModelMappingEditor } from './model-mapping-editor'
 
 interface ChannelFormFieldsProps {
@@ -87,7 +87,9 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
   const handleTypeChange = (value: string | null) => {
     if (!value) return
     if (value.startsWith('plan:')) {
-      const preset = CODING_PLAN_TYPES.find((p) => `plan:${p.planBase}` === value)
+      const preset = CODING_PLAN_TYPES.find(
+        (p) => `plan:${p.planBase}` === value
+      )
       if (!preset) return
       form.setValue('type', preset.type, { shouldValidate: true })
       form.setValue('base_url', preset.planBase, { shouldValidate: true })
@@ -101,20 +103,21 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
     const typeId = value.slice('type:'.length)
     form.setValue('type', typeId, { shouldValidate: true })
     // Switching away from a coding plan: drop the stale plan base URL.
-    if (CODING_PLAN_TYPES.some((p) => p.planBase === form.getValues('base_url'))) {
+    if (
+      CODING_PLAN_TYPES.some((p) => p.planBase === form.getValues('base_url'))
+    ) {
       form.setValue('base_url', '')
     }
   }
 
   // Mapping suggestions come from the models selected in the Models field.
-  const models = form.watch('models')
-  const modelOptions = useMemo(
-    () =>
-      models
-        .filter((model) => model.trim() !== '')
-        .map((model) => ({ value: model, label: model })),
-    [models]
-  )
+  const watchedModels = form.watch('models')
+  const modelOptions = useMemo(() => {
+    if (!watchedModels) return []
+    return watchedModels
+      .filter((model) => typeof model === 'string' && model.trim() !== '')
+      .map((model) => ({ value: model, label: model }))
+  }, [watchedModels])
 
   return (
     <>
@@ -151,7 +154,10 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
                 <SelectContent>
                   <SelectGroup>
                     {CHANNEL_TYPES.map((option) => (
-                      <SelectItem key={option.value} value={`type:${option.value}`}>
+                      <SelectItem
+                        key={option.value}
+                        value={`type:${option.value}`}
+                      >
                         {option.label}
                       </SelectItem>
                     ))}
@@ -159,7 +165,10 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
                   <SelectGroup>
                     <SelectLabel>Coding Plan</SelectLabel>
                     {CODING_PLAN_TYPES.map((preset) => (
-                      <SelectItem key={preset.planBase} value={`plan:${preset.planBase}`}>
+                      <SelectItem
+                        key={preset.planBase}
+                        value={`plan:${preset.planBase}`}
+                      >
                         {t(preset.labelKey)}
                       </SelectItem>
                     ))}
@@ -206,7 +215,9 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
         control={form.control}
         name='base_url'
         render={({ field }) => {
-          const planManaged = CODING_PLAN_TYPES.some((p) => p.planBase === field.value)
+          const planManaged = CODING_PLAN_TYPES.some(
+            (p) => p.planBase === field.value
+          )
           return (
             <FormItem>
               <FormLabel>{t('Base URL')}</FormLabel>
@@ -234,7 +245,7 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
           <FormItem>
             <FormLabel required>{t('Models')}</FormLabel>
             <AdminTagInput
-              values={field.value}
+              values={field.value ?? []}
               onChange={field.onChange}
               placeholder={t('Type a model name and press Enter')}
             />

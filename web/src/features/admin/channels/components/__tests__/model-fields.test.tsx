@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-import type { Channel } from '../../types'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test } from 'vitest'
+
+import type { Channel } from '../../types'
 
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
@@ -35,11 +36,13 @@ await i18n.use(initReactI18next).init({
 
 type ApiMethod = (url: string, data?: unknown) => Promise<{ data: unknown }>
 
-const apiClient = api as unknown as { put: ApiMethod }
+const apiClient = api as unknown as { put: ApiMethod; post: ApiMethod }
 const originalPut = apiClient.put
+const originalPost = apiClient.post
 
 afterEach(() => {
   apiClient.put = originalPut
+  apiClient.post = originalPost
 })
 
 const editedChannel: Channel = {
@@ -105,10 +108,7 @@ function findTagHost(match: (values: string[]) => boolean): TagHost {
 
 /** Simulate the user editing tags on an AdminTagInput host. */
 function changeTags(host: TagHost, values: string[]): void {
-  fireEvent(
-    host,
-    new CustomEvent('aui-tags-change', { detail: { values } })
-  )
+  fireEvent(host, new CustomEvent('aui-tags-change', { detail: { values } }))
 }
 
 function queryMappingInputs(): HTMLInputElement[] {
@@ -198,5 +198,132 @@ describe('ChannelDialog model fields', () => {
 
     fireEvent.click(screen.getAllByLabelText('Remove this mapping')[0])
     expect(queryMappingInputs()).toHaveLength(1)
+  })
+
+  test('fetch models opens select dialog and applies chosen models on confirm', async () => {
+    const postPayloads: Array<Record<string, unknown>> = []
+    const apiAny = api as unknown as { post: ApiMethod }
+    apiAny.post = async (url, data) => {
+      if (url === '/api/channel/fetch_models') {
+        return {
+          data: {
+            success: true,
+            data: ['gpt-4o', 'gpt-4o-mini', 'text-embedding-3-small'],
+          },
+        }
+      }
+      postPayloads.push(data as Record<string, unknown>)
+      return { data: { success: true, data: {} } }
+    }
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={i18n}>
+          <ChannelDialog
+            open
+            channel={null}
+            groups={['default']}
+            onOpenChange={() => {}}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+
+    const fetchButton = screen.getByRole('button', { name: 'Fetch models' })
+    fireEvent.click(fetchButton)
+
+    // Selection dialog opens
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: 'Select models' })
+      ).toBeVisible()
+    })
+
+    // Deselect text-embedding-3-small
+    const embeddingCheckbox = screen.getByRole('checkbox', {
+      name: 'text-embedding-3-small',
+    })
+    fireEvent.click(embeddingCheckbox)
+
+    // Click Confirm
+    const confirmButton = screen.getByRole('button', { name: 'Confirm' })
+    fireEvent.click(confirmButton)
+
+    // Dialog closes and chosen models are written to form
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('heading', { name: 'Select models' })
+      ).not.toBeInTheDocument()
+      const modelsHost = findTagHost((values) => values.includes('gpt-4o'))
+      expect(modelsHost.values).toEqual(['gpt-4o', 'gpt-4o-mini'])
+      expect(modelsHost.shadowRoot?.querySelectorAll('.tag').length).toBe(2)
+    })
+
+    const nameInput = screen.getByPlaceholderText('my-openai')
+    fireEvent.change(nameInput, { target: { value: 'new-channel' } })
+
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+    fireEvent.click(saveButton)
+
+    await waitFor(() => {
+      expect(postPayloads).toHaveLength(1)
+    })
+    expect(
+      (postPayloads[0]['channel'] as Record<string, unknown>)['models']
+    ).toBe('gpt-4o,gpt-4o-mini')
+  })
+
+  test('fetch models with empty upstream list warns and keeps form state', async () => {
+    const apiAny = api as unknown as { post: ApiMethod }
+    apiAny.post = async (url) => {
+      if (url === '/api/channel/fetch_models') {
+        return { data: { success: true, data: [] } }
+      }
+      return { data: { success: true, data: {} } }
+    }
+
+    renderEditDialog(editedChannel)
+
+    const fetchButton = screen.getByRole('button', { name: 'Fetch models' })
+    fireEvent.click(fetchButton)
+
+    // Existing model tag remains intact when fetch returns empty
+    await waitFor(() => {
+      const modelsHost = findTagHost((values) => values.includes('qwen3.8-27b'))
+      expect(modelsHost.values).toEqual(['qwen3.8-27b'])
+    })
+  })
+
+  test('save button is disabled while fetching models', async () => {
+    let resolveFetch: (val: { data: unknown }) => void = () => {}
+    const apiAny = api as unknown as { post: ApiMethod }
+    apiAny.post = async (url) => {
+      if (url === '/api/channel/fetch_models') {
+        return new Promise<{ data: unknown }>((resolve) => {
+          resolveFetch = resolve
+        })
+      }
+      return { data: { success: true, data: {} } }
+    }
+
+    renderEditDialog(editedChannel)
+
+    const fetchButton = screen.getByRole('button', { name: 'Fetch models' })
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+
+    expect(saveButton).not.toBeDisabled()
+    fireEvent.click(fetchButton)
+
+    await waitFor(() => {
+      expect(saveButton).toBeDisabled()
+    })
+
+    resolveFetch({ data: { success: true, data: ['model-done'] } })
+    await waitFor(() => {
+      expect(saveButton).not.toBeDisabled()
+    })
   })
 })
