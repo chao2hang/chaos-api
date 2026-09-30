@@ -101,20 +101,21 @@ function mappingEntriesToStored(entries: ModelMappingEntry[]): string {
 /** Seed the create/edit form from an existing channel record. */
 export function channelToFormValues(channel: Channel): ChannelFormValues {
   return {
-    name: channel.name,
-    type: String(channel.type),
+    name: channel.name ?? '',
+    type: String(channel.type ?? 1),
     key: '',
     base_url: channel.base_url ?? '',
     models: splitModelNames(channel.models ?? ''),
     model_mapping: storedMappingToEntries(channel.model_mapping ?? ''),
-    group: channel.group !== '' ? channel.group : 'default',
+    group: channel.group ? channel.group : 'default',
     priority: String(channel.priority ?? 0),
     weight: String(channel.weight ?? 0),
     tag: channel.tag ?? '',
     remark: channel.remark ?? '',
     test_model: channel.test_model ?? '',
     createMode: 'single',
-    multi_key_mode: channel.channel_info?.multi_key_mode ?? 'random',
+    multi_key_mode:
+      channel.channel_info?.multi_key_mode === 'polling' ? 'polling' : 'random',
     batch_prefix_name: true,
   }
 }

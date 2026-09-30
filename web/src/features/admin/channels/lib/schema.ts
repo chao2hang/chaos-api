@@ -33,11 +33,13 @@ export interface ModelMappingEntry {
  */
 export function getChannelFormSchema(t: TFunction) {
   return z.object({
-    name: z.string().min(1),
-    type: z.string().min(1),
+    name: z.string().trim().min(1, { message: t('Channel name is required') }),
+    type: z.coerce.string().min(1, { message: t('Channel type is required') }),
     key: z.string(),
     base_url: z.string(),
-    models: z.array(z.string().min(1)).min(1),
+    models: z
+      .array(z.string().trim().min(1))
+      .min(1, { message: t('Please select at least one model') }),
     model_mapping: z
       .array(
         z.object({
@@ -58,15 +60,19 @@ export function getChannelFormSchema(t: TFunction) {
           ),
         }
       ),
-    group: z.string().min(1),
-    priority: z.string(),
-    weight: z.string(),
+    group: z.string().trim().min(1, { message: t('Group is required') }),
+    priority: z.coerce.string(),
+    weight: z.coerce.string(),
     tag: z.string(),
     remark: z.string(),
     test_model: z.string(),
     // Creation-only fields (ignored when editing):
     createMode: z.enum(['single', 'batch', 'multi_to_single']),
-    multi_key_mode: z.enum(['random', 'polling']),
+    multi_key_mode: z
+      .union([z.enum(['random', 'polling']), z.literal('')])
+      .transform((val): 'random' | 'polling' =>
+        val === 'polling' ? 'polling' : 'random'
+      ),
     batch_prefix_name: z.boolean(),
   })
 }

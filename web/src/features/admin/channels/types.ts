@@ -27,8 +27,9 @@ export interface ApiResponse<T = unknown> {
 export interface ChannelInfo {
   is_multi_key: boolean
   multi_key_size: number
-  multi_key_mode: 'random' | 'polling'
-  multi_key_status_list: Record<string, number>
+  multi_key_mode?: 'random' | 'polling' | ''
+  multi_key_status_list?: Record<string, number>
+  multi_key_polling_index?: number
 }
 
 /**

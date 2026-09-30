@@ -85,6 +85,54 @@ describe('channelToFormValues', () => {
     expect(mapping[0]['target']).toBe('gpt-4o-2024-08-06')
     expect(mapping[0]['rowId']).toMatch(/^mapping-row-\d+$/)
   })
+
+  it('normalizes multi_key_mode to random when channel_info has empty string mode', () => {
+    const patched: Channel = {
+      ...minimalChannel,
+      channel_info: {
+        is_multi_key: false,
+        multi_key_size: 0,
+        multi_key_polling_index: 0,
+        multi_key_mode: '',
+      },
+    }
+    const values = channelToFormValues(patched)
+    expect(values.multi_key_mode).toBe('random')
+  })
+})
+
+describe('getChannelFormSchema validation', () => {
+  it('validates a channel with numeric priority and weight without throwing invalid type', async () => {
+    const { getChannelFormSchema } = await import('../schema')
+    const { zodResolver } = await import('@hookform/resolvers/zod')
+    const t = ((k: string) => k) as unknown as import('i18next').TFunction
+    const schema = getChannelFormSchema(t)
+    const resolver = zodResolver(schema)
+
+    const values = {
+      name: 'Test Channel',
+      type: '1',
+      key: '',
+      base_url: 'https://api.openai.com',
+      models: ['gpt-4o'],
+      model_mapping: [],
+      group: 'default',
+      priority: 10 as unknown as string,
+      weight: 5 as unknown as string,
+      tag: '',
+      remark: '',
+      test_model: '',
+      createMode: 'single' as const,
+      multi_key_mode: '' as unknown as 'random',
+      batch_prefix_name: true,
+    }
+
+    const result = await resolver(values, undefined, {
+      fields: {},
+      shouldUseNativeValidation: false,
+    } as unknown as Parameters<typeof resolver>[2])
+    expect(result.errors).toEqual({})
+  })
 })
 
 describe('buildChannelPayload', () => {

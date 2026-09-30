@@ -887,18 +887,29 @@ export class AdminTagInputElement extends AdminElement {
     this.disabled = false;
   }
 
-  private add(event: KeyboardEvent): void {
-    if (event.key !== "Enter" && event.key !== ",") return;
-    event.preventDefault();
-    const input = event.target as HTMLInputElement;
+  private commitInput(input: HTMLInputElement): void {
     const value = input.value.trim().replace(/,$/, "");
     const current = this.values || [];
-    if (!value || current.includes(value)) return;
+    if (!value || current.includes(value)) {
+      input.value = "";
+      return;
+    }
     this.values = [...current, value];
     input.value = "";
     this.dispatchDetail("aui-tags-change", { values: this.values });
     this.requestUpdate();
   }
+
+  private add(event: KeyboardEvent): void {
+    if (event.key !== "Enter" && event.key !== ",") return;
+    event.preventDefault();
+    this.commitInput(event.target as HTMLInputElement);
+  }
+
+  private handleBlur(event: FocusEvent): void {
+    this.commitInput(event.target as HTMLInputElement);
+  }
+
   private removeValue(value: string): void {
     const current = this.values || [];
     this.values = current.filter((item) => item !== value);
@@ -919,7 +930,7 @@ export class AdminTagInputElement extends AdminElement {
               ×
             </button></span
           >`,
-      )}<input placeholder=${this.placeholder} ?disabled=${this.disabled} @keydown=${this.add} />
+      )}<input placeholder=${this.placeholder} ?disabled=${this.disabled} @keydown=${this.add} @blur=${this.handleBlur} />
     </div>`;
   }
 }

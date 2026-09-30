@@ -168,4 +168,29 @@ describe("expanded component contracts", () => {
     expect(tags?.[0].textContent).toContain("gpt-4o");
     expect(tags?.[1].textContent).toContain("claude-3-5-sonnet");
   });
+
+  it("commits pending tag input on blur", async () => {
+    const tagInput = document.createElement("aui-tag-input") as HTMLElement & {
+      values: string[];
+      updateComplete: Promise<boolean>;
+    };
+    document.body.append(tagInput);
+    await tagInput.updateComplete;
+
+    let committedValues: string[] = [];
+    tagInput.addEventListener("aui-tags-change", (event) => {
+      committedValues = (event as CustomEvent<{ values: string[] }>).detail.values;
+    });
+
+    const innerInput = tagInput.shadowRoot?.querySelector("input");
+    expect(innerInput).not.toBeNull();
+    if (innerInput) {
+      innerInput.value = "gemini-1.5-pro";
+      innerInput.dispatchEvent(new FocusEvent("blur"));
+    }
+    await tagInput.updateComplete;
+
+    expect(committedValues).toEqual(["gemini-1.5-pro"]);
+    expect(tagInput.values).toEqual(["gemini-1.5-pro"]);
+  });
 });

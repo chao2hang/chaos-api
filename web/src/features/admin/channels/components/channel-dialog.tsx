@@ -159,6 +159,22 @@ function CreateModeFields({
   )
 }
 
+function getFirstErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null
+  if (
+    'message' in error &&
+    typeof (error as { message: unknown }).message === 'string' &&
+    (error as { message: string }).message
+  ) {
+    return (error as { message: string }).message
+  }
+  for (const value of Object.values(error)) {
+    const msg = getFirstErrorMessage(value)
+    if (msg) return msg
+  }
+  return null
+}
+
 export interface ChannelDialogProps {
   open: boolean
   channel: Channel | null
@@ -272,9 +288,11 @@ export function ChannelDialog(props: ChannelDialogProps) {
       }
     },
     (errors) => {
-      const firstError = Object.values(errors)[0]
-      if (firstError?.message) {
-        toast.error(String(firstError.message))
+      const message = getFirstErrorMessage(errors)
+      if (message) {
+        toast.error(message)
+      } else {
+        toast.error(t('Please fix the highlighted fields before saving'))
       }
     }
   )

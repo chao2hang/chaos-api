@@ -93,7 +93,12 @@ const editedChannel: Channel = {
   param_override: '',
   setting: '',
   settings: '',
-  channel_info: null,
+  channel_info: {
+    is_multi_key: false,
+    multi_key_size: 0,
+    multi_key_polling_index: 0,
+    multi_key_mode: '',
+  },
 }
 
 function renderEditDialog(channel: Channel) {
