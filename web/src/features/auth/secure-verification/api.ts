@@ -77,13 +77,14 @@ export async function checkVerificationMethods(): Promise<VerificationMethods> {
 export async function verify(
   method: VerificationMethod,
   scope: SecurityProofScope,
-  code?: string
+  code?: string,
+  context?: Record<string, unknown>
 ): Promise<SecurityProof> {
   switch (method) {
     case '2fa':
-      return verifyTwoFA(scope, code)
+      return verifyTwoFA(scope, code, context)
     case 'passkey':
-      return verifyPasskey(scope)
+      return verifyPasskey(scope, context)
     default:
       throw new Error(
         i18next.t('Unsupported verification method: {{method}}', { method })
@@ -96,7 +97,8 @@ export async function verify(
  */
 async function verifyTwoFA(
   scope: SecurityProofScope,
-  code?: string | null
+  code?: string | null,
+  context?: Record<string, unknown>
 ): Promise<SecurityProof> {
   const trimmed = code?.trim()
   if (!trimmed) {
@@ -109,6 +111,7 @@ async function verifyTwoFA(
     method: '2fa',
     code: trimmed,
     scope,
+    ...(context ? { context } : {}),
   })
 
   if (!res.data?.success) {
@@ -124,7 +127,8 @@ async function verifyTwoFA(
  * Perform Passkey verification flow.
  */
 async function verifyPasskey(
-  scope: SecurityProofScope
+  scope: SecurityProofScope,
+  context?: Record<string, unknown>
 ): Promise<SecurityProof> {
   if (typeof navigator === 'undefined' || !navigator.credentials) {
     throw new Error(
@@ -133,7 +137,7 @@ async function verifyPasskey(
   }
 
   try {
-    const beginResponse = await beginPasskeyVerification(scope)
+    const beginResponse = await beginPasskeyVerification(scope, context)
     if (!beginResponse.success) {
       throw new Error(
         beginResponse.message || i18next.t('Failed to start verification')

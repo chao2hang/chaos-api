@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import type { Channel } from '../../types'
 
@@ -36,13 +36,31 @@ await i18n.use(initReactI18next).init({
 
 type ApiMethod = (url: string, data?: unknown) => Promise<{ data: unknown }>
 
-const apiClient = api as unknown as { put: ApiMethod; post: ApiMethod }
+const apiClient = api as unknown as {
+  put: ApiMethod
+  post: ApiMethod
+  get: ApiMethod
+}
 const originalPut = apiClient.put
 const originalPost = apiClient.post
+const originalGet = apiClient.get
+
+beforeEach(() => {
+  apiClient.get = async (url) => {
+    if (url === '/api/user/2fa/status') {
+      return { data: { success: true, data: { enabled: true } } }
+    }
+    if (url === '/api/user/passkey') {
+      return { data: { success: true, data: { enabled: false } } }
+    }
+    return { data: { success: true, data: {} } }
+  }
+})
 
 afterEach(() => {
   apiClient.put = originalPut
   apiClient.post = originalPost
+  apiClient.get = originalGet
 })
 
 const editedChannel: Channel = {
@@ -324,6 +342,57 @@ describe('ChannelDialog model fields', () => {
     resolveFetch({ data: { success: true, data: ['model-done'] } })
     await waitFor(() => {
       expect(saveButton).not.toBeDisabled()
+    })
+  })
+
+  test('view original key displays key after security verification', async () => {
+    const apiAny = api as unknown as { post: ApiMethod }
+    apiAny.post = async (url) => {
+      if (url === '/api/verify') {
+        return {
+          data: {
+            success: true,
+            data: {
+              proof_token: 'valid-proof',
+              method: '2fa',
+              scope: 'channel.key.read',
+            },
+          },
+        }
+      }
+      if (url === '/api/channel/42/key') {
+        return { data: { success: true, data: { key: 'revealed-sk-123456' } } }
+      }
+      return { data: { success: true, data: {} } }
+    }
+    renderEditDialog(editedChannel)
+
+    // Find and click "View original key" button
+    const viewKeyButton = screen.getByRole('button', {
+      name: 'View original key',
+    })
+    fireEvent.click(viewKeyButton)
+
+    // Security verification dialog opens
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', {
+          name: /Additional verification required|Security verification|Verify to view channel key/i,
+        })
+      ).toBeVisible()
+    })
+
+    // Enter 2FA code
+    const codeInput = screen.getByPlaceholderText('Enter verification code')
+    fireEvent.change(codeInput, { target: { value: '123456' } })
+
+    // Click verify
+    const verifyButton = screen.getByRole('button', { name: 'Verify' })
+    fireEvent.click(verifyButton)
+
+    // The key is unlocked and displayed
+    await waitFor(() => {
+      expect(screen.getByText('revealed-sk-123456')).toBeVisible()
     })
   })
 })

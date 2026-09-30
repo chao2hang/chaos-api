@@ -38,6 +38,7 @@ export interface VerificationMethods {
 export interface SecureVerificationState {
   method: VerificationMethod | null
   scope?: SecurityProofScope
+  context?: Record<string, unknown>
   loading: boolean
   code: string
   title?: string
@@ -53,6 +54,7 @@ export interface UseSecureVerificationOptions {
 
 export interface StartVerificationOptions {
   scope: SecurityProofScope
+  context?: Record<string, unknown>
   preferredMethod?: VerificationMethod
   title?: string
   description?: string

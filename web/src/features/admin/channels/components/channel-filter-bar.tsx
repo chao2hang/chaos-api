@@ -92,7 +92,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           value={keywordDraft}
           onChange={(e) => setKeywordDraft(e.target.value)}
           placeholder={t('Search by channel name or keyword...')}
-          className="bg-[#0a0a0a] border-zinc-800 text-zinc-200 placeholder:text-zinc-600 text-xs mono rounded-none h-9"
+          className="bg-[#0a0a0a] border-zinc-800 text-zinc-200 placeholder:text-zinc-600 text-xs rounded-none !h-9"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               applyKeyword()
@@ -104,7 +104,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
       <button
         type="button"
         onClick={applyKeyword}
-        className="btn-industrial-secondary mono text-xs h-9 cursor-pointer shrink-0"
+        className="btn-industrial-secondary text-xs !h-9 px-3 cursor-pointer shrink-0 inline-flex items-center gap-1.5"
       >
         <SearchIcon className="size-3.5" />
         {t('Search')}
@@ -116,8 +116,8 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
         aria-pressed={props.tagMode}
         className={
           props.tagMode
-            ? 'btn-industrial-primary mono text-xs h-9 cursor-pointer shrink-0'
-            : 'btn-industrial-secondary mono text-xs h-9 cursor-pointer shrink-0'
+            ? 'btn-industrial-primary text-xs !h-9 px-3 cursor-pointer shrink-0 inline-flex items-center gap-1.5'
+            : 'btn-industrial-secondary text-xs !h-9 px-3 cursor-pointer shrink-0 inline-flex items-center gap-1.5'
         }
       >
         <TagIcon className="size-3.5" />
@@ -132,10 +132,10 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Status')}>
+        <SelectTrigger size="sm" className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 text-xs rounded-none !h-9" aria-label={t('Status')}>
           <SelectValue>{statusLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none">
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 text-xs rounded-none">
           <SelectItem value={ALL_VALUE}>{t('All statuses')}</SelectItem>
           <SelectItem value="enabled">{t('Enabled')}</SelectItem>
           <SelectItem value="disabled">{t('Disabled')}</SelectItem>
@@ -150,10 +150,10 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-32 sm:w-44 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Type')}>
+        <SelectTrigger size="sm" className="w-32 sm:w-44 bg-[#0a0a0a] border-zinc-800 text-zinc-300 text-xs rounded-none !h-9" aria-label={t('Type')}>
           <SelectValue>{typeLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 text-xs rounded-none max-h-64">
           <SelectItem value={ALL_VALUE}>{t('All types')}</SelectItem>
           {CHANNEL_TYPES.map((option) => (
             <SelectItem key={option.value} value={option.value}>
@@ -171,10 +171,10 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
           })
         }}
       >
-        <SelectTrigger size="sm" className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none h-9" aria-label={t('Group')}>
+        <SelectTrigger size="sm" className="w-28 sm:w-36 bg-[#0a0a0a] border-zinc-800 text-zinc-300 text-xs rounded-none !h-9" aria-label={t('Group')}>
           <SelectValue>{groupLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 mono text-xs rounded-none max-h-64">
+        <SelectContent className="bg-[#0a0a0a] border-zinc-800 text-zinc-300 text-xs rounded-none max-h-64">
           <SelectItem value={ALL_VALUE}>{t('All groups')}</SelectItem>
           {props.groups.map((group) => (
             <SelectItem key={group} value={group}>
@@ -191,7 +191,7 @@ export function ChannelFilterBar(props: ChannelFilterBarProps) {
         <button
           type="button"
           onClick={resetAll}
-          className="btn-industrial-secondary text-xs mono text-zinc-400 hover:text-white h-9 cursor-pointer shrink-0"
+          className="btn-industrial-secondary text-xs text-zinc-400 hover:text-white !h-9 px-3 cursor-pointer shrink-0 inline-flex items-center gap-1.5"
         >
           <RotateCcwIcon className="size-3.5" />
           {t('Reset')}

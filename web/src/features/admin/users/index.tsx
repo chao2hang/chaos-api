@@ -110,7 +110,7 @@ export function AdminUsers() {
               setEditingUser(null)
               setFormOpen(true)
             }}
-            className='btn-industrial-primary mono text-xs cursor-pointer'
+            className='btn-industrial-primary text-xs !h-9 px-3.5 cursor-pointer inline-flex items-center gap-1.5'
           >
             <Plus className='size-3.5' />
             {t('Create user')}

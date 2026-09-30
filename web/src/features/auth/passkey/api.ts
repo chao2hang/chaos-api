@@ -125,11 +125,12 @@ export async function finishLoginVerificationPasskey(
 }
 
 export async function beginPasskeyVerification(
-  scope: SecurityProofScope
+  scope: SecurityProofScope,
+  context?: Record<string, unknown>
 ): Promise<ApiResponse<PasskeyOptionsPayload>> {
   const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
     '/api/user/passkey/verify/begin',
-    { scope }
+    { scope, context }
   )
   return res.data
 }

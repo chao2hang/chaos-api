@@ -18,6 +18,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { api } from '@/lib/http-client'
 
+import type { ChannelListQuery } from './lib/query'
 import type {
   AddChannelRequest,
   ApiResponse,
@@ -34,7 +35,6 @@ import type {
   UpdateChannelRequest,
   UpstreamModelUpdate,
 } from './types'
-import type { ChannelListQuery } from './lib/query'
 
 export async function getChannelList(
   query: ChannelListQuery
@@ -53,6 +53,21 @@ export async function getChannelStatusCounts(): Promise<
 
 export async function getChannel(id: number): Promise<ApiResponse<Channel>> {
   const res = await api.get(`/api/channel/${id}`)
+  return res.data
+}
+
+/**
+ * Get channel key (requires security verification proof)
+ */
+export async function getChannelKey(
+  id: number,
+  proofToken: string,
+  signal?: AbortSignal
+): Promise<ApiResponse<{ key: string }>> {
+  const res = await api.post(`/api/channel/${id}/key`, undefined, {
+    headers: { 'X-Security-Proof': proofToken },
+    signal,
+  })
   return res.data
 }
 

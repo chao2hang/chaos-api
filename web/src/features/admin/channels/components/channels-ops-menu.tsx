@@ -150,7 +150,7 @@ export function ChannelsOpsMenu() {
           render={
             <button
               type='button'
-              className='btn-industrial-secondary mono text-xs h-9 cursor-pointer inline-flex items-center gap-1.5'
+              className='btn-industrial-secondary text-xs !h-9 px-3.5 cursor-pointer inline-flex items-center gap-1.5'
               disabled={busy}
               aria-label={t('Channel maintenance')}
             >
@@ -163,7 +163,7 @@ export function ChannelsOpsMenu() {
             </button>
           }
         />
-        <DropdownMenuContent className='rounded-none border-zinc-800 bg-[#0a0a0a] mono text-xs'>
+        <DropdownMenuContent className='rounded-none border-zinc-800 bg-[#0a0a0a] text-xs'>
           <DropdownMenuItem
             disabled={testAll.isPending}
             onClick={() => runAction(testAll, t('Queuing channel test task...'))}

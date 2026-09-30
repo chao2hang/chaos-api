@@ -43,7 +43,10 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { SecureVerificationDialog } from '@/features/auth/secure-verification'
+
 import { createChannel, fetchUpstreamModels, updateChannel } from '../api'
+import { useChannelKeyDisclosure } from '../hooks/use-channel-key-disclosure'
 import {
   buildChannelPayload,
   channelToFormValues,
@@ -174,6 +177,9 @@ export function ChannelDialog(props: ChannelDialogProps) {
     string[]
   >([])
 
+  const { channelKey, isChannelKeyLoading, handleRevealKey, verification } =
+    useChannelKeyDisclosure(props.open, editingChannel?.id)
+
   const form = useForm<ChannelFormValues>({
     resolver: zodResolverAdapter(getChannelFormSchema(t)),
     defaultValues: EMPTY_CHANNEL_FORM,
@@ -297,6 +303,9 @@ export function ChannelDialog(props: ChannelDialogProps) {
               editing={editing}
               fetching={fetchModels.isPending}
               onFetchModels={() => fetchModels.mutate()}
+              channelKey={channelKey}
+              isChannelKeyLoading={isChannelKeyLoading}
+              onRevealKey={handleRevealKey}
             />
             <DialogFooter className='gap-2 border-t border-zinc-900 pt-2'>
               <button
@@ -330,6 +339,18 @@ export function ChannelDialog(props: ChannelDialogProps) {
         currentSelected={form.getValues('models')}
         onOpenChange={setSelectModelsOpen}
         onConfirm={handleApplySelectedModels}
+      />
+      <SecureVerificationDialog
+        open={verification.open}
+        onOpenChange={verification.setOpen}
+        methods={verification.methods}
+        state={verification.state}
+        onVerify={async (method, code) => {
+          await verification.executeVerification(method, code)
+        }}
+        onCancel={verification.cancel}
+        onCodeChange={verification.setCode}
+        onMethodChange={verification.switchMethod}
       />
     </Dialog>
   )

@@ -153,7 +153,7 @@ export function ChannelsPage(props: ChannelsPageProps) {
           <button
             type="button"
             onClick={openCreate}
-            className="btn-industrial-primary mono text-xs cursor-pointer"
+            className="btn-industrial-primary text-xs !h-9 px-3.5 cursor-pointer inline-flex items-center gap-1.5"
           >
             <PlusIcon className="size-3.5" />
             {t('Create channel')}

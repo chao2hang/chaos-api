@@ -33,11 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@chaos_team/chaos-ui'
-import { CloudDownloadIcon, Loader2Icon } from 'lucide-react'
+import { CloudDownloadIcon, EyeIcon, Loader2Icon } from 'lucide-react'
 import { useMemo } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import { CopyButton } from '@/components/copy-button'
 import { Textarea } from '@/components/ui/textarea'
 
 import { CHANNEL_TYPES, CODING_PLAN_TYPES } from '../constants'
@@ -52,6 +53,9 @@ interface ChannelFormFieldsProps {
   editing?: boolean
   fetching: boolean
   onFetchModels: () => void
+  channelKey?: string | null
+  isChannelKeyLoading?: boolean
+  onRevealKey?: () => void
 }
 
 /** Name, type, key, base URL and models fields of the channel form. */
@@ -186,7 +190,42 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
         name='key'
         render={({ field }) => (
           <FormItem>
-            <FormLabel>{t('Key')}</FormLabel>
+            <div className='flex items-center justify-between'>
+              <FormLabel>{t('Key')}</FormLabel>
+              {props.editing && props.onRevealKey && (
+                <div className='flex items-center gap-2'>
+                  {props.channelKey ? (
+                    <div className='flex items-center gap-1.5'>
+                      <span className='mono text-[11px] text-zinc-400'>
+                        {t('Original key')}:
+                      </span>
+                      <code className='mono max-w-[200px] truncate rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-emerald-400'>
+                        {props.channelKey}
+                      </code>
+                      <CopyButton
+                        value={props.channelKey}
+                        className='size-6 text-zinc-400 hover:text-white'
+                        tooltip={t('Copy Key')}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type='button'
+                      onClick={props.onRevealKey}
+                      disabled={props.isChannelKeyLoading}
+                      className='mono inline-flex cursor-pointer items-center gap-1 text-[11px] text-zinc-400 hover:text-white disabled:opacity-50'
+                    >
+                      {props.isChannelKeyLoading ? (
+                        <Loader2Icon className='size-3 animate-spin' />
+                      ) : (
+                        <EyeIcon className='size-3' />
+                      )}
+                      {t('View original key')}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <FormControl>
               {multiKeyMode ? (
                 <Textarea

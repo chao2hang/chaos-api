@@ -29,6 +29,9 @@ export interface ChannelFormFieldsProps {
   editing?: boolean
   fetching: boolean
   onFetchModels: () => void
+  channelKey?: string | null
+  isChannelKeyLoading?: boolean
+  onRevealKey?: () => void
 }
 
 /** All body fields of the create/edit channel form. */
@@ -41,6 +44,9 @@ export function ChannelFormFields(props: ChannelFormFieldsProps) {
         editing={props.editing}
         fetching={props.fetching}
         onFetchModels={props.onFetchModels}
+        channelKey={props.channelKey}
+        isChannelKeyLoading={props.isChannelKeyLoading}
+        onRevealKey={props.onRevealKey}
       />
       <ChannelFormExtraFields form={props.form} groups={props.groups} />
     </>

@@ -83,7 +83,7 @@ export function useSecureVerification(
       apiCall: (proofToken?: string) => Promise<unknown>,
       config: StartVerificationOptions
     ) => {
-      const { preferredMethod, scope, title, description } = config
+      const { preferredMethod, scope, context, title, description } = config
       const availableMethods = await fetchVerificationMethods()
 
       if (!availableMethods.has2FA && !availableMethods.hasPasskey) {
@@ -122,6 +122,7 @@ export function useSecureVerification(
         apiCall,
         method: defaultMethod,
         scope,
+        context,
         title,
         description,
       }))
@@ -153,7 +154,8 @@ export function useSecureVerification(
         const proof = await verify(
           actualMethod,
           state.scope,
-          code ?? state.code
+          code ?? state.code,
+          state.context
         )
         const result = await state.apiCall(proof.proof_token)
 
