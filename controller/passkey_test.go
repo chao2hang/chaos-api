@@ -146,6 +146,7 @@ func TestPasskeyDomainsPreserveCredentialsAcrossVerificationFlows(t *testing.T) 
 			beginHandler, finishHandler := PasskeyLoginBegin, PasskeyLoginFinish
 			request := map[string]any{"rp_id": legacyRPID}
 			if kind == "login factor" {
+				require.NoError(t, model.DB.Create(&model.TwoFA{UserId: user.Id, Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true}).Error)
 				pending, err := service.StartLoginVerification(user, "password", nil)
 				require.NoError(t, err)
 				request["flow_token"] = pending.FlowToken

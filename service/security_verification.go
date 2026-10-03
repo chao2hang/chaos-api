@@ -174,7 +174,7 @@ func securityVerificationPolicy(scope string, state model.UserVerificationState)
 	if state.HasTwoFA {
 		methods = append(methods, VerificationMethodTwoFA)
 	}
-	if state.HasPasskey {
+	if state.HasPasskey && scope != VerificationScopeLogin {
 		methods = append(methods, VerificationMethodPasskey)
 	}
 	switch scope {

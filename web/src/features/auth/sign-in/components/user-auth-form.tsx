@@ -45,7 +45,10 @@ import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
-import { beginLoginVerificationPasskey, beginPasskeyLogin, finishLoginVerificationPasskey, finishPasskeyLogin } from '@/features/auth/passkey'
+import {
+  beginPasskeyLogin,
+  finishPasskeyLogin,
+} from '@/features/auth/passkey'
 import type { AuthFormProps, LoginChallenge } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
 import { isAuthBundle } from '@/lib/api'
@@ -208,75 +211,15 @@ export function UserAuthForm({
 
   /**
    * Complete the require_verification challenge issued after the password was
-   * accepted. Passkey runs inline; 2FA falls back to the OTP page; a
-   * passkey-only challenge on a device without WebAuthn fails with guidance.
+   * accepted. If 2FA is offered, redirects to the OTP page; passkey verification
+   * is not used during password login.
    */
   async function handleLoginVerification(challenge: LoginChallenge) {
     const flowToken = challenge.flow_token ?? ''
     const methods = challenge.methods ?? []
-    const passkeyOffered = methods.some(
-      (option) => option.method === 'passkey' && option.available
-    )
     const twoFAOffered = methods.some(
       (option) => option.method === '2fa' && option.available
     )
-
-    if (passkeyOffered && passkeySupported && navigator?.credentials) {
-      const begin = await beginLoginVerificationPasskey(flowToken)
-      if (!begin.success) {
-        if (getServerErrorMessageKey(begin)) return
-        throw new Error(begin.message || t('Failed to start Passkey login'))
-      }
-
-      const passkeyFlowToken = begin.data?.flow_token
-      if (!passkeyFlowToken) {
-        throw new Error(t('Login flow expired. Please sign in again.'))
-      }
-
-      const publicKey = prepareCredentialRequestOptions(
-        begin.data?.options ?? begin.data
-      )
-      let credential: PublicKeyCredential | null
-      try {
-        credential = (await navigator.credentials.get({
-          publicKey,
-        })) as PublicKeyCredential | null
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          toast.info(t('Passkey login was cancelled or timed out'))
-          return
-        }
-        throw error
-      }
-      if (!credential) {
-        toast.info(t('Passkey login was cancelled'))
-        return
-      }
-
-      const assertion = buildAssertionResult(credential)
-      if (!assertion) {
-        throw new Error(t('Invalid Passkey response'))
-      }
-
-      const finish = await finishLoginVerificationPasskey(
-        flowToken,
-        passkeyFlowToken,
-        assertion
-      )
-      if (!finish.success) {
-        if (getServerErrorMessageKey(finish)) return
-        throw new Error(
-          finish.message || t('Failed to complete Passkey login')
-        )
-      }
-      if (!isAuthBundle(finish.data)) {
-        throw new Error(t('Missing user data from Passkey login response'))
-      }
-
-      await handleLoginSuccess(finish.data, redirectTo)
-      toast.success(t('Welcome back!'))
-      return
-    }
 
     if (twoFAOffered) {
       setPending2FAFlowToken(flowToken)
@@ -284,7 +227,7 @@ export function UserAuthForm({
       return
     }
 
-    throw new Error(t('Passkey is not supported on this device'))
+    throw new Error(t('Login verification failed'))
   }
 
   const handleOpenWeChatDialog = () => {
