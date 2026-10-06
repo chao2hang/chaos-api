@@ -27,12 +27,10 @@ import {
   batchUpdateChannelStatus,
   copyChannel,
   deleteChannel,
-  testChannel,
   updateChannelBalance,
   updateChannelStatus,
 } from '../api'
-import { formatResponseTime } from '../lib/format'
-import type { Channel, TestChannelResponse } from '../types'
+import type { Channel } from '../types'
 
 export interface UseChannelActionsParams {
   /** Called after a batch mutation succeeds so the caller can clear selection. */
@@ -56,22 +54,6 @@ export function useChannelActions(params: UseChannelActionsParams) {
       }
       toast.success(t('Channel status updated'))
       invalidate()
-    },
-  })
-
-  const test = useMutation({
-    mutationFn: (id: number) => testChannel(id),
-    onSuccess: (res: TestChannelResponse) => {
-      if (!res.success) {
-        return
-      }
-      const error = res.data?.error
-      if (error !== undefined && error !== '') {
-        toast.error(`${t('Test failed')}: ${error}`)
-        return
-      }
-      const ms = res.time ?? res.data?.response_time ?? 0
-      toast.success(`${t('Test succeeded')} · ${formatResponseTime(ms)}`)
     },
   })
 
@@ -142,5 +124,5 @@ export function useChannelActions(params: UseChannelActionsParams) {
     },
   })
 
-  return { toggleStatus, test, copy, queryBalance, remove, batchStatus, batchDelete }
+  return { toggleStatus, copy, queryBalance, remove, batchStatus, batchDelete }
 }

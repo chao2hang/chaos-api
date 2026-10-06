@@ -248,8 +248,21 @@ export async function copyChannel(
   return res.data
 }
 
-export async function testChannel(id: number): Promise<TestChannelResponse> {
-  const res = await api.get(`/api/channel/test/${id}`)
+export async function testChannel(
+  id: number,
+  options?: { model?: string; stream?: boolean; signal?: AbortSignal }
+): Promise<TestChannelResponse> {
+  const params: Record<string, string> = {}
+  if (options?.model) {
+    params.model = options.model
+  }
+  if (options?.stream) {
+    params.stream = 'true'
+  }
+  const res = await api.get(`/api/channel/test/${id}`, {
+    params,
+    signal: options?.signal,
+  })
   return res.data
 }
 

@@ -31,6 +31,7 @@ import { ChannelFilterBar } from './components/channel-filter-bar'
 import { ChannelsTable } from './components/channels-table'
 import { ChannelsOpsMenu } from './components/channels-ops-menu'
 import { CodexUsageDialog } from './components/codex-usage-dialog'
+import { ModelTestDialog } from './components/model-test-dialog'
 import { MultiKeyDialog } from './components/multi-key-dialog'
 import { OllamaDialog } from './components/ollama-dialog'
 import { UpstreamUpdatesDialog } from './components/upstream-updates-dialog'
@@ -88,11 +89,11 @@ export function ChannelsPage(props: ChannelsPageProps) {
   const [codexChannel, setCodexChannel] = useState<Channel | null>(null)
   const [ollamaChannel, setOllamaChannel] = useState<Channel | null>(null)
   const [updatesChannel, setUpdatesChannel] = useState<Channel | null>(null)
+  const [testChannel, setTestChannel] = useState<Channel | null>(null)
 
   const actions = useChannelActions({ onBatchDone: () => setSelectedIds([]) })
   const actionPending =
     actions.toggleStatus.isPending ||
-    actions.test.isPending ||
     actions.copy.isPending ||
     actions.queryBalance.isPending ||
     actions.remove.isPending ||
@@ -200,7 +201,7 @@ export function ChannelsPage(props: ChannelsPageProps) {
         }}
         onEdit={openEdit}
         onToggleStatus={toggleChannelStatus}
-        onTest={(channel) => actions.test.mutate(channel.id)}
+        onTest={setTestChannel}
         onCopy={(channel) => actions.copy.mutate(channel.id)}
         onDelete={(channel) => actions.remove.mutate(channel.id)}
         onQueryBalance={(channel) => actions.queryBalance.mutate(channel)}
@@ -214,6 +215,10 @@ export function ChannelsPage(props: ChannelsPageProps) {
         channel={editing}
         groups={groups}
         onOpenChange={setDialogOpen}
+      />
+      <ModelTestDialog
+        channel={testChannel}
+        onOpenChange={(open) => setTestChannel(open ? testChannel : null)}
       />
       <MultiKeyDialog
         channel={keysChannel}

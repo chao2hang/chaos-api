@@ -250,6 +250,28 @@ func TestDeleteChannelBatchReportsAndAuditsActualDeletedCount(t *testing.T) {
 	assert.Equal(t, float64(1), auditData.Operation.Params["count"])
 }
 
+func TestTestThroughputComputesTokensPerSecond(t *testing.T) {
+	tests := []struct {
+		name         string
+		usage        *dto.Usage
+		totalSeconds float64
+		ttftMs       int64
+		want         float64
+	}{
+		{name: "missing usage", usage: nil, totalSeconds: 2, ttftMs: -1, want: 0},
+		{name: "no completion tokens", usage: &dto.Usage{PromptTokens: 9}, totalSeconds: 2, ttftMs: -1, want: 0},
+		{name: "non stream uses whole request", usage: &dto.Usage{CompletionTokens: 20}, totalSeconds: 2, ttftMs: -1, want: 10},
+		{name: "stream subtracts time to first token", usage: &dto.Usage{CompletionTokens: 90}, totalSeconds: 3, ttftMs: 1000, want: 45},
+		{name: "degenerate ttft falls back to total", usage: &dto.Usage{CompletionTokens: 50}, totalSeconds: 2, ttftMs: 2500, want: 25},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.InDelta(t, test.want, testThroughput(test.usage, test.totalSeconds, test.ttftMs), 0.0001)
+		})
+	}
+}
+
 func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{

@@ -175,10 +175,25 @@ export interface ChannelStatusCounts {
   auto_disabled: number
 }
 
+/** Token usage reported by one channel test. */
+export interface TestChannelUsage {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+}
+
 /** Result payload of GET /api/channel/test/:id. */
 export interface TestChannelResult {
   response_time?: number
   error?: string
+  /** Model name the test was issued for. */
+  model?: string
+  /** Prompt/completion/total token usage of the test request. */
+  usage?: TestChannelUsage
+  /** Time to first upstream response in seconds; absent when not reported. */
+  ttft?: number
+  /** Completion tokens per second of the generation window. */
+  tokens_per_second?: number
 }
 
 /** Envelope returned by GET /api/channel/test/:id. */

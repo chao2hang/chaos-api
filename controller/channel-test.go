@@ -39,6 +39,12 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+	usage       *dto.Usage
+	model       string
+	totalMs     int64
+	// ttftMs is the time to first upstream response in milliseconds; -1 when
+	// the upstream never reported a first response (e.g. non-stream relay).
+	ttftMs int64
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
@@ -516,11 +522,17 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		Other:            other,
 	})
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
-	return testResult{
-		context:     c,
-		localErr:    nil,
-		newAPIError: nil,
+	testRes := testResult{
+		context: c,
+		usage:   usage,
+		model:   info.OriginModelName,
+		totalMs: milliseconds,
+		ttftMs:  -1,
 	}
+	if info.HasSendResponse() {
+		testRes.ttftMs = info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
+	}
+	return testRes
 }
 
 func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Request) error {
@@ -900,11 +912,43 @@ func TestChannel(c *gin.Context) {
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"success": true,
 		"message": "",
 		"time":    consumedTime,
-	})
+		"model":   result.model,
+	}
+	if result.usage != nil {
+		resp["usage"] = gin.H{
+			"prompt_tokens":     result.usage.PromptTokens,
+			"completion_tokens": result.usage.CompletionTokens,
+			"total_tokens":      result.usage.TotalTokens,
+		}
+	}
+	if result.ttftMs >= 0 {
+		resp["ttft"] = float64(result.ttftMs) / 1000.0
+	}
+	if tps := testThroughput(result.usage, consumedTime, result.ttftMs); tps > 0 {
+		resp["tokens_per_second"] = tps
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// testThroughput computes completion tokens per second of one channel test.
+// Streamed responses measure the generation window from the first upstream
+// response (TTFT); everything else uses the whole request duration.
+func testThroughput(usage *dto.Usage, totalSeconds float64, ttftMs int64) float64 {
+	if usage == nil || usage.CompletionTokens <= 0 || totalSeconds <= 0 {
+		return 0
+	}
+	generationSeconds := totalSeconds
+	if ttftMs >= 0 {
+		generationSeconds = totalSeconds - float64(ttftMs)/1000.0
+		if generationSeconds <= 0 {
+			generationSeconds = totalSeconds
+		}
+	}
+	return float64(usage.CompletionTokens) / generationSeconds
 }
 
 // channelTestSummary records the outcome of one channel test cycle so the
