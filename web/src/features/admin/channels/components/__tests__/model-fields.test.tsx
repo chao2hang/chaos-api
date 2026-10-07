@@ -223,6 +223,49 @@ describe('ChannelDialog model fields', () => {
     expect(queryMappingInputs()).toHaveLength(1)
   })
 
+  test('shows direction help and column headers when a mapping row exists', async () => {
+    renderEditDialog(editedChannel)
+
+    await waitFor(() => {
+      expect(queryMappingInputs()).toHaveLength(1)
+    })
+    expect(screen.getByText('Model in user request')).toBeTruthy()
+    expect(screen.getByText('Model sent to upstream')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'The left column is the model name in user requests; the right column is the model name sent to the upstream provider. Unmatched names are forwarded unchanged.'
+      )
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Billing and logs record the model name in the user request.'
+      )
+    ).toBeTruthy()
+  })
+
+  test('shows the example hint only while no mapping rows exist', async () => {
+    renderEditDialog(editedChannel)
+
+    await waitFor(() => {
+      expect(queryMappingInputs()).toHaveLength(1)
+    })
+    expect(
+      screen.queryByText(
+        'Example: gpt-4o → gpt-4o-2024-08-06 means requests for gpt-4o are sent upstream as gpt-4o-2024-08-06.'
+      )
+    ).toBeNull()
+
+    fireEvent.click(screen.getAllByLabelText('Remove this mapping')[0])
+
+    expect(queryMappingInputs()).toHaveLength(0)
+    expect(
+      screen.getByText(
+        'Example: gpt-4o → gpt-4o-2024-08-06 means requests for gpt-4o are sent upstream as gpt-4o-2024-08-06.'
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText('Model in user request')).toBeNull()
+  })
+
   test('fetch models opens select dialog and applies chosen models on confirm', async () => {
     const postPayloads: Array<Record<string, unknown>> = []
     const apiAny = api as unknown as { post: ApiMethod }

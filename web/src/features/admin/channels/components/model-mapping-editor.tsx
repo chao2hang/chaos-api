@@ -77,6 +77,14 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       aria-invalid={props['aria-invalid']}
       className={cn('flex flex-col gap-2', props.className)}
     >
+      {props.value.length > 0 && (
+        <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
+          <span className='min-w-0 flex-1'>{t('Model in user request')}</span>
+          <span className='size-4 shrink-0' aria-hidden='true' />
+          <span className='min-w-0 flex-1'>{t('Model sent to upstream')}</span>
+          <span className='size-7 shrink-0' aria-hidden='true' />
+        </div>
+      )}
       {props.value.map((entry, index) => (
         <div key={entry.rowId} className='flex items-center gap-2'>
           <ComboboxInput
@@ -120,6 +128,13 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
           </Button>
         </div>
       ))}
+      {props.value.length === 0 && (
+        <p className='text-muted-foreground text-xs'>
+          {t(
+            'Example: gpt-4o → gpt-4o-2024-08-06 means requests for gpt-4o are sent upstream as gpt-4o-2024-08-06.'
+          )}
+        </p>
+      )}
       <div>
         <Button type='button' variant='outline' size='sm' onClick={addEntry}>
           <HugeiconsIcon icon={Add01Icon} strokeWidth={2} aria-hidden='true' />

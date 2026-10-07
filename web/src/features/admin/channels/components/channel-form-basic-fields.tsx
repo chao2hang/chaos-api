@@ -20,6 +20,7 @@ import { AdminTagInput } from '@chaos_team/blbui-react'
 import {
   Button,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -314,6 +315,18 @@ export function ChannelFormBasicFields(props: ChannelFormFieldsProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('Model mapping')}</FormLabel>
+            <FormDescription>
+              <span className='block'>
+                {t(
+                  'The left column is the model name in user requests; the right column is the model name sent to the upstream provider. Unmatched names are forwarded unchanged.'
+                )}
+              </span>
+              <span className='block'>
+                {t(
+                  'Billing and logs record the model name in the user request.'
+                )}
+              </span>
+            </FormDescription>
             <FormControl>
               <ModelMappingEditor
                 value={field.value}
