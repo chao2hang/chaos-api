@@ -32,14 +32,22 @@ import {
   formatTimestampToDate,
   formatUseTime,
 } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 import { fetchUsageLogs } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
+import { getResponseTimeColor, type LogDurationVariant } from '../lib/format'
 import { buildUsageLogQueryParams } from '../lib/query-params'
 import type { UsageLogsSearch } from '../lib/search-schema'
 import type { UsageLog, UsageLogsSearchPatcher } from '../types'
 import { CopyableText } from './copyable-text'
 import { LogTypeBadge } from './log-type-badge'
+
+const USE_TIME_TEXT_CLASS: Record<LogDurationVariant, string> = {
+  success: 'text-emerald-500',
+  warning: 'text-amber-500',
+  danger: 'text-red-500',
+}
 
 function parseCachedTokens(otherStr?: string): number {
   if (!otherStr) return 0
@@ -177,8 +185,17 @@ export function CommonLogsTable(props: CommonLogsTableProps) {
         <td className="py-3.5 px-4 font-medium text-white max-w-[180px] truncate">
           {record.model_name || '-'}
         </td>
-        <td className="py-3.5 px-4 text-zinc-400">
-          {formatUseTime(record.use_time)}
+        <td className="py-3.5 px-4">
+          <span
+            className={cn(
+              'tabular-nums',
+              USE_TIME_TEXT_CLASS[
+                getResponseTimeColor(record.use_time, record.completion_tokens)
+              ]
+            )}
+          >
+            {formatUseTime(record.use_time)}
+          </span>
         </td>
         <td className="py-3.5 px-4 text-zinc-300">
           {(() => {
