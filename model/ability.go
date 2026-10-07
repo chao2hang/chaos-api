@@ -246,7 +246,12 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 		useDB = tx
 	}
 	for _, chunk := range lo.Chunk(abilities, 50) {
-		err := useDB.Clauses(clause.OnConflict{DoNothing: true}).Create(&chunk).Error
+		// Upsert instead of DoNothing so re-adding abilities after a partial
+		// delete refreshes stale priority/weight/tag/enabled on existing rows.
+		err := useDB.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "group"}, {Name: "model"}, {Name: "channel_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"enabled", "priority", "weight", "tag"}),
+		}).Create(&chunk).Error
 		if err != nil {
 			return err
 		}
@@ -331,7 +336,35 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 }
 
 func UpdateAbilityStatus(channelId int, status bool) error {
+	if status {
+		if err := ensureChannelAbilities(channelId); err != nil {
+			return err
+		}
+	}
 	return DB.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
+}
+
+// ensureChannelAbilities rebuilds the ability rows of a channel that lost
+// them. Flipping the enabled flag alone cannot make a channel's models
+// visible again when no rows exist, so enabling such a channel must recreate
+// the rows first; otherwise its models never appear in /v1/models even
+// though the channel reports as enabled.
+func ensureChannelAbilities(channelId int) error {
+	var count int64
+	if err := DB.Model(&Ability{}).Where("channel_id = ?", channelId).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	channel, err := GetChannelById(channelId, true)
+	if err != nil {
+		return err
+	}
+	if len(channel.GetModels()) == 0 {
+		return nil
+	}
+	return channel.AddAbilities(nil)
 }
 
 func UpdateAbilityStatusByTag(tag string, status bool) error {

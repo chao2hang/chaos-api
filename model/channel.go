@@ -858,6 +858,21 @@ func EnableChannelByTag(tag string) error {
 	if err != nil {
 		return err
 	}
+	// Tag-level enable must also restore ability rows for channels that lost
+	// them; otherwise their models stay invisible to /v1/models even though
+	// the channels report as enabled. Rows are created enabled=true because
+	// the status update above has already persisted.
+	var channelIds []int
+	if err := DB.Model(&Channel{}).
+		Where("tag = ? AND id NOT IN (SELECT channel_id FROM abilities)", tag).
+		Pluck("id", &channelIds); err != nil {
+		common.SysLog(fmt.Sprintf("failed to find channels without abilities for tag %s: %v", tag, err))
+	}
+	for _, channelId := range channelIds {
+		if err := ensureChannelAbilities(channelId); err != nil {
+			common.SysLog(fmt.Sprintf("failed to rebuild abilities for channel %d: %v", channelId, err))
+		}
+	}
 	err = UpdateAbilityStatusByTag(tag, true)
 	return err
 }
