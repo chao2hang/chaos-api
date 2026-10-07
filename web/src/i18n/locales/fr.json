@@ -4556,6 +4556,7 @@
     "Server version": "Version du serveur",
     "Server: Optimal": "Serveur : Optimal",
     "Service account JSON file(s)": "Fichier(s) JSON de compte de service",
+    "Service is restarting or temporarily unavailable. Please try again later.": "Le service redémarre ou est momentanément indisponible. Veuillez réessayer plus tard.",
     "Session": "Session",
     "Session expired!": "Session expirée !",
     "Session expired?": "Session expirée ?",

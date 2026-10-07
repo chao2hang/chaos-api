@@ -81,7 +81,11 @@ export async function createChannel(
 export async function updateChannel(
   request: UpdateChannelRequest
 ): Promise<ApiResponse<Channel>> {
-  const res = await api.put('/api/channel/', request)
+  // PUT is idempotent: retry once through a server-restart window so an
+  // in-flight edit is not silently lost (issue #12).
+  const res = await api.put('/api/channel/', request, {
+    retryOnServiceUnavailable: true,
+  })
   return res.data
 }
 

@@ -35,10 +35,37 @@ declare module 'axios' {
     skipAuthRefresh?: boolean
     authRetry?: boolean
     acceptAuthRotation?: boolean
+    /**
+     * Retry once when the backend is unreachable or a reverse proxy answers
+     * 502/503/504 — the window right after a server restart. Intended for
+     * idempotent writes (e.g. channel updates) so edits are not silently lost.
+     */
+    retryOnServiceUnavailable?: boolean
+    retriedServiceUnavailable?: boolean
   }
 }
 
 export type ApiRequestConfig = AxiosRequestConfig
+
+const SERVICE_UNAVAILABLE_STATUSES = new Set([502, 503, 504])
+const SERVICE_UNAVAILABLE_RETRY_DELAY_MS = 1200
+
+/**
+ * Detect the "backend down" window of issue #12: the process is restarting,
+ * so the reverse proxy resets the connection (no response at all) or answers
+ * 502/503/504 with its own error page.
+ */
+function isServiceUnavailableError(error: unknown): boolean {
+  const axiosError = error as { code?: string; response?: { status?: number } }
+  if (axiosError?.code === 'ERR_CANCELED') {
+    return false
+  }
+  const status = axiosError?.response?.status
+  if (status !== undefined) {
+    return SERVICE_UNAVAILABLE_STATUSES.has(status)
+  }
+  return true
+}
 
 export const api = axios.create({
   baseURL: '',
@@ -101,6 +128,19 @@ api.interceptors.response.use(
     const skipErrorHandler = config?.skipErrorHandler
     const status = error?.response?.status
 
+    if (
+      config?.retryOnServiceUnavailable &&
+      !config.retriedServiceUnavailable &&
+      status !== 401 &&
+      isServiceUnavailableError(error)
+    ) {
+      config.retriedServiceUnavailable = true
+      await new Promise((resolve) =>
+        setTimeout(resolve, SERVICE_UNAVAILABLE_RETRY_DELAY_MS)
+      )
+      return api.request(config)
+    }
+
     if (status === 401) {
       if (config && !config.skipAuthRefresh && !config.authRetry) {
         config.authRetry = true
@@ -128,13 +168,21 @@ api.interceptors.response.use(
         toast.error(t('Session expired!'))
       }
     } else if (!skipErrorHandler) {
-      const messageKey = getServerErrorMessageKey(error)
-      const message = messageKey
-        ? t(messageKey)
-        : error?.response?.data?.message ||
-          error?.message ||
-          t('Request failed')
-      toast.error(message)
+      if (isServiceUnavailableError(error)) {
+        toast.error(
+          t(
+            'Service is restarting or temporarily unavailable. Please try again later.'
+          )
+        )
+      } else {
+        const messageKey = getServerErrorMessageKey(error)
+        const message = messageKey
+          ? t(messageKey)
+          : error?.response?.data?.message ||
+            error?.message ||
+            t('Request failed')
+        toast.error(message)
+      }
     }
     throw error
   }

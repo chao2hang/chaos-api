@@ -4556,6 +4556,7 @@
     "Server version": "伺服器版本",
     "Server: Optimal": "服務狀態: 最佳",
     "Service account JSON file(s)": "服務賬號 JSON 檔案",
+    "Service is restarting or temporarily unavailable. Please try again later.": "服務正在重啟或暫時不可用，請稍後重試",
     "Session": "對話",
     "Session expired!": "對話已過期！",
     "Session expired?": "對話已過期？",

@@ -4556,6 +4556,7 @@
     "Server version": "サーバーバージョン",
     "Server: Optimal": "サーバー: 最適",
     "Service account JSON file(s)": "サービスアカウントJSONファイル",
+    "Service is restarting or temporarily unavailable. Please try again later.": "サービスが再起動中または一時的に利用できません。しばらくしてから再試行してください。",
     "Session": "セッション",
     "Session expired!": "セッションが期限切れです！",
     "Session expired?": "セッションが期限切れになりましたか？",
