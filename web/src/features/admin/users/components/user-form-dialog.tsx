@@ -15,8 +15,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { useMutation } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -31,6 +30,10 @@ import {
 } from '@chaos_team/chaos-ui'
 import { zodResolverAdapter } from '@chaos_team/chaos-ui/hooks'
 
+import {
+  SecureVerificationDialog,
+  useSecureVerification,
+} from '@/features/auth/secure-verification'
 import { createUser, updateUser } from '../api'
 import { SUCCESS_MESSAGES } from '../constants'
 import { parseQuotaFromDollars, quotaUnitsToEditableAmount } from '@/lib/format'
@@ -80,37 +83,81 @@ export function UserFormDialog(props: UserFormDialogProps) {
     })
   }, [props.open, props.user, form])
 
-  const saveMutation = useMutation({
-    mutationFn: (values: UserFormValues) => {
-      if (props.user === null) {
-        return createUser({
-          username: values.username,
-          display_name: values.display_name,
-          password: values.password,
-          group: values.group,
-          quota: parseQuotaFromDollars(values.quota),
-          remark: values.remark,
-        })
-      }
-      return updateUser({
-        id: props.user.id,
-        username: values.username,
-        display_name: values.display_name,
-        password: values.password === '' ? undefined : values.password,
-        group: values.group,
-        quota: parseQuotaFromDollars(values.quota),
-        remark: values.remark,
-      })
-    },
-    onSuccess: () => {
-      toast.success(
-        isEdit
-          ? t(SUCCESS_MESSAGES.USER_UPDATED)
-          : t(SUCCESS_MESSAGES.USER_CREATED)
-      )
-      props.onSaved()
-    },
+  const notifySaved = useCallback(() => {
+    toast.success(
+      isEdit
+        ? t(SUCCESS_MESSAGES.USER_UPDATED)
+        : t(SUCCESS_MESSAGES.USER_CREATED)
+    )
+    props.onSaved()
+  }, [isEdit, t, props])
+
+  const {
+    open: verificationOpen,
+    setOpen: setVerificationOpen,
+    methods: dialogMethods,
+    state: verificationState,
+    withVerification,
+    executeVerification,
+    cancel: cancelVerification,
+    setCode,
+    switchMethod,
+  } = useSecureVerification({
+    successMessage: isEdit
+      ? t(SUCCESS_MESSAGES.USER_UPDATED)
+      : t(SUCCESS_MESSAGES.USER_CREATED),
+    onSuccess: () => notifySaved(),
   })
+
+  const submitValues = useCallback(
+    (values: UserFormValues) => {
+      const proofCall = (proofToken?: string) => {
+        if (props.user === null) {
+          return createUser(
+            {
+              username: values.username,
+              display_name: values.display_name,
+              password: values.password,
+              group: values.group,
+              quota: parseQuotaFromDollars(values.quota),
+              remark: values.remark,
+            },
+            proofToken
+          )
+        }
+        return updateUser(
+          {
+            id: props.user.id,
+            username: values.username,
+            display_name: values.display_name,
+            password: values.password === '' ? undefined : values.password,
+            group: values.group,
+            quota: parseQuotaFromDollars(values.quota),
+            remark: values.remark,
+          },
+          proofToken
+        )
+      }
+      // An administrator-set password and account creation are gated server
+      // side: the first attempt returns 403 and the verification dialog
+      // retries with a proof (toasted via successMessage). Ungated edits
+      // succeed on the first attempt and toast here.
+      return withVerification(proofCall, {
+        scope: props.user === null ? 'admin.user.create' : 'admin.user.update',
+        context:
+          props.user === null
+            ? { role: 0 }
+            : { user_id: props.user.id },
+      })
+        .then((result) => {
+          if (result) notifySaved()
+        })
+        .catch(() => {
+          // Verification and server errors are surfaced by the hook.
+        })
+    },
+    [props, notifySaved, withVerification]
+  )
 
   const groupOptions = [
     ...new Set([...props.groups, props.user?.group ?? ''].filter((g) => g !== '')),
@@ -133,7 +180,7 @@ export function UserFormDialog(props: UserFormDialogProps) {
                 })
                 return
               }
-              saveMutation.mutate(values)
+              void submitValues(values)
             })}
             className='flex flex-col gap-4'
           >
@@ -148,7 +195,7 @@ export function UserFormDialog(props: UserFormDialogProps) {
               </button>
               <button
                 type='submit'
-                disabled={saveMutation.isPending}
+                disabled={verificationState.loading}
                 className='btn-industrial-primary mono text-xs'
               >
                 {t('Save')}
@@ -156,6 +203,18 @@ export function UserFormDialog(props: UserFormDialogProps) {
             </DialogFooter>
           </form>
         </Form>
+        <SecureVerificationDialog
+          open={verificationOpen}
+          onOpenChange={setVerificationOpen}
+          methods={dialogMethods}
+          state={verificationState}
+          onVerify={(method, code) => {
+            void executeVerification(method, code)
+          }}
+          onCancel={cancelVerification}
+          onCodeChange={setCode}
+          onMethodChange={switchMethod}
+        />
       </DialogContent>
     </Dialog>
   )

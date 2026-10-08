@@ -668,6 +668,13 @@ func UpdateUser(c *gin.Context) {
 	}
 	updatePassword := updatedUser.Password != ""
 	authzTouched := false
+	// An administrator-set password is a full account takeover; require step-up
+	// verification before applying it. Routine profile edits stay ungated.
+	if updatePassword {
+		if requireAdminUserProof(c, service.VerificationScopeAdminUserUpdate, service.AdminUserContext{UserID: updatedUser.Id}) == nil {
+			return
+		}
+	}
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
 			return err
@@ -957,6 +964,20 @@ func DeleteSelf(c *gin.Context) {
 	})
 }
 
+// requireAdminUserProof enforces step-up verification for privileged user
+// administration. The managed user (and the requested action or role) is bound
+// into the proof context, so a proof granted for one account or action cannot
+// be replayed against another.
+func requireAdminUserProof(c *gin.Context, scope string, context any) *model.AuthFlowAuthorization {
+	payload, err := common.Marshal(context)
+	if err != nil {
+		_ = c.Error(err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"success": false, "code": "AUTH_INTERNAL_ERROR", "message": "Please try again later."})
+		return nil
+	}
+	return middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: scope, Context: payload})
+}
+
 func CreateUser(c *gin.Context) {
 	var user model.User
 	err := common.DecodeJson(c.Request.Body, &user)
@@ -973,6 +994,9 @@ func CreateUser(c *gin.Context) {
 	// would otherwise be written verbatim by an operator above it.
 	if !common.IsValidateRole(user.Role) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if requireAdminUserProof(c, service.VerificationScopeAdminUserCreate, service.AdminUserCreateContext{Role: user.Role}) == nil {
 		return
 	}
 	if user.DisplayName == "" {
@@ -1070,6 +1094,18 @@ func ManageUser(c *gin.Context) {
 	if !canManageTargetRole(myRole, user.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
+	}
+	// Privileged state/role changes require step-up verification; quota
+	// adjustments keep their own audit trail and stay ungated.
+	switch req.Action {
+	case "delete":
+		if requireAdminUserProof(c, service.VerificationScopeAdminUserDelete, service.AdminUserContext{UserID: user.Id}) == nil {
+			return
+		}
+	case "disable", "enable", "promote", "demote":
+		if requireAdminUserProof(c, service.VerificationScopeAdminUserManage, service.AdminUserManageContext{UserID: user.Id, Action: req.Action}) == nil {
+			return
+		}
 	}
 	switch req.Action {
 	case "disable":

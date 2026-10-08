@@ -589,8 +589,14 @@ func UnbindCustomOAuthByAdmin(c *gin.Context) {
 
 	providerIdStr := c.Param("provider_id")
 	providerId, err := strconv.Atoi(providerIdStr)
-	if err != nil {
+	if err != nil || providerId <= 0 {
 		common.ApiErrorMsg(c, "invalid provider id")
+		return
+	}
+
+	// Removing a login binding can lock the account out of its provider; require
+	// step-up verification bound to the account and provider.
+	if requireAdminUserProof(c, service.VerificationScopeAdminUserBindingClear, service.AdminUserBindingClearContext{UserID: userId, ProviderID: providerId}) == nil {
 		return
 	}
 

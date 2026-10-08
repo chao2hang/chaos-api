@@ -457,6 +457,11 @@ func AdminResetPasskey(c *gin.Context) {
 		common.ApiErrorMsg(c, "no permission")
 		return
 	}
+	// Removing the target user's passkey is an account takeover vector; require
+	// step-up verification bound to the managed account.
+	if requireAdminUserProof(c, service.VerificationScopeAdminUserPasskeyReset, service.AdminUserContext{UserID: user.Id}) == nil {
+		return
+	}
 
 	if _, err := model.GetPasskeyByUserID(user.Id); err != nil {
 		if errors.Is(err, model.ErrPasskeyNotFound) {

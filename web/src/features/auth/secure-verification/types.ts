@@ -21,6 +21,13 @@ export type SecurityProofScope =
   | 'channel.key.read'
   | 'passkey.register'
   | 'passkey.delete'
+  | 'admin.user.create'
+  | 'admin.user.update'
+  | 'admin.user.delete'
+  | 'admin.user.manage'
+  | 'admin.user.passkey.reset'
+  | 'admin.user.2fa.disable'
+  | 'admin.user.binding.clear'
 
 export interface SecurityProof {
   proof_token: string

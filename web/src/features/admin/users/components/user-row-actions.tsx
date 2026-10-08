@@ -15,10 +15,13 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useRef } from 'react'
 import { Coins, KeyRound, MoreHorizontal, Pencil, ShieldOff, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { SecureVerificationDialog, useSecureVerification } from '@/features/auth/secure-verification'
 
 import {
   Button,
@@ -39,47 +42,73 @@ type UserRowActionsProps = {
   onQuota: (user: User) => void
 }
 
+type ManageAction = 'disable' | 'enable' | 'promote' | 'demote' | 'delete'
+
 export function UserRowActions(props: UserRowActionsProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const user = props.user
+  const lastGatedActionRef = useRef<'manage' | 'reset_passkey' | 'reset_2fa'>(
+    null
+  )
 
   const invalidateUsers = () => {
     void queryClient.invalidateQueries({ queryKey: [...USERS_QUERY_KEY] })
   }
 
-  const manageMutation = useMutation({
-    mutationFn: manageUser,
+  const {
+    open: verificationOpen,
+    setOpen: setVerificationOpen,
+    methods: dialogMethods,
+    state: verificationState,
+    withVerification,
+    executeVerification,
+    cancel: cancelVerification,
+    setCode,
+    switchMethod,
+  } = useSecureVerification({
     onSuccess: () => {
-      toast.success(t(SUCCESS_MESSAGES.USER_UPDATED))
+      const action = lastGatedActionRef.current
+      lastGatedActionRef.current = null
+      if (action === 'reset_passkey') {
+        toast.success(t(SUCCESS_MESSAGES.PASSKEY_RESET))
+      } else if (action === 'reset_2fa') {
+        toast.success(t(SUCCESS_MESSAGES.TWO_FACTOR_RESET))
+      } else {
+        toast.success(t(SUCCESS_MESSAGES.USER_UPDATED))
+      }
       invalidateUsers()
     },
   })
 
-  const resetPasskeyMutation = useMutation({
-    mutationFn: () => resetUserPasskey(user.id),
-    onSuccess: () => {
-      toast.success(t(SUCCESS_MESSAGES.PASSKEY_RESET))
-      invalidateUsers()
-    },
-  })
-
-  const resetTwoFactorMutation = useMutation({
-    mutationFn: () => resetUserTwoFactor(user.id),
-    onSuccess: () => {
-      toast.success(t(SUCCESS_MESSAGES.TWO_FACTOR_RESET))
-      invalidateUsers()
-    },
-  })
-
-  const handleToggleStatus = () => {
-    const action =
-      user.status === USER_STATUS.ENABLED ? 'disable' : 'enable'
-    manageMutation.mutate({ id: user.id, action })
+  const handleManage = (action: ManageAction) => {
+    lastGatedActionRef.current = 'manage'
+    void withVerification(() => manageUser({ id: user.id, action }), {
+      scope: action === 'delete' ? 'admin.user.delete' : 'admin.user.manage',
+      context:
+        action === 'delete'
+          ? { user_id: user.id }
+          : { user_id: user.id, action },
+    }).catch(() => {
+      // Non-verification errors are already surfaced by the hook's dialog
+      // flow; nothing else to clean up here.
+    })
   }
 
-  const handleRoleChange = (action: 'promote' | 'demote') => {
-    manageMutation.mutate({ id: user.id, action })
+  const handleResetPasskey = () => {
+    lastGatedActionRef.current = 'reset_passkey'
+    void withVerification(() => resetUserPasskey(user.id), {
+      scope: 'admin.user.passkey.reset',
+      context: { user_id: user.id },
+    }).catch(() => {})
+  }
+
+  const handleResetTwoFactor = () => {
+    lastGatedActionRef.current = 'reset_2fa'
+    void withVerification(() => resetUserTwoFactor(user.id), {
+      scope: 'admin.user.2fa.disable',
+      context: { user_id: user.id },
+    }).catch(() => {})
   }
 
   return (
@@ -101,15 +130,15 @@ export function UserRowActions(props: UserRowActionsProps) {
             <Coins className='size-4' />
             {t('Adjust quota')}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleToggleStatus}>
+          <DropdownMenuItem onSelect={() => handleManage(user.status === USER_STATUS.ENABLED ? 'disable' : 'enable')}>
             {user.status === USER_STATUS.ENABLED
               ? t('Disable user')
               : t('Enable user')}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handleRoleChange('promote')}>
+          <DropdownMenuItem onSelect={() => handleManage('promote')}>
             {t('Promote to admin')}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handleRoleChange('demote')}>
+          <DropdownMenuItem onSelect={() => handleManage('demote')}>
             {t('Demote to user')}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -118,7 +147,7 @@ export function UserRowActions(props: UserRowActionsProps) {
         title={t('Reset this passkey registration?')}
         okText={t('Reset')}
         cancelText={t('Cancel')}
-        onConfirm={() => resetPasskeyMutation.mutate()}
+        onConfirm={handleResetPasskey}
       >
         <Button
           variant='ghost'
@@ -132,7 +161,7 @@ export function UserRowActions(props: UserRowActionsProps) {
         title={t('Reset this two-factor setup?')}
         okText={t('Reset')}
         cancelText={t('Cancel')}
-        onConfirm={() => resetTwoFactorMutation.mutate()}
+        onConfirm={handleResetTwoFactor}
       >
         <Button
           variant='ghost'
@@ -148,7 +177,7 @@ export function UserRowActions(props: UserRowActionsProps) {
         okText={t('Delete')}
         cancelText={t('Cancel')}
         okVariant='destructive'
-        onConfirm={() => manageMutation.mutate({ id: user.id, action: 'delete' })}
+        onConfirm={() => handleManage('delete')}
       >
         <Button
           variant='ghost'
@@ -158,6 +187,18 @@ export function UserRowActions(props: UserRowActionsProps) {
           <Trash2 className='size-4 text-destructive' />
         </Button>
       </Popconfirm>
+      <SecureVerificationDialog
+        open={verificationOpen}
+        onOpenChange={setVerificationOpen}
+        methods={dialogMethods}
+        state={verificationState}
+        onVerify={(method, code) => {
+          void executeVerification(method, code)
+        }}
+        onCancel={cancelVerification}
+        onCodeChange={setCode}
+        onMethodChange={switchMethod}
+      />
     </div>
   )
 }

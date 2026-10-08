@@ -18,6 +18,7 @@ import (
 	"github.com/chaos-api/chaos-api/i18n"
 	"github.com/chaos-api/chaos-api/middleware"
 	"github.com/chaos-api/chaos-api/model"
+	"github.com/chaos-api/chaos-api/service"
 	"github.com/chaos-api/chaos-api/service/authz"
 	"github.com/go-redis/redis/v8"
 
@@ -66,7 +67,7 @@ func setupManageUserTestDB(t *testing.T) *gorm.DB {
 			}
 		}
 	})
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CasbinRule{}, &model.AuthzRole{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.AuthFlow{}, &model.TwoFA{}, &model.PasskeyCredential{}))
 	require.NoError(t, logDB.AutoMigrate(&model.Log{}, &model.AuditLog{}))
 	versionQuery := "SELECT version()"
 	if dialect == "sqlite" {
@@ -80,29 +81,67 @@ func setupManageUserTestDB(t *testing.T) *gorm.DB {
 
 func performManageUserRequest(t *testing.T, body string) *httptest.ResponseRecorder {
 	t.Helper()
+	return performManageUserRequestWithProof(t, body, "")
+}
+
+func performManageUserRequestWithProof(t *testing.T, body, proof string) *httptest.ResponseRecorder {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/manage", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	if proof != "" {
+		c.Request.Header.Set("X-Security-Proof", proof)
+	}
 	c.Set("id", 9999)
 	c.Set("role", common.RoleRootUser)
 	c.Set("username", "root-operator")
+	c.Set("session_id", "manage-operator-session")
+	c.Set("auth_version", int64(1))
+	c.Set("session_version", int64(1))
 	c.Set(common.RequestIdKey, "quota-test-request")
 	ManageUser(c)
 	return recorder
 }
 
+/** Mint a step-up proof for the manage-operator session identity. */
+func issueManageUserProof(t *testing.T, userID int, operation service.VerificationOperation) string {
+	t.Helper()
+	binding, err := service.BindVerificationOperation(operation)
+	require.NoError(t, err)
+	identity := service.AuthIdentity{
+		UserID:          userID,
+		SessionID:       "manage-operator-session",
+		UserAuthVersion: 1,
+		SessionVersion:  1,
+	}
+	proof, _, err := service.IssueSecurityProof(identity, service.VerificationMethodPassword, binding)
+	require.NoError(t, err)
+	return proof
+}
+
 func performCreateUserRequest(t *testing.T, body string, operatorRole int) *httptest.ResponseRecorder {
+	t.Helper()
+	return performCreateUserRequestWithProof(t, body, operatorRole, "")
+}
+
+func performCreateUserRequestWithProof(t *testing.T, body string, operatorRole int, proof string) *httptest.ResponseRecorder {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	if proof != "" {
+		c.Request.Header.Set("X-Security-Proof", proof)
+	}
 	c.Set("id", 9999)
 	c.Set("role", operatorRole)
 	c.Set("username", "root-operator")
+	c.Set("session_id", "manage-operator-session")
+	c.Set("auth_version", int64(1))
+	c.Set("session_version", int64(1))
 	c.Set(common.RequestIdKey, "create-user-test-request")
 	CreateUser(c)
 	return recorder
@@ -140,10 +179,28 @@ func TestCreateUserAcceptsCanonicalRole(t *testing.T) {
 	t.Cleanup(func() { common.IsMasterNode = previousMaster })
 	require.NoError(t, authz.Init(db))
 	createQuotaTestOperator(t, db, common.RoleRootUser)
+
+	// Without a step-up proof the request must be rejected before anything is
+	// written.
 	recorder := performCreateUserRequest(
 		t,
 		`{"username":"valid-role-user","password":"member-password-1","role":1}`,
 		common.RoleRootUser,
+	)
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "SECURITY_PROOF_REQUIRED")
+	var count int64
+	require.NoError(t, db.Model(&model.User{}).Where("username = ?", "valid-role-user").Count(&count).Error)
+	assert.Zero(t, count)
+
+	recorder = performCreateUserRequestWithProof(
+		t,
+		`{"username":"valid-role-user","password":"member-password-1","role":1}`,
+		common.RoleRootUser,
+		issueManageUserProof(t, 9999, service.VerificationOperation{
+			Scope:   service.VerificationScopeAdminUserCreate,
+			Context: []byte(`{"role":1}`),
+		}),
 	)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
@@ -152,8 +209,96 @@ func TestCreateUserAcceptsCanonicalRole(t *testing.T) {
 	assert.Equal(t, common.RoleCommonUser, created.Role)
 }
 
+// ASVS 4.0.3 v2.5.4 / v4.2.1 / 16.3.1: privileged user administration requires
+// re-authentication, the proof is bound to the managed account and the exact
+// action, and it is single use.
+func TestManageUserGatedActionsRequireStepUpProof(t *testing.T) {
+	for _, tc := range []struct {
+		name, action string
+	}{
+		{"disable", "disable"},
+		{"enable", "enable"},
+		{"promote", "promote"},
+		{"demote", "demote"},
+		{"delete", "delete"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupManageUserTestDB(t)
+			user := model.User{
+				Username: "gated-target", Password: "password", Role: common.RoleCommonUser,
+				Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1,
+			}
+			require.NoError(t, db.Create(&user).Error)
+
+			recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":%q}`, user.Id, tc.action))
+			assert.Equal(t, http.StatusForbidden, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), "SECURITY_PROOF_REQUIRED")
+
+			require.NoError(t, db.First(&user, user.Id).Error)
+			assert.Equal(t, common.UserStatusEnabled, user.Status)
+			assert.Equal(t, common.RoleCommonUser, user.Role)
+			var deletedCount int64
+			require.NoError(t, db.Unscoped().Model(&model.User{}).Where("id = ? AND deleted_at IS NOT NULL", user.Id).Count(&deletedCount).Error)
+			assert.Zero(t, deletedCount)
+		})
+	}
+}
+
+func TestManageUserProofIsBoundToTargetAndActionAndConsumedOnce(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	previousMaster := common.IsMasterNode
+	common.IsMasterNode = false
+	t.Cleanup(func() { common.IsMasterNode = previousMaster })
+	require.NoError(t, authz.Init(db))
+	createQuotaTestOperator(t, db, common.RoleRootUser)
+	target := model.User{
+		Username: "proof-target", Password: "password", Role: common.RoleAdminUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "proof-target-aff",
+	}
+	other := model.User{
+		Username: "proof-other", Password: "password", Role: common.RoleAdminUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "proof-other-aff",
+	}
+	require.NoError(t, db.Create(&target).Error)
+	require.NoError(t, db.Create(&other).Error)
+
+	// A proof issued for a different managed account must not authorize this one.
+	wrongTargetProof := issueManageUserProof(t, 9999, service.VerificationOperation{
+		Scope:   service.VerificationScopeAdminUserManage,
+		Context: []byte(fmt.Sprintf(`{"user_id":%d,"action":"demote"}`, other.Id)),
+	})
+	recorder := performManageUserRequestWithProof(t, fmt.Sprintf(`{"id":%d,"action":"demote"}`, target.Id), wrongTargetProof)
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "SECURITY_PROOF_CONTEXT_MISMATCH")
+
+	// A proof for the right target but another action must not pass either.
+	wrongActionProof := issueManageUserProof(t, 9999, service.VerificationOperation{
+		Scope:   service.VerificationScopeAdminUserManage,
+		Context: []byte(fmt.Sprintf(`{"user_id":%d,"action":"promote"}`, target.Id)),
+	})
+	recorder = performManageUserRequestWithProof(t, fmt.Sprintf(`{"id":%d,"action":"demote"}`, target.Id), wrongActionProof)
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "SECURITY_PROOF_CONTEXT_MISMATCH")
+
+	// The correct proof demotes once, and its second use is rejected.
+	proof := issueManageUserProof(t, 9999, service.VerificationOperation{
+		Scope:   service.VerificationScopeAdminUserManage,
+		Context: []byte(fmt.Sprintf(`{"user_id":%d,"action":"demote"}`, target.Id)),
+	})
+	recorder = performManageUserRequestWithProof(t, fmt.Sprintf(`{"id":%d,"action":"demote"}`, target.Id), proof)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	require.NoError(t, db.First(&target, target.Id).Error)
+	assert.Equal(t, common.RoleCommonUser, target.Role)
+
+	recorder = performManageUserRequestWithProof(t, fmt.Sprintf(`{"id":%d,"action":"demote"}`, target.Id), proof)
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "SECURITY_PROOF_CONSUMED")
+}
+
 func TestManageUserDisableAdvancesAuthVersionOnceAndRevokesSession(t *testing.T) {
 	db := setupManageUserTestDB(t)
+	createQuotaTestOperator(t, db, common.RoleRootUser)
 	now := time.Now().Unix()
 	user := model.User{
 		Username: "managed-disable-user", Password: "password", Role: common.RoleCommonUser,
@@ -166,7 +311,11 @@ func TestManageUserDisableAdvancesAuthVersionOnceAndRevokesSession(t *testing.T)
 		LastActiveAt: now, ExpiresAt: now + 3600,
 	}).Error)
 
-	recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"disable"}`, user.Id))
+	recorder := performManageUserRequestWithProof(t, fmt.Sprintf(`{"id":%d,"action":"disable"}`, user.Id),
+		issueManageUserProof(t, 9999, service.VerificationOperation{
+			Scope:   service.VerificationScopeAdminUserManage,
+			Context: []byte(fmt.Sprintf(`{"user_id":%d,"action":"disable"}`, user.Id)),
+		}))
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
 
@@ -185,6 +334,7 @@ func TestManageUserDemoteAdvancesAuthVersionAndRevokesSessionsOnce(t *testing.T)
 	common.IsMasterNode = false
 	t.Cleanup(func() { common.IsMasterNode = previousMaster })
 	require.NoError(t, authz.Init(db))
+	createQuotaTestOperator(t, db, common.RoleRootUser)
 
 	now := time.Now().Unix()
 	user := model.User{
@@ -207,7 +357,11 @@ func TestManageUserDemoteAdvancesAuthVersionAndRevokesSessionsOnce(t *testing.T)
 		}
 	}))
 
-	recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"demote"}`, user.Id))
+	recorder := performManageUserRequestWithProof(t, fmt.Sprintf(`{"id":%d,"action":"demote"}`, user.Id),
+		issueManageUserProof(t, 9999, service.VerificationOperation{
+			Scope:   service.VerificationScopeAdminUserManage,
+			Context: []byte(fmt.Sprintf(`{"user_id":%d,"action":"demote"}`, user.Id)),
+		}))
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
 
@@ -227,13 +381,18 @@ func TestManageUserDemoteAdvancesAuthVersionAndRevokesSessionsOnce(t *testing.T)
 
 func TestManageUserDeleteReturnsImmediatelyAndUnknownActionFails(t *testing.T) {
 	db := setupManageUserTestDB(t)
+	createQuotaTestOperator(t, db, common.RoleRootUser)
 	deleted := model.User{
 		Username: "managed-delete-user", Password: "password", Role: common.RoleCommonUser,
 		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "delete-aff",
 	}
 	require.NoError(t, db.Create(&deleted).Error)
 
-	recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"delete"}`, deleted.Id))
+	recorder := performManageUserRequestWithProof(t, fmt.Sprintf(`{"id":%d,"action":"delete"}`, deleted.Id),
+		issueManageUserProof(t, 9999, service.VerificationOperation{
+			Scope:   service.VerificationScopeAdminUserDelete,
+			Context: []byte(fmt.Sprintf(`{"user_id":%d}`, deleted.Id)),
+		}))
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
 	var deletedCount int64
 	require.NoError(t, db.Unscoped().Model(&model.User{}).Where("id = ? AND deleted_at IS NOT NULL", deleted.Id).Count(&deletedCount).Error)
@@ -256,8 +415,15 @@ func createQuotaTestOperator(t *testing.T, db *gorm.DB, role int) model.User {
 	if role == 0 {
 		role = common.RoleRootUser
 	}
-	operator := model.User{Id: 9999, Username: "root-operator", Role: role, Status: common.UserStatusEnabled, AuthVersion: 1, AffCode: "root-operator-aff"}
+	operator := model.User{Id: 9999, Username: "root-operator", Password: "operator-password", Role: role, Status: common.UserStatusEnabled, AuthVersion: 1, AffCode: "root-operator-aff"}
 	require.NoError(t, db.Create(&operator).Error)
+	// A live dashboard session backs the step-up proofs minted for this operator.
+	now := time.Now().Unix()
+	require.NoError(t, db.Create(&model.UserSession{
+		SID: "manage-operator-session", UserID: operator.Id, Version: 1, UserAuthVersion: 1,
+		Status: model.UserSessionStatusActive, RefreshHash: "manage-operator-refresh",
+		LoginMethod: "password", LastActiveAt: now, ExpiresAt: now + 3600,
+	}).Error)
 	return operator
 }
 

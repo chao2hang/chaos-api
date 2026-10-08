@@ -38,25 +38,34 @@ export async function fetchUsers(
 
 /** Create a new user. */
 export async function createUser(
-  data: UserFormData
+  data: UserFormData,
+  proofToken?: string
 ): Promise<ApiResponse<User>> {
-  const res = await api.post('/api/user/', data)
+  const res = await api.post('/api/user/', data, {
+    headers: proofToken ? { 'X-Security-Proof': proofToken } : undefined,
+  })
   return res.data
 }
 
 /** Update an existing user. */
 export async function updateUser(
-  data: UpdateUserPayload
+  data: UpdateUserPayload,
+  proofToken?: string
 ): Promise<ApiResponse<Partial<User>>> {
-  const res = await api.put('/api/user/', data)
+  const res = await api.put('/api/user/', data, {
+    headers: proofToken ? { 'X-Security-Proof': proofToken } : undefined,
+  })
   return res.data
 }
 
 /** Promote/demote/enable/disable/delete a user. */
 export async function manageUser(
-  payload: ManageUserPayload
+  payload: ManageUserPayload,
+  proofToken?: string
 ): Promise<ApiResponse<Partial<User>>> {
-  const res = await api.post('/api/user/manage', payload)
+  const res = await api.post('/api/user/manage', payload, {
+    headers: proofToken ? { 'X-Security-Proof': proofToken } : undefined,
+  })
   return res.data
 }
 
@@ -69,16 +78,24 @@ export async function adjustUserQuota(
 }
 
 /** Reset a user's passkey registration. */
-export async function resetUserPasskey(id: number): Promise<ApiResponse<null>> {
-  const res = await api.delete(`/api/user/${id}/reset_passkey`)
+export async function resetUserPasskey(
+  id: number,
+  proofToken?: string
+): Promise<ApiResponse<null>> {
+  const res = await api.delete(`/api/user/${id}/reset_passkey`, {
+    headers: proofToken ? { 'X-Security-Proof': proofToken } : undefined,
+  })
   return res.data
 }
 
 /** Reset a user's two-factor authentication setup. */
 export async function resetUserTwoFactor(
-  id: number
+  id: number,
+  proofToken?: string
 ): Promise<ApiResponse<null>> {
-  const res = await api.delete(`/api/user/${id}/2fa`)
+  const res = await api.delete(`/api/user/${id}/2fa`, {
+    headers: proofToken ? { 'X-Security-Proof': proofToken } : undefined,
+  })
   return res.data
 }
 

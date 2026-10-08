@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
 	"strings"
 
@@ -34,6 +35,15 @@ const (
 	VerificationScopePasswordSet         = "account.password.set"
 	VerificationScopePasswordChange      = "account.password.change"
 	VerificationScopeAccountDelete       = "account.delete"
+	// Administrative step-up scopes bind the managed user into the proof so a
+	// proof issued for one account cannot be replayed against another.
+	VerificationScopeAdminUserCreate       = "admin.user.create"
+	VerificationScopeAdminUserUpdate       = "admin.user.update"
+	VerificationScopeAdminUserDelete       = "admin.user.delete"
+	VerificationScopeAdminUserManage       = "admin.user.manage"
+	VerificationScopeAdminUserPasskeyReset = "admin.user.passkey.reset"
+	VerificationScopeAdminUserTwoFADisable = "admin.user.2fa.disable"
+	VerificationScopeAdminUserBindingClear = "admin.user.binding.clear"
 )
 
 var (
@@ -65,6 +75,28 @@ type AccountBindingContext struct {
 type AccountUnbindingContext struct {
 	ProviderID int `json:"provider_id"`
 }
+
+type AdminUserContext struct {
+	UserID int `json:"user_id"`
+}
+
+type AdminUserManageContext struct {
+	UserID int    `json:"user_id"`
+	Action string `json:"action"`
+}
+
+type AdminUserCreateContext struct {
+	Role int `json:"role"`
+}
+
+type AdminUserBindingClearContext struct {
+	UserID     int `json:"user_id"`
+	ProviderID int `json:"provider_id"`
+}
+
+// adminUserManageActions are the ManageUser actions that change a user's
+// status or role. Quota adjustments are not gated and deletion has its own scope.
+var adminUserManageActions = []string{"disable", "enable", "promote", "demote"}
 
 // VerificationBinding contains no original operation parameters. It can safely
 // travel through a signed proof or a server-owned interactive verification flow.
@@ -125,6 +157,31 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 			return VerificationBinding{}, ErrVerificationContextInvalid
 		}
 		normalized = struct{}{}
+	case VerificationScopeAdminUserUpdate, VerificationScopeAdminUserDelete,
+		VerificationScopeAdminUserPasskeyReset, VerificationScopeAdminUserTwoFADisable:
+		var context AdminUserContext
+		if len(fields) != 1 || common.Unmarshal(fields["user_id"], &context.UserID) != nil || context.UserID <= 0 {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = context
+	case VerificationScopeAdminUserManage:
+		var context AdminUserManageContext
+		if len(fields) != 2 || common.Unmarshal(operation.Context, &context) != nil || context.UserID <= 0 || !slices.Contains(adminUserManageActions, context.Action) {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = context
+	case VerificationScopeAdminUserCreate:
+		var context AdminUserCreateContext
+		if len(fields) != 1 || common.Unmarshal(fields["role"], &context.Role) != nil || !common.IsValidateRole(context.Role) {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = context
+	case VerificationScopeAdminUserBindingClear:
+		var context AdminUserBindingClearContext
+		if len(fields) != 2 || common.Unmarshal(operation.Context, &context) != nil || context.UserID <= 0 || context.ProviderID <= 0 {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = context
 	default:
 		return VerificationBinding{}, ErrProofScope
 	}
@@ -186,7 +243,11 @@ func securityVerificationPolicy(scope string, state model.UserVerificationState)
 	case VerificationScopePasskeyRegister, VerificationScopeTwoFASetup,
 		VerificationScopeAccessTokenGenerate, VerificationScopeAccessTokenRevoke,
 		VerificationScopeAccountBind, VerificationScopeAccountUnbind,
-		VerificationScopePasswordSet, VerificationScopePasswordChange, VerificationScopeAccountDelete:
+		VerificationScopePasswordSet, VerificationScopePasswordChange, VerificationScopeAccountDelete,
+		VerificationScopeAdminUserCreate, VerificationScopeAdminUserUpdate,
+		VerificationScopeAdminUserDelete, VerificationScopeAdminUserManage,
+		VerificationScopeAdminUserPasskeyReset, VerificationScopeAdminUserTwoFADisable,
+		VerificationScopeAdminUserBindingClear:
 		if scope == VerificationScopeAccountDelete && state.Role == common.RoleRootUser {
 			return nil, ErrVerificationForbidden
 		}

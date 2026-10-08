@@ -218,6 +218,11 @@ func AdminDisable2FA(c *gin.Context) {
 		})
 		return
 	}
+	// Disabling the target user's 2FA removes their strongest second factor;
+	// require step-up verification bound to the managed account.
+	if requireAdminUserProof(c, service.VerificationScopeAdminUserTwoFADisable, service.AdminUserContext{UserID: targetUser.Id}) == nil {
+		return
+	}
 
 	// 禁用2FA
 	if err := model.DisableTwoFAWithAuthVersion(userId); err != nil {
