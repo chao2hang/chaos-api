@@ -288,4 +288,3 @@ func TestGeminiThinkingControlsConvertBestEffort(t *testing.T) {
 		assert.True(t, hasHostDiagnosticCode(info.ConversionDiagnostics(), "gemini_budget_to_level"))
 	})
 }
-
