@@ -969,6 +969,12 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	// Only the four canonical roles are valid; anything else (5, -1, 99, ...)
+	// would otherwise be written verbatim by an operator above it.
+	if !common.IsValidateRole(user.Role) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	if user.DisplayName == "" {
 		user.DisplayName = user.Username
 	}

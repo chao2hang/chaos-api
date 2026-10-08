@@ -93,6 +93,65 @@ func performManageUserRequest(t *testing.T, body string) *httptest.ResponseRecor
 	return recorder
 }
 
+func performCreateUserRequest(t *testing.T, body string, operatorRole int) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("id", 9999)
+	c.Set("role", operatorRole)
+	c.Set("username", "root-operator")
+	c.Set(common.RequestIdKey, "create-user-test-request")
+	CreateUser(c)
+	return recorder
+}
+
+func TestCreateUserRejectsNonStandardRole(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		role         int
+		operatorRole int
+	}{
+		{"between common and admin", 5, common.RoleAdminUser},
+		{"negative", -1, common.RoleAdminUser},
+		{"between admin and root", 99, common.RoleRootUser},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupManageUserTestDB(t)
+			createQuotaTestOperator(t, db, tc.operatorRole)
+			username := fmt.Sprintf("odd-role-%d", tc.role)
+			body := fmt.Sprintf(`{"username":%q,"password":"member-password-1","role":%d}`, username, tc.role)
+			recorder := performCreateUserRequest(t, body, tc.operatorRole)
+			assert.Equal(t, http.StatusOK, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), `"success":false`)
+			var count int64
+			require.NoError(t, db.Model(&model.User{}).Where("username = ?", username).Count(&count).Error)
+			assert.Zero(t, count)
+		})
+	}
+}
+
+func TestCreateUserAcceptsCanonicalRole(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	previousMaster := common.IsMasterNode
+	common.IsMasterNode = false
+	t.Cleanup(func() { common.IsMasterNode = previousMaster })
+	require.NoError(t, authz.Init(db))
+	createQuotaTestOperator(t, db, common.RoleRootUser)
+	recorder := performCreateUserRequest(
+		t,
+		`{"username":"valid-role-user","password":"member-password-1","role":1}`,
+		common.RoleRootUser,
+	)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	var created model.User
+	require.NoError(t, db.First(&created, "username = ?", "valid-role-user").Error)
+	assert.Equal(t, common.RoleCommonUser, created.Role)
+}
+
 func TestManageUserDisableAdvancesAuthVersionOnceAndRevokesSession(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	now := time.Now().Unix()
