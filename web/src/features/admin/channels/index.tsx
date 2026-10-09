@@ -24,22 +24,24 @@ import { toast } from 'sonner'
 
 import { AdminPage } from '@/components/admin/admin-page'
 
-import { getChannelGroups, getChannelList, batchSetChannelTag, setTagChannels } from './api'
+import {
+  getChannelGroups,
+  getChannelList,
+  batchSetChannelTag,
+  setTagChannels,
+} from './api'
 import { BatchToolbar } from './components/batch-toolbar'
 import { ChannelDialog } from './components/channel-dialog'
 import { ChannelFilterBar } from './components/channel-filter-bar'
-import { ChannelsTable } from './components/channels-table'
 import { ChannelsOpsMenu } from './components/channels-ops-menu'
+import { ChannelsTable } from './components/channels-table'
 import { CodexUsageDialog } from './components/codex-usage-dialog'
 import { ModelTestDialog } from './components/model-test-dialog'
 import { MultiKeyDialog } from './components/multi-key-dialog'
 import { OllamaDialog } from './components/ollama-dialog'
 import { UpstreamUpdatesDialog } from './components/upstream-updates-dialog'
 import { useChannelActions } from './hooks/use-channel-actions'
-import {
-  buildChannelListQuery,
-  type ChannelListFilters,
-} from './lib/query'
+import { buildChannelListQuery, type ChannelListFilters } from './lib/query'
 import type { Channel, ChannelsSearch } from './types'
 
 export interface ChannelsPageProps {
@@ -152,11 +154,11 @@ export function ChannelsPage(props: ChannelsPageProps) {
         <div className='flex items-center gap-2'>
           <ChannelsOpsMenu />
           <button
-            type="button"
+            type='button'
             onClick={openCreate}
-            className="btn-industrial-primary text-xs !h-9 px-3.5 cursor-pointer inline-flex items-center gap-1.5"
+            className='btn-industrial-primary inline-flex !h-9 cursor-pointer items-center gap-1.5 px-3.5 text-xs'
           >
-            <PlusIcon className="size-3.5" />
+            <PlusIcon className='size-3.5' />
             {t('Create channel')}
           </button>
         </div>
@@ -176,7 +178,9 @@ export function ChannelsPage(props: ChannelsPageProps) {
           selectedIds={selectedIds}
           disabled={actionPending}
           onClear={() => setSelectedIds([])}
-          onBatchStatus={(ids, status) => actions.batchStatus.mutate({ ids, status })}
+          onBatchStatus={(ids, status) =>
+            actions.batchStatus.mutate({ ids, status })
+          }
           onBatchDelete={(ids) => actions.batchDelete.mutate(ids)}
           onBatchTag={(ids, tag) => batchTag.mutate({ ids, tag })}
         />
@@ -192,11 +196,18 @@ export function ChannelsPage(props: ChannelsPageProps) {
         onTagStatus={(tag, status) => tagStatus.mutate({ tag, status })}
         sortBy={props.search.sortBy}
         sortOrder={props.search.sortOrder}
-        onSortChange={(sortBy, sortOrder) => props.onFilterChange({ sortBy, sortOrder })}
+        onSortChange={(sortBy, sortOrder) =>
+          props.onFilterChange({ sortBy, sortOrder })
+        }
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         onPageChange={(page, pageSize) => {
           setSelectedIds([])
+          try {
+            localStorage.setItem('page-size', String(pageSize))
+          } catch {
+            /* ignore */
+          }
           props.onFilterChange({ page, pageSize })
         }}
         onEdit={openEdit}

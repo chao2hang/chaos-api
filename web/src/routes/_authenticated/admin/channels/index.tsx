@@ -24,7 +24,21 @@ import type { ChannelsSearch } from '@/features/admin/channels/types'
 
 const channelsSearchSchema = z.object({
   page: z.number().catch(1),
-  pageSize: z.number().catch(10),
+  pageSize: z
+    .number()
+    .refine((n) => n > 0)
+    .catch(() => {
+      if (typeof window === 'undefined') return 10
+      try {
+        const stored = Number.parseInt(
+          localStorage.getItem('page-size') ?? '',
+          10
+        )
+        return stored > 0 ? stored : 10
+      } catch {
+        return 10
+      }
+    }),
   filter: z.string().catch(''),
   status: z.array(z.string()).catch([]),
   type: z.array(z.string()).catch([]),
