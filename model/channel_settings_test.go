@@ -108,6 +108,17 @@ func TestAdvancedCustomChannelRequiresModelListRouteOnlyWhenUpdateChecksEnabled(
 	}
 }
 
+func TestAdvancedCustomChannelWithoutConfigDefaultsToStandardRoutes(t *testing.T) {
+	channel := &Channel{Type: constant.ChannelTypeAdvancedCustom, Key: "sk-test", Name: "custom"}
+	require.NoError(t, channel.ValidateSettings())
+	settings := channel.GetOtherSettings()
+	require.NotNil(t, settings.AdvancedCustom)
+	require.NotEmpty(t, settings.AdvancedCustom.Routes)
+	route, ok := settings.AdvancedCustom.ModelListRoute()
+	require.True(t, ok)
+	assert.Equal(t, dto.AdvancedCustomModelListPath, route.IncomingPath)
+}
+
 func TestInferencePresetSettingsAndDatabaseRoundTrip(t *testing.T) {
 	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
 		t.Run(dialect, func(t *testing.T) {

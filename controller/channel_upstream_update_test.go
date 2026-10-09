@@ -241,6 +241,41 @@ func TestFetchModelsAdvancedCustomCreatePreview(t *testing.T) {
 	require.Equal(t, "Bearer create-preview-key", <-receivedAuthorization)
 }
 
+func TestFetchModelsAdvancedCustomCreatePreviewDefaultConfig(t *testing.T) {
+	receivedAuthorization := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, dto.AdvancedCustomModelListPath, r.URL.Path)
+		receivedAuthorization <- r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"data":[{"id":"default-preview-model"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	req := fetchModelsRequest{
+		BaseURL: &baseURL,
+		Type:    constant.ChannelTypeAdvancedCustom,
+		Key:     "default-preview-key",
+	}
+	body, err := common.Marshal(req)
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	var response struct {
+		Success bool     `json:"success"`
+		Message string   `json:"message"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success, response.Message)
+	require.Equal(t, []string{"default-preview-model"}, response.Data)
+	require.Equal(t, "Bearer default-preview-key", <-receivedAuthorization)
+}
+
 func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	receivedHeaders := make(chan http.Header, 1)

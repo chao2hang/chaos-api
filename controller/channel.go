@@ -1167,19 +1167,37 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
-	baseURLFromPluginDefault := channel.Type == constant.ChannelTypeTaskPlugin &&
-		(channel.BaseURL == nil || strings.TrimSpace(*channel.BaseURL) == "")
-	// 使用统一的校验函数
-	if err := validateChannel(&channel.Channel, false); err != nil {
+	// Preserve existing ChannelInfo, OtherSettings, and other unprovided fields
+	originChannel, err := model.GetChannelById(channel.Id, true)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
-	originChannel, err := model.GetChannelById(channel.Id, true)
-	if err != nil {
+	if _, ok := requestData["settings"]; !ok {
+		channel.OtherSettings = originChannel.OtherSettings
+	}
+	if _, ok := requestData["setting"]; !ok {
+		channel.Setting = originChannel.Setting
+	}
+	if _, ok := requestData["other"]; !ok {
+		channel.Other = originChannel.Other
+	}
+	if _, ok := requestData["type"]; !ok {
+		channel.Type = originChannel.Type
+	}
+	if _, ok := requestData["base_url"]; !ok {
+		channel.BaseURL = originChannel.BaseURL
+	}
+	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
+	channel.ChannelInfo = originChannel.ChannelInfo
+
+	baseURLFromPluginDefault := channel.Type == constant.ChannelTypeTaskPlugin &&
+		(channel.BaseURL == nil || strings.TrimSpace(*channel.BaseURL) == "")
+	// 使用统一的校验函数
+	if err := validateChannel(&channel.Channel, false); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -1206,9 +1224,6 @@ func UpdateChannel(c *gin.Context) {
 		})
 		return
 	}
-
-	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
-	channel.ChannelInfo = originChannel.ChannelInfo
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
@@ -1502,15 +1517,24 @@ func buildAdvancedCustomModelPreviewChannel(savedChannel *model.Channel, req fet
 	if req.AdvancedCustom != nil {
 		rawConfig := strings.TrimSpace(*req.AdvancedCustom)
 		if rawConfig == "" {
+			if channel.Type == constant.ChannelTypeAdvancedCustom {
+				settings.AdvancedCustom = common.DefaultAdvancedCustomConfig()
+			} else {
+				return nil, fmt.Errorf("advanced_custom is required")
+			}
+		} else {
+			var config dto.AdvancedCustomConfig
+			if err := common.UnmarshalJsonStr(rawConfig, &config); err != nil {
+				return nil, err
+			}
+			settings.AdvancedCustom = &config
+		}
+	} else if settings.AdvancedCustom == nil || (channel.Type == constant.ChannelTypeAdvancedCustom && len(settings.AdvancedCustom.Routes) == 0) {
+		if channel.Type == constant.ChannelTypeAdvancedCustom {
+			settings.AdvancedCustom = common.DefaultAdvancedCustomConfig()
+		} else {
 			return nil, fmt.Errorf("advanced_custom is required")
 		}
-		var config dto.AdvancedCustomConfig
-		if err := common.UnmarshalJsonStr(rawConfig, &config); err != nil {
-			return nil, err
-		}
-		settings.AdvancedCustom = &config
-	} else if settings.AdvancedCustom == nil {
-		return nil, fmt.Errorf("advanced_custom is required")
 	}
 	channel.SetOtherSettings(settings)
 

@@ -1068,8 +1068,13 @@ func (channel *Channel) ValidateSettings() error {
 		channelOtherSettings.AdvancedCustom = preset
 	}
 	if constant.IsAdvancedCustomChannel(channel.Type) {
-		if channelOtherSettings.AdvancedCustom == nil {
-			return fmt.Errorf("advanced_custom is required")
+		if channelOtherSettings.AdvancedCustom == nil || (channel.Type == constant.ChannelTypeAdvancedCustom && len(channelOtherSettings.AdvancedCustom.Routes) == 0) {
+			if channel.Type == constant.ChannelTypeAdvancedCustom {
+				channelOtherSettings.AdvancedCustom = common.DefaultAdvancedCustomConfig()
+				channel.SetOtherSettings(*channelOtherSettings)
+			} else {
+				return fmt.Errorf("advanced_custom is required")
+			}
 		}
 	}
 	if channelOtherSettings.AdvancedCustom != nil {

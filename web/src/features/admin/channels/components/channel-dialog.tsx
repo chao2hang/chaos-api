@@ -263,6 +263,9 @@ export function ChannelDialog(props: ChannelDialogProps) {
         const res = await updateChannel({
           ...payload,
           id: editingChannel.id,
+          settings: editingChannel.settings,
+          other: editingChannel.other,
+          setting: editingChannel.setting,
         })
         if (res.success) {
           toast.success(t('Channel updated'))

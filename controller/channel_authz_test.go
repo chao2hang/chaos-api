@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/chaos-api/chaos-api/common"
+	"github.com/chaos-api/chaos-api/constant"
 	"github.com/chaos-api/chaos-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -149,6 +151,102 @@ func TestUpdateChannelRejectsStatusField(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	assert.False(t, response.Success)
+}
+
+func TestUpdateChannelAdvancedCustomPreservesSettings(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	model.InitDB()
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+	})
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.User{}, &model.Log{}, &model.AuditLog{}))
+	model.LOG_DB = model.DB
+	_ = model.DB.Create(&model.User{Id: 1, Username: "root", Role: common.RoleRootUser})
+
+	baseURL := "https://api.example.com"
+	ch := &model.Channel{
+		Type:    constant.ChannelTypeAdvancedCustom,
+		Name:    "advanced-custom-ch",
+		Key:     "sk-test",
+		BaseURL: &baseURL,
+		Models:  "gpt-4o",
+		Group:   "default",
+	}
+	require.NoError(t, ch.ValidateSettings())
+	require.NoError(t, model.DB.Create(ch).Error)
+	t.Cleanup(func() {
+		_ = model.DB.Delete(ch)
+	})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleRootUser)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/channel/",
+		bytes.NewBufferString(fmt.Sprintf(`{"id":%d,"name":"advanced-custom-ch-renamed","models":"gpt-4o,gpt-4o-mini"}`, ch.Id)),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	UpdateChannel(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.True(t, response.Success, response.Message)
+
+	updated, err := model.GetChannelById(ch.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "advanced-custom-ch-renamed", updated.Name)
+	assert.Equal(t, "gpt-4o,gpt-4o-mini", updated.Models)
+	assert.NotEmpty(t, updated.OtherSettings)
+}
+
+func TestAddChannelAdvancedCustomDefaultsConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	model.InitDB()
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+	})
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.User{}, &model.Log{}, &model.AuditLog{}))
+	model.LOG_DB = model.DB
+	_ = model.DB.Create(&model.User{Id: 1, Username: "root", Role: common.RoleRootUser})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleRootUser)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/channel",
+		bytes.NewBufferString(`{"mode":"single","channel":{"name":"new-adv-channel","type":58,"key":"sk-key","base_url":"https://api.example.com","models":"gpt-4o","group":"default"}}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	AddChannel(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.True(t, response.Success, response.Message)
+
+	var created model.Channel
+	require.NoError(t, model.DB.Where("name = ?", "new-adv-channel").First(&created).Error)
+	assert.Equal(t, constant.ChannelTypeAdvancedCustom, created.Type)
+	settings := created.GetOtherSettings()
+	require.NotNil(t, settings.AdvancedCustom)
+	require.NotEmpty(t, settings.AdvancedCustom.Routes)
 }
 
 func TestChannelStatusValidation(t *testing.T) {
