@@ -2663,6 +2663,7 @@
     "Keep affinity when channel is disabled": "渠道禁用后保留亲和",
     "Keep enabled if you need to proxy requests for different upstream accounts.": "如果需要为不同上游账户代理请求，请保持启用。",
     "Keep enough balance before production traffic": "生产流量前保持充足余额",
+    "Keep only successful models": "只保留成功模型",
     "Keep original value": "保留原值",
     "Keep original value (skip if target exists)": "保留原值（目标已有值时不覆盖）",
     "Keep the platform ready": "保持平台就绪",

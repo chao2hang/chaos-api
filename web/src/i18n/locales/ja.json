@@ -2663,6 +2663,7 @@
     "Keep affinity when channel is disabled": "チャネル無効時にアフィニティを保持",
     "Keep enabled if you need to proxy requests for different upstream accounts.": "異なる上流アカウントのリクエストをプロキシする必要がある場合は有効にしたままにしてください。",
     "Keep enough balance before production traffic": "本番トラフィック前に十分な残高を確保",
+    "Keep only successful models": "成功したモデルのみ保持",
     "Keep original value": "元の値を保持",
     "Keep original value (skip if target exists)": "元の値を保持（ターゲットが存在する場合はスキップ）",
     "Keep the platform ready": "プラットフォームを準備状態に保つ",

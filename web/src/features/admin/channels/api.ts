@@ -266,6 +266,9 @@ export async function testChannel(
   const res = await api.get(`/api/channel/test/${id}`, {
     params,
     signal: options?.signal,
+    skipBusinessError: true,
+    skipErrorHandler: true,
+    disableDuplicate: true,
   })
   return res.data
 }

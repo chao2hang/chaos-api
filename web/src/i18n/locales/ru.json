@@ -2663,6 +2663,7 @@
     "Keep affinity when channel is disabled": "Сохранять привязку при отключении канала",
     "Keep enabled if you need to proxy requests for different upstream accounts.": "Оставьте включённым, если нужно проксировать запросы для разных upstream-аккаунтов.",
     "Keep enough balance before production traffic": "Поддерживайте достаточный баланс перед рабочим трафиком",
+    "Keep only successful models": "Оставить только успешные модели",
     "Keep original value": "Сохранить исходное значение",
     "Keep original value (skip if target exists)": "Сохранить исходное значение (пропустить если цель существует)",
     "Keep the platform ready": "Поддерживайте платформу в готовности",

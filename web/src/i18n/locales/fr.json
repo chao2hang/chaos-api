@@ -2663,6 +2663,7 @@
     "Keep affinity when channel is disabled": "Conserver l'affinité lorsque le canal est désactivé",
     "Keep enabled if you need to proxy requests for different upstream accounts.": "Gardez activé si vous devez proxifier les requêtes pour différents comptes en amont.",
     "Keep enough balance before production traffic": "Gardez un solde suffisant avant le trafic de production",
+    "Keep only successful models": "Ne conserver que les modèles réussis",
     "Keep original value": "Conserver la valeur originale",
     "Keep original value (skip if target exists)": "Conserver la valeur originale (ignorer si la cible existe)",
     "Keep the platform ready": "Gardez la plateforme prête",

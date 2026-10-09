@@ -2663,6 +2663,7 @@
     "Keep affinity when channel is disabled": "Keep affinity when channel is disabled",
     "Keep enabled if you need to proxy requests for different upstream accounts.": "Keep enabled if you need to proxy requests for different upstream accounts.",
     "Keep enough balance before production traffic": "Keep enough balance before production traffic",
+    "Keep only successful models": "Keep only successful models",
     "Keep original value": "Keep original value",
     "Keep original value (skip if target exists)": "Keep original value (skip if target exists)",
     "Keep the platform ready": "Keep the platform ready",

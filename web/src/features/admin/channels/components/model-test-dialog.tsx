@@ -16,10 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-import { Loader2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
   Checkbox,
   Dialog,
@@ -38,13 +34,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@chaos_team/chaos-ui'
+import { useQueryClient } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { type ModelTestItem, useModelTestRunner } from '../hooks/use-model-test-runner'
-import type { Channel } from '../types'
+import { updateChannel } from '../api'
+import {
+  type ModelTestItem,
+  useModelTestRunner,
+} from '../hooks/use-model-test-runner'
 import { formatResponseTime, splitModelNames } from '../lib/format'
+import type { Channel } from '../types'
 
 export interface ModelTestDialogProps {
   channel: Channel | null
@@ -84,7 +89,12 @@ function TestStatusCell(props: { item: ModelTestItem }) {
     cancelled: t('Cancelled'),
   }
   return (
-    <span className={cn('inline-flex items-center gap-1', statusClassName(props.item.status))}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1',
+        statusClassName(props.item.status)
+      )}
+    >
       {props.item.status === 'running' && (
         <Loader2 className='size-3 animate-spin' aria-hidden='true' />
       )}
@@ -98,39 +108,52 @@ function TestResultTable(props: { items: ModelTestItem[] }) {
   const { t } = useTranslation()
   if (props.items.length === 0) {
     return (
-      <div className='flex flex-1 items-center justify-center border border-zinc-800 bg-[#0a0a0a] py-10 text-center text-xs text-zinc-600 mono'>
+      <div className='mono flex flex-1 items-center justify-center border border-zinc-800 bg-[#0a0a0a] py-10 text-center text-xs text-zinc-600'>
         {t('Run a test to see latency, TTFT and tokens per second.')}
       </div>
     )
   }
   return (
-    <div className='flex-1 min-h-0 border border-zinc-800 bg-[#0a0a0a] overflow-auto admin-no-scrollbar'>
-      <table className='w-full text-left text-xs mono whitespace-nowrap'>
-        <thead className='sticky top-0 bg-zinc-900 text-zinc-500 uppercase border-b border-zinc-800'>
+    <div className='admin-no-scrollbar min-h-0 flex-1 overflow-auto border border-zinc-800 bg-[#0a0a0a]'>
+      <table className='mono w-full text-left text-xs whitespace-nowrap'>
+        <thead className='sticky top-0 border-b border-zinc-800 bg-zinc-900 text-zinc-500 uppercase'>
           <tr>
-            <th className='py-2 px-3 font-medium'>{t('Model')}</th>
-            <th className='py-2 px-3 font-medium'>{t('Status')}</th>
-            <th className='py-2 px-3 font-medium'>{t('Time')}</th>
-            <th className='py-2 px-3 font-medium'>{t('TTFT')}</th>
-            <th className='py-2 px-3 font-medium'>{t('Tokens/s')}</th>
-            <th className='py-2 px-3 font-medium'>{t('Prompt tokens')}</th>
-            <th className='py-2 px-3 font-medium'>{t('Completion tokens')}</th>
-            <th className='py-2 px-3 font-medium text-right'>{t('Total tokens')}</th>
+            <th className='px-3 py-2 font-medium'>{t('Model')}</th>
+            <th className='px-3 py-2 font-medium'>{t('Status')}</th>
+            <th className='px-3 py-2 font-medium'>{t('Time')}</th>
+            <th className='px-3 py-2 font-medium'>{t('TTFT')}</th>
+            <th className='px-3 py-2 font-medium'>{t('Tokens/s')}</th>
+            <th className='px-3 py-2 font-medium'>{t('Prompt tokens')}</th>
+            <th className='px-3 py-2 font-medium'>{t('Completion tokens')}</th>
+            <th className='px-3 py-2 text-right font-medium'>
+              {t('Total tokens')}
+            </th>
           </tr>
         </thead>
         <tbody className='divide-y divide-zinc-900 text-zinc-300'>
           {props.items.map((item) => (
-            <tr key={item.model} className='hover:bg-zinc-900/50 transition-colors'>
-              <td className='py-2 px-3 max-w-[180px] truncate text-white' title={item.model}>
+            <tr
+              key={item.model}
+              className='transition-colors hover:bg-zinc-900/50'
+            >
+              <td
+                className='max-w-[180px] truncate px-3 py-2 text-white'
+                title={item.model}
+              >
                 {item.model}
               </td>
-              <td className='py-2 px-3'>
+              <td className='px-3 py-2'>
                 {item.status === 'failed' && item.error ? (
                   <Tooltip>
-                    <TooltipTrigger render={<span className='inline-flex cursor-help' />}>
+                    <TooltipTrigger
+                      render={<span className='inline-flex cursor-help' />}
+                    >
                       <TestStatusCell item={item} />
                     </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-xs break-words text-xs'>
+                    <TooltipContent
+                      side='top'
+                      className='max-w-xs text-xs break-words'
+                    >
                       {item.error}
                     </TooltipContent>
                   </Tooltip>
@@ -138,26 +161,30 @@ function TestResultTable(props: { items: ModelTestItem[] }) {
                   <TestStatusCell item={item} />
                 )}
               </td>
-              <td className='py-2 px-3 tabular-nums'>
+              <td className='px-3 py-2 tabular-nums'>
                 {formatResponseTime((item.time ?? 0) * 1000)}
               </td>
-              <td className='py-2 px-3 tabular-nums'>
-                {item.ttft === undefined ? '-' : formatResponseTime(item.ttft * 1000)}
+              <td className='px-3 py-2 tabular-nums'>
+                {item.ttft === undefined
+                  ? '-'
+                  : formatResponseTime(item.ttft * 1000)}
               </td>
-              <td className='py-2 px-3 tabular-nums'>
-                {item.tokensPerSecond === undefined ? '-' : formatNumber(item.tokensPerSecond)}
+              <td className='px-3 py-2 tabular-nums'>
+                {item.tokensPerSecond === undefined
+                  ? '-'
+                  : formatNumber(item.tokensPerSecond)}
               </td>
-              <td className='py-2 px-3 tabular-nums'>
+              <td className='px-3 py-2 tabular-nums'>
                 {item.usage?.prompt_tokens === undefined
                   ? '-'
                   : formatNumber(item.usage.prompt_tokens)}
               </td>
-              <td className='py-2 px-3 tabular-nums'>
+              <td className='px-3 py-2 tabular-nums'>
                 {item.usage?.completion_tokens === undefined
                   ? '-'
                   : formatNumber(item.usage.completion_tokens)}
               </td>
-              <td className='py-2 px-3 tabular-nums text-right'>
+              <td className='px-3 py-2 text-right tabular-nums'>
                 {item.usage?.total_tokens === undefined
                   ? '-'
                   : formatNumber(item.usage.total_tokens)}
@@ -188,7 +215,11 @@ function ModelTestDialogContent(props: {
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const runner = useModelTestRunner(props.channel.id)
+  const [channelModels, setChannelModels] = useState<string[]>(() =>
+    parseChannelModels(props.channel.models)
+  )
   const [selected, setSelected] = useState<string[]>(() =>
     parseChannelModels(props.channel.models)
   )
@@ -197,10 +228,11 @@ function ModelTestDialogContent(props: {
   const [search, setSearch] = useState('')
   const [stream, setStream] = useState(false)
   const [concurrency, setConcurrency] = useState('3')
+  const [isApplying, setIsApplying] = useState(false)
 
   const allModels = useMemo(
-    () => [...new Set([...parseChannelModels(props.channel.models), ...extraModels])],
-    [props.channel.models, extraModels]
+    () => [...new Set([...channelModels, ...extraModels])],
+    [channelModels, extraModels]
   )
   const filteredModels = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -211,7 +243,8 @@ function ModelTestDialogContent(props: {
   }, [allModels, search])
   const selectedSet = useMemo(() => new Set(selected), [selected])
   const allFilteredSelected =
-    filteredModels.length > 0 && filteredModels.every((model) => selectedSet.has(model))
+    filteredModels.length > 0 &&
+    filteredModels.every((model) => selectedSet.has(model))
 
   const summary = useMemo(() => {
     let passed = 0
@@ -247,7 +280,9 @@ function ModelTestDialogContent(props: {
 
   const toggleModel = (model: string) => {
     setSelected((prev) =>
-      prev.includes(model) ? prev.filter((item) => item !== model) : [...prev, model]
+      prev.includes(model)
+        ? prev.filter((item) => item !== model)
+        : [...prev, model]
     )
   }
 
@@ -274,6 +309,62 @@ function ModelTestDialogContent(props: {
     runner.run(selected, { stream, concurrency: Number(concurrency) })
   }
 
+  const successfulModels = useMemo(
+    () => [
+      ...new Set(
+        runner.items
+          .filter((item) => item.status === 'success')
+          .map((item) => item.model)
+      ),
+    ],
+    [runner.items]
+  )
+
+  const keepSuccessfulModels = async () => {
+    if (successfulModels.length === 0 || runner.running || isApplying) {
+      return
+    }
+    setIsApplying(true)
+    try {
+      const res = await updateChannel({
+        id: props.channel.id,
+        name: props.channel.name,
+        type: props.channel.type,
+        base_url: props.channel.base_url,
+        group: props.channel.group,
+        models: successfulModels.join(','),
+        model_mapping: props.channel.model_mapping,
+        status_code_mapping: props.channel.status_code_mapping,
+        priority: props.channel.priority,
+        weight: props.channel.weight,
+        tag: props.channel.tag,
+        remark: props.channel.remark,
+        test_model: props.channel.test_model,
+        other: props.channel.other,
+        setting: props.channel.setting,
+        settings: props.channel.settings,
+        openai_organization: props.channel.openai_organization,
+        header_override: props.channel.header_override,
+        param_override: props.channel.param_override,
+        auto_ban: props.channel.auto_ban,
+        max_input_tokens: props.channel.max_input_tokens,
+      })
+      if (!res.success) {
+        toast.error(res.message || t('Failed to update channel'))
+        return
+      }
+      toast.success(t('Channel updated'))
+      setChannelModels(successfulModels)
+      setExtraModels([])
+      setSelected(successfulModels)
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'channels'] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsApplying(false)
+    }
+  }
+
   const total = runner.items.length
   const isRunning = runner.running
 
@@ -287,7 +378,7 @@ function ModelTestDialogContent(props: {
 
   return (
     <Dialog open onOpenChange={props.onOpenChange}>
-      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden gap-3 rounded-none border-zinc-800 bg-[#0f0f0f] text-white sm:max-w-3xl'>
+      <DialogContent className='flex max-h-[85vh] flex-col gap-3 overflow-hidden rounded-none border-zinc-800 bg-[#0f0f0f] text-white sm:max-w-3xl'>
         <DialogHeader>
           <DialogTitle className='mono text-base text-white'>
             {t('Test models')} · {props.channel.name}
@@ -301,7 +392,7 @@ function ModelTestDialogContent(props: {
 
         <div className='flex flex-wrap items-center gap-2'>
           <form
-            className='flex flex-1 min-w-52 items-center gap-1.5'
+            className='flex min-w-52 flex-1 items-center gap-1.5'
             onSubmit={(event) => {
               event.preventDefault()
               addCustomModels()
@@ -339,7 +430,7 @@ function ModelTestDialogContent(props: {
           >
             <SelectTrigger
               size='sm'
-              className='w-28 mono text-xs rounded-none bg-[#0a0a0a] border-zinc-800'
+              className='mono w-28 rounded-none border-zinc-800 bg-[#0a0a0a] text-xs'
               aria-label={t('Concurrency')}
             >
               <SelectValue />
@@ -363,7 +454,9 @@ function ModelTestDialogContent(props: {
                 disabled={isRunning}
                 aria-label={t('Select all')}
               />
-              <span>{allFilteredSelected ? t('Clear all') : t('Select all')}</span>
+              <span>
+                {allFilteredSelected ? t('Clear all') : t('Select all')}
+              </span>
             </label>
             <Input
               value={search}
@@ -374,7 +467,8 @@ function ModelTestDialogContent(props: {
               className='mono h-6 w-36 rounded-none border-zinc-800 bg-[#0a0a0a] px-2 text-xs text-white'
             />
             <span className='whitespace-nowrap'>
-              {t('{{n}} model(s) selected', { n: selected.length })} / {allModels.length}
+              {t('{{n}} model(s) selected', { n: selected.length })} /{' '}
+              {allModels.length}
             </span>
           </div>
           {allModels.length === 0 ? (
@@ -429,6 +523,22 @@ function ModelTestDialogContent(props: {
                 {t('Stop')}
               </button>
             )}
+            <button
+              type='button'
+              disabled={
+                isRunning || isApplying || successfulModels.length === 0
+              }
+              onClick={keepSuccessfulModels}
+              className='btn-industrial-secondary mono text-xs disabled:opacity-40'
+            >
+              {isApplying && (
+                <Loader2
+                  className='mr-1.5 inline size-3 animate-spin'
+                  aria-hidden='true'
+                />
+              )}
+              {t('Keep only successful models')}
+            </button>
             <button
               type='button'
               disabled={isRunning || selected.length === 0}

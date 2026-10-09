@@ -24,10 +24,12 @@ import type { Channel } from '../../types'
 
 vi.mock('../../api', () => ({
   testChannel: vi.fn(),
+  updateChannel: vi.fn(),
 }))
 
-const { testChannel } = await import('../../api')
+const { testChannel, updateChannel } = await import('../../api')
 const mockedTestChannel = vi.mocked(testChannel)
+const mockedUpdateChannel = vi.mocked(updateChannel)
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
 const { ModelTestDialog } = await import('../model-test-dialog')
@@ -105,7 +107,9 @@ describe('ModelTestDialog', () => {
   test('shows the empty-state hint when the channel has no models', () => {
     renderDialog('')
 
-    expect(screen.getByText('No models to test. Add a model first.')).toBeTruthy()
+    expect(
+      screen.getByText('No models to test. Add a model first.')
+    ).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
   })
 
@@ -216,5 +220,79 @@ describe('ModelTestDialog', () => {
 
     expect(await screen.findAllByText('Cancelled')).toHaveLength(2)
     expect(signals.every((signal) => signal.aborted)).toBe(true)
+  })
+
+  test('keep only successful models button is disabled when no tests have run', () => {
+    renderDialog()
+    expect(
+      screen.getByRole('button', { name: 'Keep only successful models' })
+    ).toBeDisabled()
+  })
+
+  test('keep only successful models updates the channel and model list with only passed models', async () => {
+    mockedTestChannel.mockImplementation(async (_id, options) => {
+      if (options?.model === 'gpt-4o') {
+        return {
+          success: false,
+          message: 'upstream error: quota exceeded',
+          time: 0.2,
+        }
+      }
+      return { success: true, message: '', time: 0.5 }
+    })
+    mockedUpdateChannel.mockResolvedValue({
+      success: true,
+      message: '',
+      data: { ...channel, models: 'gpt-4o-mini' },
+    })
+
+    renderDialog()
+
+    const keepBtn = screen.getByRole('button', {
+      name: 'Keep only successful models',
+    })
+    expect(keepBtn).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+
+    expect(await screen.findByText('Passed')).toBeTruthy()
+    expect(within(rowOf('gpt-4o')).getByText('Failed')).toBeTruthy()
+
+    expect(keepBtn).toBeEnabled()
+
+    fireEvent.click(keepBtn)
+
+    expect(mockedUpdateChannel).toHaveBeenCalledTimes(1)
+    expect(mockedUpdateChannel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 7,
+        models: 'gpt-4o-mini',
+      })
+    )
+
+    // The models in the checklist should now only show gpt-4o-mini
+    expect(
+      await screen.findByRole('checkbox', { name: 'gpt-4o-mini' })
+    ).toBeChecked()
+    expect(screen.queryByRole('checkbox', { name: 'gpt-4o' })).toBeNull()
+  })
+
+  test('keep only successful models remains disabled if all tested models failed', async () => {
+    mockedTestChannel.mockResolvedValue({
+      success: false,
+      message: 'service unavailable',
+      time: 0.1,
+    })
+
+    renderDialog()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+
+    const failedBadges = await screen.findAllByText('Failed')
+    expect(failedBadges).toHaveLength(2)
+
+    expect(
+      screen.getByRole('button', { name: 'Keep only successful models' })
+    ).toBeDisabled()
   })
 })
