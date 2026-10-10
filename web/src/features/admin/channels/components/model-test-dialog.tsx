@@ -155,7 +155,11 @@ function TestStatusCell(props: { item: ModelTestItem }) {
 }
 
 /** Results table of the finished and in-flight model tests. */
-function TestResultTable(props: { items: ModelTestItem[] }) {
+function TestResultTable(props: {
+  items: ModelTestItem[]
+  onTestModel?: (model: string) => void
+  disabled?: boolean
+}) {
   const { t } = useTranslation()
   if (props.items.length === 0) {
     return (
@@ -179,80 +183,122 @@ function TestResultTable(props: { items: ModelTestItem[] }) {
             <th className='px-3 py-2 text-right font-medium'>
               {t('Total tokens')}
             </th>
+            <th className='px-3 py-2 text-right font-medium'>{t('Actions')}</th>
           </tr>
         </thead>
         <tbody className='divide-y divide-zinc-900 text-zinc-300'>
-          {props.items.map((item) => (
-            <tr
-              key={item.model}
-              className='transition-colors hover:bg-zinc-900/50'
-            >
-              <td
-                className='max-w-[200px] truncate px-3 py-2 text-white'
-                title={
-                  item.upstreamModel && item.upstreamModel !== item.model
-                    ? `${item.model} → ${item.upstreamModel}`
-                    : item.model
-                }
-              >
-                <div className='flex flex-col truncate'>
-                  <span className='truncate'>{item.model}</span>
-                  {item.upstreamModel && item.upstreamModel !== item.model && (
-                    <span className='truncate text-[10px] font-normal text-zinc-500'>
-                      → {item.upstreamModel}
-                    </span>
-                  )}
-                </div>
-              </td>
-              <td className='px-3 py-2'>
-                {item.status === 'failed' && item.error ? (
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={<span className='inline-flex cursor-help' />}
-                    >
-                      <TestStatusCell item={item} />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side='top'
-                      className='max-w-xs text-xs break-words'
-                    >
-                      {item.error}
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <TestStatusCell item={item} />
+          {props.items.map((item) => {
+            const isItemRunning = item.status === 'running'
+            const canTest = !props.disabled && !isItemRunning
+            return (
+              <tr
+                key={item.model}
+                onClick={() => {
+                  if (canTest) {
+                    props.onTestModel?.(item.model)
+                  }
+                }}
+                className={cn(
+                  'transition-colors',
+                  canTest ? 'cursor-pointer hover:bg-zinc-800/60' : 'opacity-85'
                 )}
-              </td>
-              <td className='px-3 py-2 tabular-nums'>
-                {formatResponseTime((item.time ?? 0) * 1000)}
-              </td>
-              <td className='px-3 py-2 tabular-nums'>
-                {item.ttft === undefined
-                  ? '-'
-                  : formatResponseTime(item.ttft * 1000)}
-              </td>
-              <td className='px-3 py-2 tabular-nums'>
-                {item.tokensPerSecond === undefined
-                  ? '-'
-                  : formatNumber(item.tokensPerSecond)}
-              </td>
-              <td className='px-3 py-2 tabular-nums'>
-                {item.usage?.prompt_tokens === undefined
-                  ? '-'
-                  : formatNumber(item.usage.prompt_tokens)}
-              </td>
-              <td className='px-3 py-2 tabular-nums'>
-                {item.usage?.completion_tokens === undefined
-                  ? '-'
-                  : formatNumber(item.usage.completion_tokens)}
-              </td>
-              <td className='px-3 py-2 text-right tabular-nums'>
-                {item.usage?.total_tokens === undefined
-                  ? '-'
-                  : formatNumber(item.usage.total_tokens)}
-              </td>
-            </tr>
-          ))}
+                title={canTest ? t('Click to test this model') : undefined}
+              >
+                <td
+                  className='max-w-[200px] truncate px-3 py-2 text-white'
+                  title={
+                    item.upstreamModel && item.upstreamModel !== item.model
+                      ? `${item.model} → ${item.upstreamModel}`
+                      : item.model
+                  }
+                >
+                  <div className='flex flex-col truncate'>
+                    <span className='truncate'>{item.model}</span>
+                    {item.upstreamModel &&
+                      item.upstreamModel !== item.model && (
+                        <span className='truncate text-[10px] font-normal text-zinc-500'>
+                          → {item.upstreamModel}
+                        </span>
+                      )}
+                  </div>
+                </td>
+                <td className='px-3 py-2'>
+                  {item.status === 'failed' && item.error ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span
+                            className='inline-flex cursor-help'
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        }
+                      >
+                        <TestStatusCell item={item} />
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side='top'
+                        className='max-w-xs text-xs break-words'
+                      >
+                        {item.error}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <TestStatusCell item={item} />
+                  )}
+                </td>
+                <td className='px-3 py-2 tabular-nums'>
+                  {formatResponseTime((item.time ?? 0) * 1000)}
+                </td>
+                <td className='px-3 py-2 tabular-nums'>
+                  {item.ttft === undefined
+                    ? '-'
+                    : formatResponseTime(item.ttft * 1000)}
+                </td>
+                <td className='px-3 py-2 tabular-nums'>
+                  {item.tokensPerSecond === undefined
+                    ? '-'
+                    : formatNumber(item.tokensPerSecond)}
+                </td>
+                <td className='px-3 py-2 tabular-nums'>
+                  {item.usage?.prompt_tokens === undefined
+                    ? '-'
+                    : formatNumber(item.usage.prompt_tokens)}
+                </td>
+                <td className='px-3 py-2 tabular-nums'>
+                  {item.usage?.completion_tokens === undefined
+                    ? '-'
+                    : formatNumber(item.usage.completion_tokens)}
+                </td>
+                <td className='px-3 py-2 text-right tabular-nums'>
+                  {item.usage?.total_tokens === undefined
+                    ? '-'
+                    : formatNumber(item.usage.total_tokens)}
+                </td>
+                <td className='px-3 py-2 text-right'>
+                  <button
+                    type='button'
+                    disabled={props.disabled || isItemRunning}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      props.onTestModel?.(item.model)
+                    }}
+                    className='btn-industrial-secondary mono px-2 py-0.5 text-xs disabled:opacity-40'
+                    title={t('Click to test this model')}
+                    aria-label={`${t('Test')} ${item.model}`}
+                  >
+                    {isItemRunning ? (
+                      <Loader2
+                        className='inline size-3 animate-spin'
+                        aria-hidden='true'
+                      />
+                    ) : (
+                      t('Test')
+                    )}
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -369,6 +415,10 @@ function ModelTestDialogContent(props: {
 
   const startTests = () => {
     runner.run(selected, { stream, concurrency: Number(concurrency) })
+  }
+
+  const startSingleTest = (model: string) => {
+    runner.runSingle(model, { stream })
   }
 
   const successfulModels = useMemo(
@@ -573,32 +623,48 @@ function ModelTestDialogContent(props: {
                 <div
                   key={model}
                   className={cn(
-                    'mono flex items-center gap-2 px-2 py-1 text-xs transition-colors',
+                    'mono flex items-center justify-between gap-2 px-2 py-1 text-xs transition-colors',
                     checked
                       ? 'bg-zinc-900/80 text-white'
                       : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-zinc-200'
                   )}
                 >
-                  <Checkbox
-                    id={`model-test-${model}`}
-                    checked={checked}
-                    onCheckedChange={() => toggleModel(model)}
+                  <div className='flex min-w-0 flex-1 items-center gap-2'>
+                    <Checkbox
+                      id={`model-test-${model}`}
+                      checked={checked}
+                      onCheckedChange={() => toggleModel(model)}
+                      disabled={isRunning}
+                      aria-label={model}
+                    />
+                    <label
+                      htmlFor={`model-test-${model}`}
+                      className='flex-1 cursor-pointer truncate select-none'
+                    >
+                      {model}
+                    </label>
+                  </div>
+                  <button
+                    type='button'
                     disabled={isRunning}
-                    aria-label={model}
-                  />
-                  <label
-                    htmlFor={`model-test-${model}`}
-                    className='flex-1 cursor-pointer truncate select-none'
+                    onClick={() => startSingleTest(model)}
+                    className='btn-industrial-secondary mono shrink-0 px-2 py-0.5 text-[11px] disabled:opacity-40'
+                    title={t('Click to test this model')}
+                    aria-label={`${t('Test')} ${model}`}
                   >
-                    {model}
-                  </label>
+                    {t('Test')}
+                  </button>
                 </div>
               )
             })
           )}
         </div>
 
-        <TestResultTable items={runner.items} />
+        <TestResultTable
+          items={runner.items}
+          onTestModel={startSingleTest}
+          disabled={isRunning}
+        />
 
         <DialogFooter className='flex-wrap items-center gap-2 border-t border-zinc-900 pt-2'>
           <span className='mono text-xs text-zinc-500' aria-live='polite'>

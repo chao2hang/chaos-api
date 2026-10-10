@@ -343,4 +343,83 @@ describe('ModelTestDialog', () => {
     // Upstream model target should be displayed in the row
     expect(screen.getByText('→ deepseek-ai/DeepSeek-V4-Flash')).toBeTruthy()
   })
+
+  test('allows testing an individual model directly from the model checklist', async () => {
+    mockedTestChannel.mockResolvedValue({
+      success: true,
+      message: '',
+      time: 0.8,
+      data: {
+        model: 'gpt-4o',
+        ttft: 0.1,
+        tokens_per_second: 30,
+      },
+    })
+
+    renderDialog()
+
+    // Initially table is empty
+    expect(
+      screen.getByText('Run a test to see latency, TTFT and tokens per second.')
+    ).toBeTruthy()
+
+    const singleTestBtn = screen.getByRole('button', { name: 'Test gpt-4o' })
+    expect(singleTestBtn).toBeTruthy()
+
+    fireEvent.click(singleTestBtn)
+
+    expect(mockedTestChannel).toHaveBeenCalledTimes(1)
+    expect(mockedTestChannel).toHaveBeenCalledWith(7, {
+      model: 'gpt-4o',
+      stream: false,
+      signal: expect.anything(),
+    })
+
+    const passedText = await screen.findByText('Passed')
+    expect(passedText).toBeTruthy()
+    expect(within(rowOf('gpt-4o')).getByText('800 ms')).toBeTruthy()
+    // gpt-4o-mini was not tested, so it shouldn't be in the results table
+    expect(screen.queryByText('420 ms')).toBeNull()
+  })
+
+  test('allows clicking a row in the test results table to re-test that single model while preserving other results', async () => {
+    let callCount = 0
+    mockedTestChannel.mockImplementation(async (_id, options) => {
+      callCount++
+      if (options?.model === 'gpt-4o') {
+        if (callCount <= 2) {
+          return {
+            success: false,
+            message: 'rate limited',
+            time: 0.1,
+          }
+        }
+        return {
+          success: true,
+          message: '',
+          time: 0.95,
+          data: { model: 'gpt-4o', tokens_per_second: 50 },
+        }
+      }
+      return { success: true, message: '', time: 0.4 }
+    })
+
+    renderDialog()
+
+    // 1. Run all tests first
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+
+    expect(await screen.findByText('Passed')).toBeTruthy()
+    expect(within(rowOf('gpt-4o')).getByText('Failed')).toBeTruthy()
+    expect(within(rowOf('gpt-4o-mini')).getByText('Passed')).toBeTruthy()
+
+    // 2. Click the failed gpt-4o row in the table to re-test just that row
+    fireEvent.click(rowOf('gpt-4o'))
+
+    // gpt-4o should now pass, while gpt-4o-mini still remains in the table with its previous Passed result
+    const retestedCell = await screen.findByText('950 ms')
+    expect(retestedCell).toBeTruthy()
+    expect(within(rowOf('gpt-4o')).getByText('Passed')).toBeTruthy()
+    expect(within(rowOf('gpt-4o-mini')).getByText('Passed')).toBeTruthy()
+  })
 })

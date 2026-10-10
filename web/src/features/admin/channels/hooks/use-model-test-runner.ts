@@ -161,5 +161,100 @@ export function useModelTestRunner(channelId: number) {
     [channelId, queryClient, running, t]
   )
 
-  return { items, running, run, stop }
+  const runSingle = useCallback(
+    (model: string, options: { stream: boolean }) => {
+      const targetModel = model.trim()
+      if (targetModel === '' || running) {
+        return
+      }
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+      setRunning(true)
+
+      setItems((prev) => {
+        const exists = prev.some((item) => item.model === targetModel)
+        if (exists) {
+          return prev.map((item) =>
+            item.model === targetModel
+              ? {
+                  model: targetModel,
+                  status: 'running',
+                  error: undefined,
+                  time: undefined,
+                  ttft: undefined,
+                  tokensPerSecond: undefined,
+                  usage: undefined,
+                  upstreamModel: undefined,
+                }
+              : item
+          )
+        }
+        return [
+          ...prev,
+          {
+            model: targetModel,
+            status: 'running',
+          },
+        ]
+      })
+
+      const update = (patch: Partial<ModelTestItem>) => {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.model === targetModel ? { ...item, ...patch } : item
+          )
+        )
+      }
+
+      void (async () => {
+        try {
+          const res = await testChannel(channelId, {
+            model: targetModel,
+            stream: options.stream,
+            signal: controller.signal,
+          })
+          const upstreamModel =
+            res.data?.upstream_model ??
+            (res as { upstream_model?: string }).upstream_model
+          if (!res.success || (res.data?.error ?? '') !== '') {
+            update({
+              status: 'failed',
+              upstreamModel,
+              error: res.data?.error || res.message || t('Test failed'),
+            })
+          } else {
+            update({
+              status: 'success',
+              upstreamModel,
+              time: res.time,
+              ttft: res.data?.ttft,
+              tokensPerSecond: res.data?.tokens_per_second,
+              usage: res.data?.usage,
+            })
+          }
+        } catch (err) {
+          if (controller.signal.aborted) {
+            update({ status: 'cancelled' })
+          } else {
+            update({
+              status: 'failed',
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        } finally {
+          setRunning(false)
+          if (abortRef.current === controller) {
+            abortRef.current = null
+          }
+          void queryClient.invalidateQueries({
+            queryKey: ['admin', 'channels'],
+          })
+        }
+      })()
+    },
+    [channelId, queryClient, running, t]
+  )
+
+  return { items, running, run, runSingle, stop }
 }
