@@ -58,11 +58,62 @@ export interface ModelTestDialogProps {
 
 const CONCURRENCY_OPTIONS = ['1', '2', '3', '5', '10']
 
-function parseChannelModels(models: string): string[] {
-  return models
+function parseChannelModels(models: string, modelMapping?: string): string[] {
+  const list = models
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item !== '')
+
+  if (
+    !modelMapping ||
+    modelMapping.trim() === '' ||
+    modelMapping.trim() === '{}'
+  ) {
+    return list
+  }
+
+  let mapping: Record<string, string> = {}
+  try {
+    mapping = JSON.parse(modelMapping)
+  } catch {
+    return list
+  }
+
+  const inModels = new Set(list)
+  const targetToKeys: Record<string, string[]> = {}
+  for (const [alias, target] of Object.entries(mapping)) {
+    const trimmedAlias = alias.trim()
+    const trimmedTarget = typeof target === 'string' ? target.trim() : ''
+    if (
+      trimmedAlias !== '' &&
+      trimmedTarget !== '' &&
+      inModels.has(trimmedTarget)
+    ) {
+      if (!targetToKeys[trimmedTarget]) {
+        targetToKeys[trimmedTarget] = []
+      }
+      targetToKeys[trimmedTarget].push(trimmedAlias)
+    }
+  }
+
+  const seen = new Set<string>()
+  const exposed: string[] = []
+  for (const m of list) {
+    const aliases = targetToKeys[m]
+    if (aliases && aliases.length > 0) {
+      for (const alias of aliases) {
+        if (!seen.has(alias)) {
+          seen.add(alias)
+          exposed.push(alias)
+        }
+      }
+    } else if (!seen.has(m)) {
+      seen.add(m)
+      exposed.push(m)
+    }
+  }
+
+  return exposed
 }
 
 function statusClassName(status: ModelTestItem['status']): string {
@@ -137,10 +188,21 @@ function TestResultTable(props: { items: ModelTestItem[] }) {
               className='transition-colors hover:bg-zinc-900/50'
             >
               <td
-                className='max-w-[180px] truncate px-3 py-2 text-white'
-                title={item.model}
+                className='max-w-[200px] truncate px-3 py-2 text-white'
+                title={
+                  item.upstreamModel && item.upstreamModel !== item.model
+                    ? `${item.model} → ${item.upstreamModel}`
+                    : item.model
+                }
               >
-                {item.model}
+                <div className='flex flex-col truncate'>
+                  <span className='truncate'>{item.model}</span>
+                  {item.upstreamModel && item.upstreamModel !== item.model && (
+                    <span className='truncate text-[10px] font-normal text-zinc-500'>
+                      → {item.upstreamModel}
+                    </span>
+                  )}
+                </div>
               </td>
               <td className='px-3 py-2'>
                 {item.status === 'failed' && item.error ? (
@@ -218,10 +280,10 @@ function ModelTestDialogContent(props: {
   const queryClient = useQueryClient()
   const runner = useModelTestRunner(props.channel.id)
   const [channelModels, setChannelModels] = useState<string[]>(() =>
-    parseChannelModels(props.channel.models)
+    parseChannelModels(props.channel.models, props.channel.model_mapping)
   )
   const [selected, setSelected] = useState<string[]>(() =>
-    parseChannelModels(props.channel.models)
+    parseChannelModels(props.channel.models, props.channel.model_mapping)
   )
   const [extraModels, setExtraModels] = useState<string[]>([])
   const [customInput, setCustomInput] = useState('')
@@ -326,13 +388,42 @@ function ModelTestDialogContent(props: {
     }
     setIsApplying(true)
     try {
+      // Map successful models back to upstream models if they are aliases
+      let nextRawModels = successfulModels
+      if (
+        props.channel.model_mapping &&
+        props.channel.model_mapping.trim() !== ''
+      ) {
+        try {
+          const mapping = JSON.parse(props.channel.model_mapping) as Record<
+            string,
+            string
+          >
+          const mapped = new Set<string>()
+          for (const m of successfulModels) {
+            if (
+              mapping[m] &&
+              typeof mapping[m] === 'string' &&
+              mapping[m].trim() !== ''
+            ) {
+              mapped.add(mapping[m].trim())
+            } else {
+              mapped.add(m)
+            }
+          }
+          nextRawModels = [...mapped]
+        } catch {
+          // ignore mapping parse failure
+        }
+      }
+
       const res = await updateChannel({
         id: props.channel.id,
         name: props.channel.name,
         type: props.channel.type,
         base_url: props.channel.base_url,
         group: props.channel.group,
-        models: successfulModels.join(','),
+        models: nextRawModels.join(','),
         model_mapping: props.channel.model_mapping,
         status_code_mapping: props.channel.status_code_mapping,
         priority: props.channel.priority,

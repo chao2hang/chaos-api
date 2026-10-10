@@ -188,6 +188,8 @@ export interface TestChannelResult {
   error?: string
   /** Model name the test was issued for. */
   model?: string
+  /** Upstream model name if mapped. */
+  upstream_model?: string
   /** Prompt/completion/total token usage of the test request. */
   usage?: TestChannelUsage
   /** Time to first upstream response in seconds; absent when not reported. */

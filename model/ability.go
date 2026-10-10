@@ -214,7 +214,7 @@ func identityFilterRequiresKey(filters []dto.ChannelFilter) bool {
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
-	models_ := strings.Split(channel.Models, ",")
+	models_ := channel.GetExposedModels()
 	groups_ := strings.Split(channel.Group, ",")
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
@@ -291,7 +291,7 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	}
 
 	// Then add new abilities
-	models_ := channel.GetModels()
+	models_ := channel.GetExposedModels()
 	groups_ := strings.Split(channel.Group, ",")
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
@@ -361,7 +361,7 @@ func ensureChannelAbilities(channelId int) error {
 	if err != nil {
 		return err
 	}
-	if len(channel.GetModels()) == 0 {
+	if len(channel.GetExposedModels()) == 0 {
 		return nil
 	}
 	return channel.AddAbilities(nil)

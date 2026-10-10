@@ -34,6 +34,8 @@ export type ModelTestItemStatus =
 export interface ModelTestItem {
   model: string
   status: ModelTestItemStatus
+  /** Upstream model name if mapped. */
+  upstreamModel?: string
   /** Total request duration in seconds. */
   time?: number
   /** Time to first upstream response in seconds. */
@@ -102,15 +104,20 @@ export function useModelTestRunner(channelId: number) {
               stream: options.stream,
               signal: controller.signal,
             })
+            const upstreamModel =
+              res.data?.upstream_model ??
+              (res as { upstream_model?: string }).upstream_model
             if (!res.success || (res.data?.error ?? '') !== '') {
               update(model, {
                 status: 'failed',
+                upstreamModel,
                 error: res.data?.error || res.message || t('Test failed'),
               })
               continue
             }
             update(model, {
               status: 'success',
+              upstreamModel,
               time: res.time,
               ttft: res.data?.ttft,
               tokensPerSecond: res.data?.tokens_per_second,
@@ -129,7 +136,10 @@ export function useModelTestRunner(channelId: number) {
         }
       }
 
-      const workerCount = Math.max(1, Math.min(options.concurrency, queue.length))
+      const workerCount = Math.max(
+        1,
+        Math.min(options.concurrency, queue.length)
+      )
       const workers = Array.from({ length: workerCount }, () => worker())
       void Promise.all(workers).then(() => {
         if (controller.signal.aborted) {

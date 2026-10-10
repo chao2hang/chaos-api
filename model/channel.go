@@ -569,6 +569,71 @@ func (channel *Channel) GetModelMapping() string {
 	return *channel.ModelMapping
 }
 
+func (channel *Channel) GetModelMappingMap() map[string]string {
+	mappingJSON := channel.GetModelMapping()
+	if mappingJSON == "" || mappingJSON == "{}" {
+		return nil
+	}
+	mapping := make(map[string]string)
+	if err := common.UnmarshalJsonStr(mappingJSON, &mapping); err != nil {
+		return nil
+	}
+	return mapping
+}
+
+// GetExposedModels returns the effective external model names for this channel:
+// models defined in channel.Models that are mapped as targets in ModelMapping
+// are replaced by their mapping keys (aliases), while unmapped models remain visible.
+// Explicit mapping keys that point to configured channel models are always included.
+func (channel *Channel) GetExposedModels() []string {
+	models := channel.GetModels()
+	mapping := channel.GetModelMappingMap()
+	if len(mapping) == 0 {
+		return models
+	}
+
+	inModels := make(map[string]struct{}, len(models))
+	for _, m := range models {
+		inModels[m] = struct{}{}
+	}
+
+	// targetToKeys maps upstream model -> client request alias keys
+	targetToKeys := make(map[string][]string)
+	for alias, target := range mapping {
+		alias = strings.TrimSpace(alias)
+		target = strings.TrimSpace(target)
+		if alias == "" || target == "" {
+			continue
+		}
+		if _, ok := inModels[target]; ok {
+			targetToKeys[target] = append(targetToKeys[target], alias)
+		}
+	}
+
+	seen := make(map[string]struct{})
+	exposed := make([]string, 0, len(models)+len(mapping))
+
+	for _, m := range models {
+		if aliases, ok := targetToKeys[m]; ok && len(aliases) > 0 {
+			// This upstream model is mapped to alias(es). Replace it with its aliases.
+			for _, alias := range aliases {
+				if _, dup := seen[alias]; !dup {
+					seen[alias] = struct{}{}
+					exposed = append(exposed, alias)
+				}
+			}
+		} else {
+			// Not mapped as a target, keep original model
+			if _, dup := seen[m]; !dup {
+				seen[m] = struct{}{}
+				exposed = append(exposed, m)
+			}
+		}
+	}
+
+	return exposed
+}
+
 func (channel *Channel) GetStatusCodeMapping() string {
 	if channel.StatusCodeMapping == nil {
 		return ""

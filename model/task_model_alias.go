@@ -114,7 +114,7 @@ func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 			continue
 		}
 		inModels := make(map[string]struct{})
-		for _, modelName := range channel.GetModels() {
+		for _, modelName := range channel.GetExposedModels() {
 			inModels[modelName] = struct{}{}
 		}
 		for alias, mapped := range modelMap {

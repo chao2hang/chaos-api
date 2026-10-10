@@ -238,3 +238,31 @@ func TestDirectOpenAIResponsesKeepsExistingParameters(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, body, string(encoded))
 }
+
+func TestTestChannelPrefersModelMappingAliasAndIncludesUpstreamModel(t *testing.T) {
+	mapping := `{"deepseek-v4-flash":"deepseek-ai/DeepSeek-V4-Flash"}`
+	channel := &model.Channel{
+		Id:           888,
+		Type:         constant.ChannelTypeOpenAI,
+		Name:         "siliconflow-mapping-test",
+		Models:       "deepseek-ai/DeepSeek-V4-Flash",
+		ModelMapping: &mapping,
+	}
+
+	exposed := channel.GetExposedModels()
+	require.Len(t, exposed, 1)
+	assert.Equal(t, "deepseek-v4-flash", exposed[0])
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Set("model_mapping", mapping)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "deepseek-v4-flash",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       channel.Type,
+			UpstreamModelName: "deepseek-v4-flash",
+		},
+	}
+	require.NoError(t, helper.ModelMappedHelper(c, info, nil))
+	assert.Equal(t, "deepseek-ai/DeepSeek-V4-Flash", info.UpstreamModelName)
+}

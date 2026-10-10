@@ -36,12 +36,13 @@ import (
 )
 
 type testResult struct {
-	context     *gin.Context
-	localErr    error
-	newAPIError *types.NewAPIError
-	usage       *dto.Usage
-	model       string
-	totalMs     int64
+	context       *gin.Context
+	localErr      error
+	newAPIError   *types.NewAPIError
+	usage         *dto.Usage
+	model         string
+	upstreamModel string
+	totalMs       int64
 	// ttftMs is the time to first upstream response in milliseconds; -1 when
 	// the upstream never reported a first response (e.g. non-stream relay).
 	ttftMs int64
@@ -104,9 +105,14 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		if channel.TestModel != nil && *channel.TestModel != "" {
 			testModel = strings.TrimSpace(*channel.TestModel)
 		} else {
-			models := channel.GetModels()
-			if len(models) > 0 {
-				testModel = strings.TrimSpace(models[0])
+			exposed := channel.GetExposedModels()
+			if len(exposed) > 0 {
+				testModel = strings.TrimSpace(exposed[0])
+			} else {
+				models := channel.GetModels()
+				if len(models) > 0 {
+					testModel = strings.TrimSpace(models[0])
+				}
 			}
 			if testModel == "" {
 				testModel = "gpt-4o-mini"
@@ -523,11 +529,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	})
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	testRes := testResult{
-		context: c,
-		usage:   usage,
-		model:   info.OriginModelName,
-		totalMs: milliseconds,
-		ttftMs:  -1,
+		context:       c,
+		usage:         usage,
+		model:         info.OriginModelName,
+		upstreamModel: info.UpstreamModelName,
+		totalMs:       milliseconds,
+		ttftMs:        -1,
 	}
 	if info.HasSendResponse() {
 		testRes.ttftMs = info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
@@ -917,6 +924,9 @@ func TestChannel(c *gin.Context) {
 		"message": "",
 		"time":    consumedTime,
 		"model":   result.model,
+	}
+	if result.upstreamModel != "" && result.upstreamModel != result.model {
+		resp["upstream_model"] = result.upstreamModel
 	}
 	if result.usage != nil {
 		resp["usage"] = gin.H{

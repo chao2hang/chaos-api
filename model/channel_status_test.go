@@ -385,3 +385,57 @@ func TestAddAbilitiesUpsertsStaleRows(t *testing.T) {
 		assert.Equal(t, "new-tag", *ability.Tag)
 	}
 }
+
+func TestChannelModelMappingExposesAliasesInAbilitiesAndRouting(t *testing.T) {
+	setupChannelStatusTest(t)
+
+	mapping := `{"deepseek-v4-flash":"deepseek-ai/DeepSeek-V4-Flash","custom-chat":"gpt-4o"}`
+	channel := Channel{
+		Name:         "mapping-test",
+		Key:          "k-map",
+		Status:       common.ChannelStatusEnabled,
+		Models:       "deepseek-ai/DeepSeek-V4-Flash,gpt-4o,unmapped-model",
+		Group:        "default",
+		ModelMapping: &mapping,
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+
+	// 1. Check abilities table: targets (deepseek-ai/DeepSeek-V4-Flash, gpt-4o) are replaced by aliases
+	var abilities []Ability
+	require.NoError(t, DB.Where("channel_id = ?", channel.Id).Find(&abilities).Error)
+	abilityModels := make([]string, 0, len(abilities))
+	for _, a := range abilities {
+		abilityModels = append(abilityModels, a.Model)
+	}
+	assert.Contains(t, abilityModels, "deepseek-v4-flash")
+	assert.Contains(t, abilityModels, "custom-chat")
+	assert.Contains(t, abilityModels, "unmapped-model")
+	assert.NotContains(t, abilityModels, "deepseek-ai/DeepSeek-V4-Flash")
+	assert.NotContains(t, abilityModels, "gpt-4o")
+
+	// 2. Check GetGroupEnabledModels: only aliases and unmapped models are exposed
+	groupModels := GetGroupEnabledModels("default")
+	assert.Contains(t, groupModels, "deepseek-v4-flash")
+	assert.Contains(t, groupModels, "custom-chat")
+	assert.Contains(t, groupModels, "unmapped-model")
+	assert.NotContains(t, groupModels, "deepseek-ai/DeepSeek-V4-Flash")
+	assert.NotContains(t, groupModels, "gpt-4o")
+
+	// 3. Check memory routing cache: mapping alias keys can route to the channel
+	common.MemoryCacheEnabled = true
+	InitChannelCache()
+	defer func() {
+		common.MemoryCacheEnabled = false
+	}()
+
+	routedChannel, err := GetRandomSatisfiedChannel("default", "deepseek-v4-flash", 0, nil)
+	require.NoError(t, err)
+	require.NotNil(t, routedChannel)
+	assert.Equal(t, channel.Id, routedChannel.Id)
+
+	routedChat, err := GetRandomSatisfiedChannel("default", "custom-chat", 0, nil)
+	require.NoError(t, err)
+	require.NotNil(t, routedChat)
+	assert.Equal(t, channel.Id, routedChat.Id)
+}

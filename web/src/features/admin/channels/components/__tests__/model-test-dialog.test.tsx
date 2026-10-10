@@ -295,4 +295,52 @@ describe('ModelTestDialog', () => {
       screen.getByRole('button', { name: 'Keep only successful models' })
     ).toBeDisabled()
   })
+
+  test('uses model mapping keys for preselection and displays upstream model when mapped', async () => {
+    mockedTestChannel.mockImplementation(async (_id, options) => {
+      return {
+        success: true,
+        message: '',
+        time: 1.0,
+        data: {
+          model: options?.model,
+          upstream_model: 'deepseek-ai/DeepSeek-V4-Flash',
+        },
+      }
+    })
+
+    const onOpenChange = vi.fn()
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={i18n}>
+          <ModelTestDialog
+            channel={{
+              ...channel,
+              models: 'deepseek-ai/DeepSeek-V4-Flash',
+              model_mapping:
+                '{"deepseek-v4-flash":"deepseek-ai/DeepSeek-V4-Flash"}',
+            }}
+            onOpenChange={onOpenChange}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+
+    // Should preselect the mapped alias key instead of the raw upstream model
+    expect(
+      screen.getByRole('checkbox', { name: 'deepseek-v4-flash' })
+    ).toBeChecked()
+    expect(
+      screen.queryByRole('checkbox', { name: 'deepseek-ai/DeepSeek-V4-Flash' })
+    ).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+
+    const passedText = await screen.findByText('Passed')
+    expect(passedText).toBeTruthy()
+
+    // Upstream model target should be displayed in the row
+    expect(screen.getByText('→ deepseek-ai/DeepSeek-V4-Flash')).toBeTruthy()
+  })
 })
