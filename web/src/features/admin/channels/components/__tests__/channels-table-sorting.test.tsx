@@ -108,6 +108,22 @@ describe('ChannelsTable header sorting', () => {
     expect(onSortChange).toHaveBeenCalledWith('priority', 'desc')
   })
 
+  test('models header requests the derived model-count sort', () => {
+    const { onSortChange } = renderTable()
+
+    fireEvent.click(screen.getByRole('button', { name: /^models$/i }))
+
+    expect(onSortChange).toHaveBeenCalledWith('model_count', 'desc')
+  })
+
+  test('models header exposes the active model-count direction', () => {
+    renderTable({ sortBy: 'model_count', sortOrder: 'asc' })
+
+    expect(
+      screen.getByRole('columnheader', { name: /^models$/i })
+    ).toHaveAttribute('aria-sort', 'ascending')
+  })
+
   test('clicking an active descending header switches to ascending', () => {
     const onSortChange = vi.fn()
     renderTable({ sortBy: 'balance', sortOrder: 'desc', onSortChange })

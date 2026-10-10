@@ -82,8 +82,10 @@ export const CHANNEL_STATUS_META: Record<number, ChannelStatusMeta> = {
 export const STATUS_FILTER_VALUES = ['enabled', 'disabled'] as const
 
 /**
- * Channel columns the list endpoint can sort by (see `channelSortColumns` in
- * `model/channel.go`, minus `test_time` which the table does not display).
+ * Sort keys the channels list endpoint accepts (see `channelSortColumns` and
+ * `channelSortModelCount` in `model/channel.go`, minus `test_time` which the
+ * table does not display). `model_count` orders channels by how many models
+ * their comma-separated list holds.
  */
 export const CHANNEL_SORT_FIELDS = [
   'id',
@@ -91,6 +93,7 @@ export const CHANNEL_SORT_FIELDS = [
   'priority',
   'balance',
   'response_time',
+  'model_count',
 ] as const
 
 export type ChannelSortField = (typeof CHANNEL_SORT_FIELDS)[number]

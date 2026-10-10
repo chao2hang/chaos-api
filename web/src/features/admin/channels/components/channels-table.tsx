@@ -352,7 +352,7 @@ export function ChannelsTable(props: ChannelsTableProps) {
               {sortHeader('Balance', 'balance')}
               {sortHeader('Priority', 'priority')}
               <th className='px-4 py-3 font-medium'>{t('Weight')}</th>
-              <th className='px-4 py-3 font-medium'>{t('Models')}</th>
+              {sortHeader('Models', 'model_count')}
               <th className='px-4 py-3 text-right font-medium'>
                 {t('Actions')}
               </th>

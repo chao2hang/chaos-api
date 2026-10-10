@@ -116,6 +116,16 @@ describe('buildChannelListQuery', () => {
     expect(query.params.sort_order).toBe('desc')
   })
 
+  it('sends the derived model_count sort field of the Models header', () => {
+    const query = buildChannelListQuery({
+      ...emptyFilters,
+      sortBy: 'model_count',
+      sortOrder: 'asc',
+    })
+    expect(query.params.sort_by).toBe('model_count')
+    expect(query.params.sort_order).toBe('asc')
+  })
+
   it('normalizes a non-asc sort order to desc', () => {
     const query = buildChannelListQuery({
       ...emptyFilters,

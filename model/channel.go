@@ -87,10 +87,31 @@ var channelSortColumns = map[string]string{
 	"test_time":     "test_time",
 }
 
+// channelSortModelCount orders channels by how many models they expose. That
+// count is derived from the comma-separated `models` list rather than stored in
+// a column of its own, so it sorts through an SQL expression.
+const channelSortModelCount = "model_count"
+
+// channelModelCountSQL counts the comma-separated model names of a channel row
+// in a way SQLite, MySQL and PostgreSQL all accept. Subtracting the
+// comma-stripped length from the full length yields the separator count, which
+// is byte-safe because ',' is a single byte in every supported character set.
+// A list made only of separators and spaces holds no model and counts as zero.
+func channelModelCountSQL() string {
+	modelsCol := "`models`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		modelsCol = `"models"`
+	}
+	blank := "REPLACE(REPLACE(COALESCE(" + modelsCol + ", ''), ',', ''), ' ', '')"
+	return "CASE WHEN " + blank + " = '' THEN 0 ELSE LENGTH(" + modelsCol +
+		") - LENGTH(REPLACE(" + modelsCol + ", ',', '')) + 1 END"
+}
+
 func NewChannelSortOptions(sortBy string, sortOrder string, idSort bool) ChannelSortOptions {
 	normalizedSortBy := strings.ToLower(strings.TrimSpace(sortBy))
 	normalizedSortOrder := strings.ToLower(strings.TrimSpace(sortOrder))
-	if _, ok := channelSortColumns[normalizedSortBy]; !ok {
+	_, isColumnSort := channelSortColumns[normalizedSortBy]
+	if !isColumnSort && normalizedSortBy != channelSortModelCount {
 		normalizedSortBy = ""
 		normalizedSortOrder = ""
 	} else if normalizedSortOrder != "asc" {
@@ -105,6 +126,19 @@ func NewChannelSortOptions(sortBy string, sortOrder string, idSort bool) Channel
 }
 
 func (options ChannelSortOptions) Apply(query *gorm.DB) *gorm.DB {
+	if options.SortBy == channelSortModelCount {
+		// Model counts repeat a lot, so the row id breaks ties to keep
+		// consecutive pages of the same sort stable.
+		return query.
+			Order(clause.OrderByColumn{
+				Column: clause.Column{Name: channelModelCountSQL(), Raw: true},
+				Desc:   options.SortOrder != "asc",
+			}).
+			Order(clause.OrderByColumn{
+				Column: clause.Column{Name: "id"},
+				Desc:   true,
+			})
+	}
 	if columnName, ok := channelSortColumns[options.SortBy]; ok {
 		return query.Order(clause.OrderByColumn{
 			Column: clause.Column{Name: columnName},

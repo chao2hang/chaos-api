@@ -133,3 +133,75 @@ func TestSearchChannelsMatchesModelNameKeyword(t *testing.T) {
 		})
 	}
 }
+
+// TestChannelSortByModelCount covers the "Models" header of the channels list,
+// which orders channels by how many model names their comma-separated list
+// holds instead of by a stored column.
+func TestChannelSortByModelCount(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			db := setupChannelSearchDB(t, dialect)
+
+			channels := []*Channel{
+				{Name: "one-model", Type: 1, Key: "sk-1", Models: "gpt-4o", Group: "default"},
+				{Name: "no-models", Type: 1, Key: "sk-2", Models: "", Group: "default"},
+				{Name: "four-models", Type: 1, Key: "sk-3", Models: "gpt-4o,gpt-4o-mini,o1,o3", Group: "default"},
+				{Name: "separators-only", Type: 1, Key: "sk-4", Models: " , , ", Group: "default"},
+				{Name: "two-models", Type: 1, Key: "sk-5", Models: "claude-sonnet,claude-haiku", Group: "default"},
+			}
+			for _, channel := range channels {
+				require.NoError(t, db.Create(channel).Error)
+			}
+
+			tests := []struct {
+				name      string
+				sortOrder string
+				wantNames []string
+			}{
+				{
+					name:      "descending lists the widest model lists first",
+					sortOrder: "desc",
+					wantNames: []string{"four-models", "two-models", "one-model", "separators-only", "no-models"},
+				},
+				{
+					name:      "ascending lists the shortest model lists first",
+					sortOrder: "asc",
+					wantNames: []string{"separators-only", "no-models", "one-model", "two-models", "four-models"},
+				},
+			}
+
+			// listNames mirrors the list endpoint: the sort options are applied to
+			// the filtered channel query before pagination.
+			listNames := func(sortOrder string, limit int, offset int) []string {
+				var found []*Channel
+				err := NewChannelSortOptions("model_count", sortOrder, false).
+					Apply(db.Model(&Channel{})).
+					Omit("key").
+					Limit(limit).
+					Offset(offset).
+					Find(&found).Error
+				require.NoError(t, err)
+
+				names := make([]string, 0, len(found))
+				for _, channel := range found {
+					names = append(names, channel.Name)
+				}
+				return names
+			}
+
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					assert.Equal(t, tc.wantNames, listNames(tc.sortOrder, 10, 0))
+				})
+			}
+
+			t.Run("equal model counts page without gaps or duplicates", func(t *testing.T) {
+				var paged []string
+				for offset := 0; offset < len(channels); offset += 2 {
+					paged = append(paged, listNames("desc", 2, offset)...)
+				}
+				assert.Equal(t, []string{"four-models", "two-models", "one-model", "separators-only", "no-models"}, paged)
+			})
+		})
+	}
+}
