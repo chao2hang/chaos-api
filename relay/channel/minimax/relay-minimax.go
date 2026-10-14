@@ -61,7 +61,7 @@ func miniMaxHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Resp
 
 	if minimaxResp.BaseResp != nil && minimaxResp.BaseResp.StatusCode != 0 {
 		statusCode := http.StatusBadRequest
-		if minimaxResp.BaseResp.StatusCode == 2056 {
+		if minimaxResp.BaseResp.StatusCode == 2056 || minimaxResp.BaseResp.StatusCode == 1008 {
 			statusCode = http.StatusTooManyRequests
 		} else if resp.StatusCode != http.StatusOK {
 			statusCode = resp.StatusCode
@@ -87,7 +87,7 @@ func miniMaxStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 		var minimaxResp MiniMaxChatResponse
 		if err := common.Unmarshal(responseBody, &minimaxResp); err == nil && minimaxResp.BaseResp != nil && minimaxResp.BaseResp.StatusCode != 0 {
 			statusCode := http.StatusBadRequest
-			if minimaxResp.BaseResp.StatusCode == 2056 {
+			if minimaxResp.BaseResp.StatusCode == 2056 || minimaxResp.BaseResp.StatusCode == 1008 {
 				statusCode = http.StatusTooManyRequests
 			} else if resp.StatusCode != http.StatusOK {
 				statusCode = resp.StatusCode

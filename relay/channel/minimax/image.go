@@ -185,7 +185,7 @@ func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 	if minimaxResponse.BaseResp.StatusCode != 0 {
 		statusCode := http.StatusBadRequest
-		if minimaxResponse.BaseResp.StatusCode == 2056 {
+		if minimaxResponse.BaseResp.StatusCode == 2056 || minimaxResponse.BaseResp.StatusCode == 1008 {
 			statusCode = http.StatusTooManyRequests
 		} else if resp.StatusCode != http.StatusOK {
 			statusCode = resp.StatusCode

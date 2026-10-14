@@ -116,3 +116,36 @@ func TestOaiStreamHandler_BaseResp2056Returns429(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
 	assert.False(t, c.Writer.Written())
 }
+
+func TestOaiStreamHandler_BaseResp1008Returns429(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "abab6.5s-chat",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "abab6.5s-chat",
+		},
+	}
+
+	ssePayload := "data: {\"base_resp\":{\"status_code\":1008,\"status_msg\":\"insufficient balance\"}}\n\n"
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(ssePayload)),
+	}
+
+	usage, apiErr := OaiStreamHandler(c, info, resp)
+	assert.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+	oaiErr := apiErr.ToOpenAIError()
+	assert.Equal(t, "minimax_error", oaiErr.Type)
+	assert.Equal(t, "1008", oaiErr.Code)
+	assert.False(t, c.Writer.Written())
+}

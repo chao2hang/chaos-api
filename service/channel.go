@@ -82,7 +82,8 @@ func IsQuotaExhaustedError(err *types.NewAPIError) bool {
 	code := strings.ToLower(fmt.Sprintf("%v", err.GetErrorCode()))
 	errType := strings.ToLower(string(err.GetErrorType()))
 	if strings.Contains(code, "quota") || strings.Contains(code, "balance") || strings.Contains(code, "credit") ||
-		strings.Contains(errType, "quota") || strings.Contains(errType, "balance") || strings.Contains(errType, "credit") {
+		strings.Contains(errType, "quota") || strings.Contains(errType, "balance") || strings.Contains(errType, "credit") ||
+		code == "1008" || code == "2056" {
 		return true
 	}
 	lowerMessage := strings.ToLower(err.Error())
@@ -180,6 +181,10 @@ func ShouldDisableChannel(err *types.NewAPIError, channelId ...int) bool {
 	}
 
 	if operation_setting.ShouldDisableByStatusCode(err.StatusCode) {
+		return true
+	}
+
+	if IsQuotaExhaustedError(err) {
 		return true
 	}
 

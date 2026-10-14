@@ -128,7 +128,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		if code, msg, hasErr := extractBaseRespError(data); hasErr {
 			if !c.Writer.Written() {
 				httpStatus := http.StatusBadRequest
-				if code == 2056 {
+				if code == 2056 || code == 1008 {
 					httpStatus = http.StatusTooManyRequests
 				}
 				streamEarlyError = types.WithOpenAIError(types.OpenAIError{

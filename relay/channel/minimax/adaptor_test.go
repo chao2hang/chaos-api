@@ -177,6 +177,70 @@ func TestMiniMaxChatDoResponse_StreamSSE_2056(t *testing.T) {
 	assert.False(t, c.Writer.Written())
 }
 
+func TestMiniMaxChatDoResponse_1008InsufficientBalance(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		IsStream:  false,
+	}
+
+	rawJSON := `{"base_resp":{"status_code":1008,"status_msg":"insufficient balance"},"choices":null}`
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       ioNopCloser(rawJSON),
+	}
+
+	adaptor := &Adaptor{}
+	usage, apiErr := adaptor.DoResponse(c, resp, info)
+	assert.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+	oaiErr := apiErr.ToOpenAIError()
+	assert.Equal(t, "1008", oaiErr.Code)
+	assert.Equal(t, "minimax_error", oaiErr.Type)
+	assert.Contains(t, apiErr.Error(), "insufficient balance")
+	assert.False(t, c.Writer.Written())
+}
+
+func TestMiniMaxChatDoResponse_StreamSSE_1008(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		IsStream:  true,
+	}
+
+	rawSSE := "data: {\"base_resp\":{\"status_code\":1008,\"status_msg\":\"insufficient balance\"}}\n\n"
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       ioNopCloser(rawSSE),
+	}
+
+	adaptor := &Adaptor{}
+	usage, apiErr := adaptor.DoResponse(c, resp, info)
+	assert.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+	oaiErr := apiErr.ToOpenAIError()
+	assert.Equal(t, "1008", oaiErr.Code)
+	assert.Equal(t, "minimax_error", oaiErr.Type)
+	assert.Contains(t, apiErr.Error(), "insufficient balance")
+	assert.False(t, c.Writer.Written())
+}
+
 type nopReadCloser struct {
 	*strings.Reader
 }

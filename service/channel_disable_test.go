@@ -51,6 +51,24 @@ func TestIsQuotaExhaustedError(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "MiniMax 1008 insufficient balance message",
+			err: types.WithOpenAIError(types.OpenAIError{
+				Message: "insufficient balance",
+				Type:    "minimax_error",
+				Code:    "1008",
+			}, http.StatusTooManyRequests),
+			expected: true,
+		},
+		{
+			name: "MiniMax 1008 on HTTP 400",
+			err: types.WithOpenAIError(types.OpenAIError{
+				Message: "insufficient balance",
+				Type:    "minimax_error",
+				Code:    "1008",
+			}, http.StatusBadRequest),
+			expected: true,
+		},
+		{
 			name: "Chinese balance insufficient message",
 			err: types.NewOpenAIError(
 				errors.New("账户余额不足，请充值后重试"),
@@ -136,6 +154,25 @@ func TestShouldDisableChannel_429Semantics(t *testing.T) {
 		Code:    "2056",
 	}, http.StatusTooManyRequests)
 	assert.True(t, ShouldDisableChannel(quotaErr, channelID), "quota 429 should disable channel immediately")
+
+	// 1b. MiniMax 1008 insufficient balance (429) should disable immediately
+	minimax1008Err := types.WithOpenAIError(types.OpenAIError{
+		Message: "insufficient balance",
+		Type:    "minimax_error",
+		Code:    "1008",
+	}, http.StatusTooManyRequests)
+	assert.True(t, ShouldDisableChannel(minimax1008Err, channelID), "minimax 1008 429 should disable channel immediately")
+
+	// 1c. MiniMax 1008 on HTTP 400 should disable channel immediately even if AutomaticDisableKeywords is cleared
+	origKeywords := operation_setting.AutomaticDisableKeywords
+	operation_setting.AutomaticDisableKeywords = []string{}
+	minimax1008Http400 := types.WithOpenAIError(types.OpenAIError{
+		Message: "insufficient balance",
+		Type:    "minimax_error",
+		Code:    "1008",
+	}, http.StatusBadRequest)
+	assert.True(t, ShouldDisableChannel(minimax1008Http400, channelID), "minimax 1008 HTTP 400 should disable channel even with empty AutomaticDisableKeywords")
+	operation_setting.AutomaticDisableKeywords = origKeywords
 
 	// 2. Transient 429 should NOT disable on single hit
 	transientErr := types.NewOpenAIError(

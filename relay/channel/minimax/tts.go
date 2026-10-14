@@ -121,11 +121,15 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 
 	// Check base_resp status code
 	if minimaxResp.BaseResp.StatusCode != 0 {
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("minimax TTS error: %d - %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg),
-			types.ErrorCodeBadResponse,
-			http.StatusBadRequest,
-		)
+		statusCode := http.StatusBadRequest
+		if minimaxResp.BaseResp.StatusCode == 2056 || minimaxResp.BaseResp.StatusCode == 1008 {
+			statusCode = http.StatusTooManyRequests
+		}
+		return nil, types.WithOpenAIError(types.OpenAIError{
+			Message: minimaxResp.BaseResp.StatusMsg,
+			Type:    "minimax_tts_error",
+			Code:    fmt.Sprintf("%d", minimaxResp.BaseResp.StatusCode),
+		}, statusCode)
 	}
 
 	// Check if we have audio data
