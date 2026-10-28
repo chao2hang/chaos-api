@@ -86,6 +86,12 @@ const MODELS_SECTIONS = [
             settings['monitor_setting.channel_test_concurrency'],
           'monitor_setting.channel_test_mode':
             settings['monitor_setting.channel_test_mode'],
+          'monitor_setting.active_probe_enabled':
+            settings['monitor_setting.active_probe_enabled'],
+          'monitor_setting.active_probe_interval_minutes':
+            settings['monitor_setting.active_probe_interval_minutes'],
+          'monitor_setting.active_probe_concurrency':
+            settings['monitor_setting.active_probe_concurrency'],
         }}
       />
     ),

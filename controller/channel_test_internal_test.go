@@ -515,3 +515,242 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
 	require.Contains(t, recorder.Body.String(), "已有通道测试任务正在运行或等待中")
 }
+
+func TestBuildChannelProbeRequestUsesProviderSpecificURLAndAuth(t *testing.T) {
+	baseURL := "https://gemini.example.test"
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeGemini,
+		Key:     "gemini-secret",
+		BaseURL: &baseURL,
+	}
+
+	request, err := buildChannelProbeRequest(context.Background(), channel, "gemini-secret")
+
+	require.NoError(t, err)
+	assert.Equal(t, http.MethodGet, request.Method)
+	assert.Equal(t, "https://gemini.example.test/v1beta/models", request.URL.String())
+	assert.Equal(t, "gemini-secret", request.Header.Get("x-goog-api-key"))
+}
+
+func TestBuildChannelProbeRequestSkipsUnsupportedProviderTypes(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeAnthropic}
+
+	request, err := buildChannelProbeRequest(context.Background(), channel, "secret")
+
+	require.Error(t, err)
+	assert.Nil(t, request)
+}
+
+func TestChannelProbeKeyDoesNotAdvanceMultiKeyPollingCursor(t *testing.T) {
+	channel := &model.Channel{
+		Key: "first-key\nsecond-key",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:           true,
+			MultiKeyMode:         constant.MultiKeyModePolling,
+			MultiKeyPollingIndex: 1,
+		},
+	}
+
+	key, err := channelProbeKey(channel)
+
+	require.NoError(t, err)
+	assert.Equal(t, "first-key", key)
+	assert.Equal(t, 1, channel.ChannelInfo.MultiKeyPollingIndex)
+}
+
+func TestChannelProbeKeySkipsDisabledMultiKeyCredentials(t *testing.T) {
+	channel := &model.Channel{
+		Key: "disabled-key\nenabled-key",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:           true,
+			MultiKeyMode:         constant.MultiKeyModePolling,
+			MultiKeyPollingIndex: 1,
+			MultiKeyStatusList:   map[int]int{0: common.ChannelStatusAutoDisabled},
+		},
+	}
+
+	key, err := channelProbeKey(channel)
+
+	require.NoError(t, err)
+	assert.Equal(t, "enabled-key", key)
+	assert.Equal(t, 1, channel.ChannelInfo.MultiKeyPollingIndex)
+}
+
+func TestClassifyChannelProbeResponse(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+		expected   channelProbeOutcome
+	}{
+		{
+			name:       "200 means the credentials were accepted",
+			statusCode: http.StatusOK,
+			body:       `{"data":[{"id":"gpt-4o"}]}`,
+			expected:   channelProbeHealthy,
+		},
+		{
+			name:       "401 rejects the credentials",
+			statusCode: http.StatusUnauthorized,
+			body:       "invalid api key (2049)",
+			expected:   channelProbeCredentialFailed,
+		},
+		{
+			name:       "403 with a credential failure reason",
+			statusCode: http.StatusForbidden,
+			body:       "SUBSCRIPTION_NOT_FOUND",
+			expected:   channelProbeCredentialFailed,
+		},
+		{
+			name:       "403 without a credential failure reason",
+			statusCode: http.StatusForbidden,
+			body:       "Access denied by WAF",
+			expected:   channelProbeInconclusive,
+		},
+		{
+			name:       "403 with credential wording and WAF challenge stays inconclusive",
+			statusCode: http.StatusForbidden,
+			body:       "API key invalid: security check required by WAF",
+			expected:   channelProbeInconclusive,
+		},
+		{
+			name:       "404 means the upstream has no model list endpoint",
+			statusCode: http.StatusNotFound,
+			body:       "not found",
+			expected:   channelProbeInconclusive,
+		},
+		{
+			name:       "429 stays inconclusive",
+			statusCode: http.StatusTooManyRequests,
+			body:       "rate limited",
+			expected:   channelProbeInconclusive,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, classifyChannelProbeResponse(tt.statusCode, tt.body))
+		})
+	}
+}
+
+func TestShouldDisableProbedChannel(t *testing.T) {
+	origAutoDisable := common.AutomaticDisableChannelEnabled
+	origRanges := operation_setting.AutomaticDisableStatusCodeRanges
+	t.Cleanup(func() {
+		common.AutomaticDisableChannelEnabled = origAutoDisable
+		operation_setting.AutomaticDisableStatusCodeRanges = origRanges
+	})
+	common.AutomaticDisableChannelEnabled = true
+	require.NoError(t, operation_setting.AutomaticDisableStatusCodesFromString("401,429"))
+
+	tests := []struct {
+		name     string
+		result   channelProbeResult
+		expected bool
+	}{
+		{
+			name:     "401 with an auto-disable status code",
+			result:   channelProbeResult{statusCode: http.StatusUnauthorized, credentialMessage: false},
+			expected: true,
+		},
+		{
+			name:     "403 with a credential failure reason",
+			result:   channelProbeResult{statusCode: http.StatusForbidden, credentialMessage: true},
+			expected: true,
+		},
+		{
+			name:     "403 without a credential failure reason",
+			result:   channelProbeResult{statusCode: http.StatusForbidden, credentialMessage: false},
+			expected: false,
+		},
+		{
+			name: "recoverable WAF interruption overrides broad configured 403 rule",
+			result: channelProbeResult{
+				statusCode:                  http.StatusForbidden,
+				credentialMessage:           true,
+				recoverableAuthInterruption: true,
+			},
+			expected: false,
+		},
+		{
+			name:     "404 never disables the channel",
+			result:   channelProbeResult{statusCode: http.StatusNotFound, detail: "upstream status code 404: not found"},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, shouldDisableProbedChannel(tt.result))
+		})
+	}
+
+	common.AutomaticDisableChannelEnabled = false
+	assert.False(t, shouldDisableProbedChannel(channelProbeResult{statusCode: http.StatusUnauthorized, credentialMessage: false}),
+		"the global auto-disable switch must stop the probe from disabling channels")
+}
+
+func TestRunChannelCredentialProbeDisablesOnlyChannelsWithRejectedCredentials(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+
+	healthyUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"}]}`))
+	}))
+	defer healthyUpstream.Close()
+
+	deadUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid api key"}}`))
+	}))
+	defer deadUpstream.Close()
+
+	autoBan := 1
+	healthyChannel := &model.Channel{
+		Name:    "healthy",
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "sk-healthy",
+		BaseURL: common.GetPointer(healthyUpstream.URL),
+		Status:  common.ChannelStatusEnabled,
+		AutoBan: &autoBan,
+		Models:  "gpt-4o",
+		Group:   "default",
+	}
+	deadChannel := &model.Channel{
+		Name:    "dead",
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "sk-dead",
+		BaseURL: common.GetPointer(deadUpstream.URL),
+		Status:  common.ChannelStatusEnabled,
+		AutoBan: &autoBan,
+		Models:  "gpt-4o",
+		Group:   "default",
+	}
+	require.NoError(t, db.Create(healthyChannel).Error)
+	require.NoError(t, db.Create(deadChannel).Error)
+
+	origAutoDisable := common.AutomaticDisableChannelEnabled
+	origRanges := operation_setting.AutomaticDisableStatusCodeRanges
+	t.Cleanup(func() {
+		common.AutomaticDisableChannelEnabled = origAutoDisable
+		operation_setting.AutomaticDisableStatusCodeRanges = origRanges
+	})
+	common.AutomaticDisableChannelEnabled = true
+	require.NoError(t, operation_setting.AutomaticDisableStatusCodesFromString("401,429"))
+
+	summary, err := runChannelCredentialProbe(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, 2, summary.Probed)
+	assert.Equal(t, 1, summary.Healthy)
+	assert.Equal(t, 1, summary.Failed)
+	assert.Equal(t, 1, summary.Disabled)
+
+	var reloadedHealthy model.Channel
+	require.NoError(t, db.First(&reloadedHealthy, healthyChannel.Id).Error)
+	assert.Equal(t, common.ChannelStatusEnabled, reloadedHealthy.Status)
+
+	var reloadedDead model.Channel
+	require.NoError(t, db.First(&reloadedDead, deadChannel.Id).Error)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, reloadedDead.Status)
+}

@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -95,6 +97,83 @@ func IsQuotaExhaustedError(err *types.NewAPIError) bool {
 	return false
 }
 
+// credentialFailureMarkers are upstream error fragments that prove the
+// channel credentials can no longer be used. They are matched
+// case-insensitively so that a status code alone does not have to be
+// conclusive, e.g. HTTP 403 with "SUBSCRIPTION_NOT_FOUND".
+var credentialFailureMarkers = []string{
+	"invalid api key",
+	"invalid_api_key",
+	"incorrect api key",
+	"api key not found",
+	"invalid authentication credentials",
+	"authentication failed",
+	"authentication error",
+	"authentication_error",
+	"authentication fails",
+	"missing or not active",
+	"subscription_not_found",
+	"subscription not found",
+	"no subscription",
+	"subscription expired",
+	"invalid_token",
+	"invalid credential",
+	"invalid credentials",
+}
+
+// credentialFailurePatterns cover the wordings where the credential and its
+// state are not adjacent literals, e.g. "Your api key (sk-xxx) is invalid".
+// The credential must precede the state so that unrelated failures such as
+// "model X is invalid for this api key" are not treated as credential
+// failures, and a token is only matched with a qualifier so that request
+// level messages such as "prompt token is invalid" stay unaffected.
+var credentialFailurePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`api[ _-]?key[\s_]*(\([^)]*\))?[\s_]*(is\s+|has\s+|was\s+|been\s+)?(invalid|expired|revoked|disabled|not\s+valid|not\s+found)`),
+	regexp.MustCompile(`(?:access|auth|authentication|api|bearer|refresh|id|session|security|private|user)\s+token[\s_]*(\([^)]*\))?[\s_]*(is\s+|has\s+|was\s+|been\s+)?(invalid|expired|revoked|not\s+valid|not\s+found)`),
+}
+
+var recoverableAuthInterruptionMarkers = []string{
+	"waf",
+	"identity verification",
+	"real-name",
+	"real name",
+	"captcha",
+	"verification required",
+	"risk control",
+	"risk-control",
+	"bot protection",
+	"security challenge",
+}
+
+// IsRecoverableAuthInterruptionMessage identifies upstream security checks that
+// can reject a request without proving that the channel credential is invalid.
+func IsRecoverableAuthInterruptionMessage(message string) bool {
+	lowerMessage := strings.ToLower(strings.TrimSpace(message))
+	return slices.ContainsFunc(recoverableAuthInterruptionMarkers, func(marker string) bool {
+		return strings.Contains(lowerMessage, marker)
+	})
+}
+
+// IsCredentialFailureMessage reports whether an upstream error message proves
+// that the channel credentials or subscription are no longer usable.
+func IsCredentialFailureMessage(message string) bool {
+	lowerMessage := strings.ToLower(strings.TrimSpace(message))
+	if lowerMessage == "" || IsRecoverableAuthInterruptionMessage(lowerMessage) {
+		return false
+	}
+	for _, marker := range credentialFailureMarkers {
+		if strings.Contains(lowerMessage, marker) {
+			return true
+		}
+	}
+	for _, pattern := range credentialFailurePatterns {
+		if pattern.MatchString(lowerMessage) {
+			return true
+		}
+	}
+	return false
+}
+
 type channelRateLimitRecord struct {
 	consecutiveCount int
 	lastTimestamp    int64
@@ -180,11 +259,24 @@ func ShouldDisableChannel(err *types.NewAPIError, channelId ...int) bool {
 		return false
 	}
 
+	if IsRecoverableAuthInterruptionMessage(err.Error()) &&
+		(err.StatusCode == http.StatusUnauthorized || err.StatusCode == http.StatusForbidden) {
+		return false
+	}
+
 	if operation_setting.ShouldDisableByStatusCode(err.StatusCode) {
 		return true
 	}
 
 	if IsQuotaExhaustedError(err) {
+		return true
+	}
+
+	// The status code alone is not always conclusive: upstreams report dead
+	// credentials with 403 (e.g. SUBSCRIPTION_NOT_FOUND) or with 400, so the
+	// error message has the final say when it states that the credentials are
+	// no longer usable.
+	if IsCredentialFailureMessage(err.Error()) {
 		return true
 	}
 

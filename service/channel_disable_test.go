@@ -200,3 +200,122 @@ func TestShouldDisableChannel_429Semantics(t *testing.T) {
 	}, http.StatusUnauthorized)
 	assert.True(t, ShouldDisableChannel(authErr, channelID), "401 auth error should disable channel immediately")
 }
+
+func TestIsCredentialFailureMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		message  string
+		expected bool
+	}{
+		{
+			name:     "MiniMax invalid api key",
+			message:  "invalid api key (2049)",
+			expected: true,
+		},
+		{
+			name:     "Gemini invalid authentication credentials",
+			message:  "Request had invalid authentication credentials.",
+			expected: true,
+		},
+		{
+			name:     "DeepSeek api key is invalid",
+			message:  "Authentication Fails, Your api key (sk-abcdef) is invalid",
+			expected: true,
+		},
+		{
+			name:     "VolcEngine ark key missing or not active",
+			message:  "AuthenticationError: The API key is missing or not active.",
+			expected: true,
+		},
+		{
+			name:     "subscription not found",
+			message:  "SUBSCRIPTION_NOT_FOUND",
+			expected: true,
+		},
+		{
+			name:     "expired access token",
+			message:  "Your access token has expired",
+			expected: true,
+		},
+		{
+			name:     "api key expired",
+			message:  "api_key_expired",
+			expected: true,
+		},
+		{
+			name:     "waf rejection",
+			message:  "Access denied by WAF, please complete the identity verification first.",
+			expected: false,
+		},
+		{
+			name:     "credential marker in WAF response is recoverable",
+			message:  "API key invalid: security check required by WAF",
+			expected: false,
+		},
+		{
+			name:     "model rejected for api key",
+			message:  "model gpt-4o is invalid for this api key",
+			expected: false,
+		},
+		{
+			name:     "request parameter rejected",
+			message:  "max_tokens is invalid",
+			expected: false,
+		},
+		{
+			name:     "prompt token rejected",
+			message:  "prompt token is invalid",
+			expected: false,
+		},
+		{
+			name:     "empty message",
+			message:  "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsCredentialFailureMessage(tt.message))
+		})
+	}
+}
+
+func TestShouldDisableChannelCredentialFailure(t *testing.T) {
+	origAutoDisable := common.AutomaticDisableChannelEnabled
+	common.AutomaticDisableChannelEnabled = true
+	defer func() { common.AutomaticDisableChannelEnabled = origAutoDisable }()
+
+	origRanges := operation_setting.AutomaticDisableStatusCodeRanges
+	require.NoError(t, operation_setting.AutomaticDisableStatusCodesFromString("401,429"))
+	defer func() { operation_setting.AutomaticDisableStatusCodeRanges = origRanges }()
+
+	origKeywords := operation_setting.AutomaticDisableKeywords
+	operation_setting.AutomaticDisableKeywords = []string{}
+	defer func() { operation_setting.AutomaticDisableKeywords = origKeywords }()
+
+	// 403 with a credential failure reason is conclusive even when 403 is not
+	// part of the auto-disable status codes.
+	subscriptionErr := types.NewOpenAIError(
+		errors.New("SUBSCRIPTION_NOT_FOUND"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusForbidden,
+	)
+	assert.True(t, ShouldDisableChannel(subscriptionErr), "403 subscription failure should disable the channel")
+
+	// A WAF challenge stays recoverable even if its response includes credential wording.
+	wafErr := types.NewOpenAIError(
+		errors.New("API key invalid: security check required by WAF."),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusForbidden,
+	)
+	assert.False(t, ShouldDisableChannel(wafErr), "403 without credential failure should not disable the channel")
+
+	// A model level failure that mentions the api key is not a credential failure.
+	modelErr := types.NewOpenAIError(
+		errors.New("model gpt-4o is invalid for this api key"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadRequest,
+	)
+	assert.False(t, ShouldDisableChannel(modelErr), "model level failure should not disable the channel")
+}

@@ -89,3 +89,17 @@ func TestValidateChannelTestConcurrency(t *testing.T) {
 	assert.Error(t, ValidateChannelTestConcurrency("33"))
 	assert.Error(t, ValidateChannelTestConcurrency("1.5"))
 }
+
+func TestActiveProbeIsOptInAndHasBoundedIntervals(t *testing.T) {
+	original := monitorSetting
+	t.Cleanup(func() { monitorSetting = original })
+	t.Setenv("CHANNEL_PROBE_ENABLED", "")
+	monitorSetting = MonitorSetting{}
+	assert.False(t, GetMonitorSetting().ActiveProbeEnabled, "missing probe option must remain disabled")
+
+	require.NoError(t, ValidateActiveProbeInterval("1"))
+	require.NoError(t, ValidateActiveProbeInterval("43200"))
+	assert.Error(t, ValidateActiveProbeInterval("0"))
+	assert.Error(t, ValidateActiveProbeInterval("43201"))
+	assert.Equal(t, MaxActiveProbeIntervalMinutes, NormalizeActiveProbeInterval(MaxActiveProbeIntervalMinutes+1))
+}

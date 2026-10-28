@@ -20,6 +20,7 @@ import (
 // service.StartSystemTaskRunner.
 func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(channelTestHandler{})
+	service.RegisterSystemTaskHandler(channelProbeHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
@@ -68,6 +69,38 @@ func (channelTestHandler) Run(ctx context.Context, task *model.SystemTask, runne
 		}
 	}
 	summary, err := runChannelTestTask(ctx, payload.Mode, payload.Notify, service.NewSystemTaskProgressReporter(task, runnerID))
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
+}
+
+// channelProbeHandler runs the scheduled read-only credential probe of the
+// enabled channels. The probe exists because the relay error path only sees
+// the channels that are actually selected for a request, so a channel whose
+// upstream credentials died would stay enabled forever when it is not part of
+// the routing anymore.
+type channelProbeHandler struct{}
+
+func (channelProbeHandler) Type() string { return model.SystemTaskTypeChannelProbe }
+
+func (channelProbeHandler) Enabled() bool {
+	return operation_setting.GetMonitorSetting().ActiveProbeEnabled && common.AutomaticDisableChannelEnabled
+}
+
+func (channelProbeHandler) Interval() time.Duration {
+	minutes := operation_setting.GetMonitorSetting().ActiveProbeIntervalMinutes
+	if minutes <= 0 {
+		minutes = operation_setting.DefaultActiveProbeIntervalMinutes
+	}
+	return time.Duration(minutes) * time.Minute
+}
+
+func (channelProbeHandler) NewPayload() any { return nil }
+
+func (channelProbeHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := runChannelCredentialProbe(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
 	if err != nil {
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
 		return

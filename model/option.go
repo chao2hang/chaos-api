@@ -236,6 +236,12 @@ func validateOptionValue(key string, value string) error {
 	if key == operation_setting.ChannelTestConcurrencyOptionKey {
 		return operation_setting.ValidateChannelTestConcurrency(value)
 	}
+	if key == operation_setting.ActiveProbeIntervalOptionKey {
+		return operation_setting.ValidateActiveProbeInterval(value)
+	}
+	if key == operation_setting.ActiveProbeConcurrencyOptionKey {
+		return operation_setting.ValidateActiveProbeConcurrency(value)
+	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}

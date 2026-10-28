@@ -37,6 +37,40 @@ func newAdvancedCustomModelListChannel(baseURL string, key string, upstreamPath 
 	return channel
 }
 
+func TestBuildOpenAICompatibleModelListURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		baseURL     string
+		want        string
+	}{
+		{
+			name:        "default OpenAI compatible URL",
+			channelType: constant.ChannelTypeDeepSeek,
+			baseURL:     "https://api.example.test",
+			want:        "https://api.example.test/v1/models",
+		},
+		{
+			name:        "Ali URL",
+			channelType: constant.ChannelTypeAli,
+			baseURL:     "https://api.example.test",
+			want:        "https://api.example.test/compatible-mode/v1/models",
+		},
+		{
+			name:        "VolcEngine URL avoids duplicate API v3 suffix",
+			channelType: constant.ChannelTypeVolcEngine,
+			baseURL:     "https://api.example.test/api/v3",
+			want:        "https://api.example.test/api/v3/models",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, buildOpenAICompatibleModelListURL(test.channelType, test.baseURL))
+		})
+	}
+}
+
 func TestParseOpenAIModelIDsStrictResponseContract(t *testing.T) {
 	tests := []struct {
 		name      string

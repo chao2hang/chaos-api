@@ -361,6 +361,48 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 	return io.ReadAll(response.Body)
 }
 
+// buildOpenAICompatibleModelListURL returns the upstream model list endpoint
+// of the OpenAI-compatible channel types. It is shared by the upstream model
+// list feature and the channel credential probe so both address the same
+// endpoint.
+func buildOpenAICompatibleModelListURL(channelType int, baseURL string) string {
+	switch channelType {
+	case constant.ChannelTypeAli:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		}
+		return fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
+	case constant.ChannelTypeMiniMax:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		}
+		return fmt.Sprintf("%s/v1/models", baseURL)
+	case constant.ChannelTypeZhipu_v4:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		}
+		return fmt.Sprintf("%s/api/paas/v4/models", baseURL)
+	case constant.ChannelTypeVolcEngine:
+		// 火山方舟 OpenAI 兼容 API 根路径是 /api/v3（chat/embeddings 均为
+		// {base}/api/v3/...，见 relay/channel/volcengine 的 GetRequestURL），
+		// 不存在 /v1/models 端点。原拼接会导致「获取模型列表」固定 404 失败。
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/models", strings.TrimSuffix(plan.OpenAIBaseURL, "/"))
+		}
+		if strings.HasSuffix(baseURL, "/api/v3") {
+			return fmt.Sprintf("%s/models", strings.TrimSuffix(baseURL, "/"))
+		}
+		return fmt.Sprintf("%s/api/v3/models", strings.TrimSuffix(baseURL, "/"))
+	case constant.ChannelTypeMoonshot:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		}
+		return fmt.Sprintf("%s/v1/models", baseURL)
+	default:
+		return fmt.Sprintf("%s/v1/models", baseURL)
+	}
+}
+
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)
@@ -406,47 +448,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return service.FetchCodexChannelModels(channel)
 	}
 
-	var url string
-	switch channel.Type {
-	case constant.ChannelTypeAli:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
-		}
-	case constant.ChannelTypeMiniMax:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
-		}
-	case constant.ChannelTypeZhipu_v4:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
-		}
-	case constant.ChannelTypeVolcEngine:
-		// 火山方舟 OpenAI 兼容 API 根路径是 /api/v3（chat/embeddings 均为
-		// {base}/api/v3/...，见 relay/channel/volcengine 的 GetRequestURL），
-		// 不存在 /v1/models 端点。原拼接会导致「获取模型列表」固定 404 失败。
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/models", strings.TrimSuffix(plan.OpenAIBaseURL, "/"))
-		} else if strings.HasSuffix(baseURL, "/api/v3") {
-			url = fmt.Sprintf("%s/models", strings.TrimSuffix(baseURL, "/"))
-		} else {
-			url = fmt.Sprintf("%s/api/v3/models", strings.TrimSuffix(baseURL, "/"))
-		}
-	case constant.ChannelTypeMoonshot:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
-		}
-	default:
-		url = fmt.Sprintf("%s/v1/models", baseURL)
-	}
-
+	url := buildOpenAICompatibleModelListURL(channel.Type, baseURL)
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
 		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
@@ -483,6 +485,22 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 	}
 	key = strings.TrimSpace(key)
 
+	url, headers, err := buildAdvancedCustomModelListRequest(channel, baseURL, key)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+
+	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	return parseOpenAIModelIDs(body)
+}
+
+// buildAdvancedCustomModelListRequest builds the read-only model list request
+// of an advanced custom channel. It is shared by the upstream model list
+// feature and the channel credential probe.
+func buildAdvancedCustomModelListRequest(channel *model.Channel, baseURL string, key string) (string, http.Header, error) {
 	info := &relaycommon.RelayInfo{
 		RelayFormat:    types.RelayFormatOpenAI,
 		RelayMode:      relayconstant.RelayModeUnknown,
@@ -498,17 +516,12 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 	adaptor := &advancedcustom.Adaptor{}
 	url, headers, err := adaptor.BuildModelListRequest(info)
 	if err != nil {
-		return nil, sanitizeFetchModelsError(err, key)
+		return "", nil, err
 	}
 	if err := applyFetchModelsHeaderOverrides(channel, key, headers); err != nil {
-		return nil, sanitizeFetchModelsError(err, key)
+		return "", nil, err
 	}
-
-	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
-	if err != nil {
-		return nil, sanitizeFetchModelsError(err, key)
-	}
-	return parseOpenAIModelIDs(body)
+	return url, headers, nil
 }
 
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {

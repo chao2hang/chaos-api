@@ -17,10 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useRef } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import * as z from 'zod'
 
 import {
   Form,
@@ -55,83 +54,18 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { createRoutingReliabilitySchema } from './routing-reliability-schema'
 
-const numericString = z.string().refine((value) => {
-  const trimmed = value.trim()
-  if (!trimmed) return true
-  return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
-}, 'Enter a non-negative number or leave empty')
+type ChannelTestMode = 'scheduled_all' | 'auto_ban_only' | 'passive_recovery'
 
-const channelTestModes = [
-  'scheduled_all',
-  'auto_ban_only',
-  'passive_recovery',
-] as const
-type ChannelTestMode = (typeof channelTestModes)[number]
 const MAX_CHANNEL_TEST_CONCURRENCY = 32
-
-const createRoutingReliabilitySchema = (
-  t: (key: string, options?: Record<string, unknown>) => string
-) =>
-  z
-    .object({
-      RetryTimes: z.coerce.number().min(0).max(10),
-      ChannelDisableThreshold: numericString,
-      AutomaticDisableChannelEnabled: z.boolean(),
-      AutomaticEnableChannelEnabled: z.boolean(),
-      AutomaticDisableKeywords: z.string(),
-      AutomaticDisableStatusCodes: z.string(),
-      AutomaticRetryStatusCodes: z.string(),
-      monitor_setting: z.object({
-        auto_test_channel_enabled: z.boolean(),
-        auto_test_channel_minutes: z.coerce
-          .number()
-          .int()
-          .min(1, t('Interval must be at least 1 minute')),
-        channel_test_concurrency: z.coerce
-          .number()
-          .int(t('Enter a positive integer'))
-          .min(1, t('Channel test concurrency must be between 1 and 32'))
-          .max(
-            MAX_CHANNEL_TEST_CONCURRENCY,
-            t('Channel test concurrency must be between 1 and 32')
-          ),
-        channel_test_mode: z.enum(channelTestModes),
-      }),
-    })
-    .superRefine((values, ctx) => {
-      const disableParsed = parseHttpStatusCodeRules(
-        values.AutomaticDisableStatusCodes
-      )
-      if (!disableParsed.ok) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['AutomaticDisableStatusCodes'],
-          message: t('Invalid status code rules: {{tokens}}', {
-            tokens: disableParsed.invalidTokens.join(', '),
-          }),
-        })
-      }
-
-      const retryParsed = parseHttpStatusCodeRules(
-        values.AutomaticRetryStatusCodes
-      )
-      if (!retryParsed.ok) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['AutomaticRetryStatusCodes'],
-          message: t('Invalid status code rules: {{tokens}}', {
-            tokens: retryParsed.invalidTokens.join(', '),
-          }),
-        })
-      }
-    })
 
 type RoutingReliabilitySchema = ReturnType<
   typeof createRoutingReliabilitySchema
 >
-type RoutingReliabilityFormValues = z.output<RoutingReliabilitySchema>
-type RoutingReliabilityFormInput = z.input<RoutingReliabilitySchema>
+type RoutingReliabilityFormValues =
+  import('zod').output<RoutingReliabilitySchema>
+type RoutingReliabilityFormInput = import('zod').input<RoutingReliabilitySchema>
 
 type RoutingReliabilitySectionProps = {
   defaultValues: {
@@ -146,6 +80,9 @@ type RoutingReliabilitySectionProps = {
     'monitor_setting.auto_test_channel_minutes': number
     'monitor_setting.channel_test_concurrency': number
     'monitor_setting.channel_test_mode': ChannelTestMode
+    'monitor_setting.active_probe_enabled': boolean
+    'monitor_setting.active_probe_interval_minutes': number
+    'monitor_setting.active_probe_concurrency': number
   }
 }
 
@@ -165,6 +102,9 @@ type NormalizedRoutingReliabilityValues = {
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_concurrency': number
   'monitor_setting.channel_test_mode': ChannelTestMode
+  'monitor_setting.active_probe_enabled': boolean
+  'monitor_setting.active_probe_interval_minutes': number
+  'monitor_setting.active_probe_concurrency': number
 }
 
 function normalizeChannelTestMode(value?: string): ChannelTestMode {
@@ -196,6 +136,11 @@ const buildFormDefaults = (
     channel_test_mode: normalizeChannelTestMode(
       defaults['monitor_setting.channel_test_mode']
     ),
+    active_probe_enabled: defaults['monitor_setting.active_probe_enabled'],
+    active_probe_interval_minutes:
+      defaults['monitor_setting.active_probe_interval_minutes'],
+    active_probe_concurrency:
+      defaults['monitor_setting.active_probe_concurrency'],
   },
 })
 
@@ -224,6 +169,12 @@ const normalizeDefaults = (
   'monitor_setting.channel_test_mode': normalizeChannelTestMode(
     defaults['monitor_setting.channel_test_mode']
   ),
+  'monitor_setting.active_probe_enabled':
+    defaults['monitor_setting.active_probe_enabled'],
+  'monitor_setting.active_probe_interval_minutes':
+    defaults['monitor_setting.active_probe_interval_minutes'],
+  'monitor_setting.active_probe_concurrency':
+    defaults['monitor_setting.active_probe_concurrency'],
 })
 
 const normalizeFormValues = (
@@ -249,6 +200,12 @@ const normalizeFormValues = (
   'monitor_setting.channel_test_concurrency':
     values.monitor_setting.channel_test_concurrency,
   'monitor_setting.channel_test_mode': values.monitor_setting.channel_test_mode,
+  'monitor_setting.active_probe_enabled':
+    values.monitor_setting.active_probe_enabled,
+  'monitor_setting.active_probe_interval_minutes':
+    values.monitor_setting.active_probe_interval_minutes,
+  'monitor_setting.active_probe_concurrency':
+    values.monitor_setting.active_probe_concurrency,
 })
 
 export function RoutingReliabilitySection({
@@ -277,9 +234,18 @@ export function RoutingReliabilitySection({
 
   useResetForm(form, formDefaults)
 
-  const autoDisableStatusCodes = form.watch('AutomaticDisableStatusCodes')
-  const autoRetryStatusCodes = form.watch('AutomaticRetryStatusCodes')
-  const channelTestMode = form.watch('monitor_setting.channel_test_mode')
+  const autoDisableStatusCodes = useWatch({
+    control: form.control,
+    name: 'AutomaticDisableStatusCodes',
+  })
+  const autoRetryStatusCodes = useWatch({
+    control: form.control,
+    name: 'AutomaticRetryStatusCodes',
+  })
+  const channelTestMode = useWatch({
+    control: form.control,
+    name: 'monitor_setting.channel_test_mode',
+  })
   let channelTestModeDescription: string
   switch (channelTestMode) {
     case 'auto_ban_only':
@@ -331,9 +297,15 @@ export function RoutingReliabilitySection({
   return (
     <SettingsSection title={t('Routing Reliability')}>
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+        <SettingsForm
+          onSubmit={(event) => {
+            void form.handleSubmit(onSubmit)(event)
+          }}
+        >
           <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
+            onSave={() => {
+              void form.handleSubmit(onSubmit)()
+            }}
             isSaving={updateOption.isPending}
           />
 
@@ -552,6 +524,88 @@ export function RoutingReliabilitySection({
                       />
                     </FormControl>
                   </SettingsSwitchItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className='flex min-w-0 flex-col gap-4'>
+            <div className='flex flex-col gap-1'>
+              <h4 className='text-sm font-medium'>
+                {t('Active credential probe')}
+              </h4>
+            </div>
+            <div className='grid min-w-0 gap-6 lg:grid-cols-3'>
+              <FormField
+                control={form.control}
+                name='monitor_setting.active_probe_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Probe enabled channels')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Probe supported channels with read-only requests. Only clear credential failures trigger auto-disable; WAF and identity checks are ignored'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='monitor_setting.active_probe_interval_minutes'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Probe interval (minutes)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        max={43200}
+                        step={1}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('How frequently the enabled channels are probed')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='monitor_setting.active_probe_concurrency'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Probe concurrency')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        max={MAX_CHANNEL_TEST_CONCURRENCY}
+                        step={1}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Maximum number of channels probed at the same time (1-32)'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )}
               />
             </div>
