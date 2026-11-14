@@ -21,14 +21,15 @@ import (
 )
 
 const (
-	ginKeyChannelAffinityCacheKey    = "channel_affinity_cache_key"
-	ginKeyChannelAffinityTTLSeconds  = "channel_affinity_ttl_seconds"
-	ginKeyChannelAffinityMeta        = "channel_affinity_meta"
-	ginKeyChannelAffinityLogInfo     = "channel_affinity_log_info"
-	ginKeyChannelAffinitySkipRetry   = "channel_affinity_skip_retry_on_failure"
-	ginKeyChannelAffinityRetryOffset = "channel_affinity_retry_offset"
+	ginKeyChannelAffinityCacheKey            = "channel_affinity_cache_key"
+	ginKeyChannelAffinityTTLSeconds          = "channel_affinity_ttl_seconds"
+	ginKeyChannelAffinityMeta                = "channel_affinity_meta"
+	ginKeyChannelAffinityLogInfo             = "channel_affinity_log_info"
+	ginKeyChannelAffinitySkipRetry           = "channel_affinity_skip_retry_on_failure"
+	ginKeyChannelAffinityRetryOffset         = "channel_affinity_retry_offset"
+	ginKeyEncryptedResponsesAffinityRequired = "encrypted_responses_affinity_required"
 
-	channelAffinityCacheNamespace           = "new-api:channel_affinity:v1"
+	channelAffinityCacheNamespace           = "new-api:channel_affinity:v2"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
 )
 
@@ -336,8 +337,8 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 	}
 }
 
-func buildChannelAffinityCacheKeySuffix(rule operation_setting.ChannelAffinityRule, modelName string, usingGroup string, affinityValue string) string {
-	parts := make([]string, 0, 4)
+func buildChannelAffinityCacheKeySuffix(rule operation_setting.ChannelAffinityRule, modelName string, usingGroup string, affinityValue string, userID int) string {
+	parts := make([]string, 0, 5)
 	if rule.IncludeRuleName && rule.Name != "" {
 		parts = append(parts, rule.Name)
 	}
@@ -346,6 +347,9 @@ func buildChannelAffinityCacheKeySuffix(rule operation_setting.ChannelAffinityRu
 	}
 	if rule.IncludeUsingGroup && usingGroup != "" {
 		parts = append(parts, usingGroup)
+	}
+	if userID > 0 {
+		parts = append(parts, "user", strconv.Itoa(userID))
 	}
 	parts = append(parts, affinityValue)
 	return strings.Join(parts, ":")
@@ -548,10 +552,18 @@ func ApplyChannelAffinityOverrideTemplate(c *gin.Context, paramOverride map[stri
 }
 
 func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (int, bool) {
+	channelID, matched, err := ResolvePreferredChannelByAffinity(c, modelName, usingGroup)
+	return channelID, matched && err == nil && channelID > 0
+}
+
+// ResolvePreferredChannelByAffinity reports whether a configured key source
+// matched independently from whether its channel binding exists. Encrypted
+// Responses continuations must fail closed on a missing or unavailable binding.
+func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (int, bool, error) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	state := RequestPolicy(c)
 	if setting == nil || !setting.Enabled {
-		return 0, false
+		return 0, false, nil
 	}
 	path := ""
 	if c != nil && c.Request != nil && c.Request.URL != nil {
@@ -592,9 +604,16 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 		if ttlSeconds <= 0 {
 			ttlSeconds = setting.DefaultTTLSeconds
 		}
-		cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, modelName, usingGroup, affinityValue)
+		userID := 0
+		if c != nil {
+			userID = c.GetInt("id")
+		}
+		cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, modelName, usingGroup, affinityValue, userID)
 		cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
 		state.SessionMode, state.SessionModeSource = EffectiveSessionMode(setting, rule)
+		if c != nil && c.GetBool(ginKeyEncryptedResponsesAffinityRequired) {
+			state.SessionMode, state.SessionModeSource = "strict", "encrypted_reasoning"
+		}
 		state.RuleName = rule.Name
 		setChannelAffinityContext(c, channelAffinityMeta{
 			CacheKey:       cacheKeyFull,
@@ -614,20 +633,30 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 
 		state.AddEvent(PolicyEvent{Decision: PolicyDecision{Action: "match", Reason: "session_rule_matched", Source: "session_rule"}})
 		if state.SessionMode == "off" {
-			return 0, false
+			return 0, true, nil
 		}
-		cache := getChannelAffinityCache()
-		channelID, found, err := cache.Get(cacheKeySuffix)
+		channelID, found, err := getChannelAffinityCache().Get(cacheKeySuffix)
 		if err != nil {
-			common.SysError(common.LogText("channel affinity cache get failed: key=%s, err=%v", cacheKeyFull, err))
-			return 0, false
+			common.SysError(common.LogText("channel affinity cache get failed: rule=%s key_fp=%s, err=%v", rule.Name, affinityFingerprint(affinityValue), err))
+			return 0, true, err
 		}
-		if found {
-			return channelID, true
+		if !found {
+			return 0, true, nil
 		}
-		return 0, false
+		return channelID, true, nil
 	}
-	return 0, false
+	return 0, false, nil
+}
+
+// RequireEncryptedResponsesAffinity marks this request as an encrypted
+// reasoning continuation so a matched affinity rule is always strict.
+func RequireEncryptedResponsesAffinity(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	c.Set(ginKeyEncryptedResponsesAffinityRequired, true)
+	state := RequestPolicy(c)
+	state.SessionMode, state.SessionModeSource = "strict", "encrypted_reasoning"
 }
 
 func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {

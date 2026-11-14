@@ -230,7 +230,7 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	}
 
 	affinityValue := fmt.Sprintf("header-hit-%d", time.Now().UnixNano())
-	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, "gpt-5", "default", affinityValue)
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, "gpt-5", "default", affinityValue, 0)
 
 	cache := getChannelAffinityCache()
 	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9528, time.Minute))
@@ -305,7 +305,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.NotNil(t, codexRule)
 
 	affinityValue := fmt.Sprintf("pc-hit-%d", time.Now().UnixNano())
-	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5", "default", affinityValue)
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5", "default", affinityValue, 0)
 
 	cache := getChannelAffinityCache()
 	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9527, time.Minute))
@@ -437,7 +437,7 @@ func TestSessionRulesInheritOrOverrideGlobalDefault(t *testing.T) {
 				require.NoError(t, err)
 				*setting = snapshot.Affinity
 				key := t.Name()
-				cacheKey := buildChannelAffinityCacheKeySuffix(rule, "test-model", "default", key)
+				cacheKey := buildChannelAffinityCacheKeySuffix(rule, "test-model", "default", key, 0)
 				cache := getChannelAffinityCache()
 				require.NoError(t, cache.SetWithTTL(cacheKey, 1, time.Minute))
 				t.Cleanup(func() { _, err := cache.DeleteMany([]string{cacheKey}); assert.NoError(t, err) })

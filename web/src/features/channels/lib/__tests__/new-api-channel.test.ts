@@ -104,6 +104,51 @@ describe('New API channel', () => {
   })
 })
 
+describe('OpenAI-compatible request settings', () => {
+  test('round-trips per-channel reasoning_content stripping', () => {
+    const channel = channelSchema.parse({
+      id: 8,
+      name: 'Groq',
+      type: 1,
+      key: '',
+      status: 1,
+      created_time: 1,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+      models: 'qwen/qwen3.8-27b',
+      group: 'default',
+      settings: JSON.stringify({ strip_reasoning_content: true }),
+    })
+    expect(
+      transformChannelToFormDefaults(channel).strip_reasoning_content
+    ).toBe(true)
+
+    const enabled = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'Groq',
+      type: 1,
+      base_url: 'https://api.groq.com/openai',
+      key: 'test-key',
+      models: 'qwen/qwen3.8-27b',
+      strip_reasoning_content: true,
+    })
+    expect(JSON.parse(enabled.channel.settings ?? '{}')).toMatchObject({
+      strip_reasoning_content: true,
+    })
+
+    const unsupported = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'Anthropic',
+      type: 14,
+      strip_reasoning_content: true,
+    })
+    expect(JSON.parse(unsupported.channel.settings ?? '{}')).not.toHaveProperty(
+      'strip_reasoning_content'
+    )
+  })
+})
+
 describe.each([
   { type: CHANNEL_TYPE_VLLM, name: 'vLLM', icon: 'Vllm' },
   { type: CHANNEL_TYPE_SGLANG, name: 'SGLang', icon: 'SGLang' },

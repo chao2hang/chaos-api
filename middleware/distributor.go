@@ -50,6 +50,12 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		encryptedReasoningRequest, err := hasEncryptedResponsesReasoningItem(c)
+		if err != nil {
+			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}), types.ErrorCodeInvalidRequest)
+			return
+		}
+		requiredAffinityChannelID := 0
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {
 			// Select a channel for the user
@@ -97,10 +103,33 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		if encryptedReasoningRequest {
+			hasAffinityKey, keyErr := hasStableResponsesPromptCacheKey(c)
+			if keyErr != nil {
+				abortWithOpenAiMessage(c, invalidRequestStatus(keyErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": keyErr.Error()}), types.ErrorCodeInvalidRequest)
+				return
+			}
+			if !hasAffinityKey {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorEncryptedReasoningAffinityRequired), types.ErrorCodeInvalidRequest)
+				return
+			}
+			service.RequireEncryptedResponsesAffinity(c)
+			channelID, keyMatched, affinityErr := service.ResolvePreferredChannelByAffinity(c, modelRequest.Model, common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
+			if affinityErr != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
+				return
+			}
+			if !keyMatched || channelID <= 0 {
+				abortWithOpenAiMessage(c, http.StatusConflict, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingMissing), types.ErrorCodeInvalidRequest)
+				return
+			}
+			requiredAffinityChannelID = channelID
+		}
+		selectedGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 		if pinned || shouldSelectChannel {
 			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 			var selectErr *service.ChannelSelectError
-			if value, exists := c.Get(contextKeyTaskPluginEndpointSelection); exists && !pinned {
+			if value, exists := c.Get(contextKeyTaskPluginEndpointSelection); exists && !pinned && !encryptedReasoningRequest {
 				if selected, ok := value.(taskPluginEndpointSelection); ok && selected.Model == modelRequest.Model && selected.Channel != nil && selected.Channel.Status == common.ChannelStatusEnabled {
 					if matches, _ := model.ChannelSatisfiesFilters(selected.Channel, modelRequest.Model, constraints.Filters); matches {
 						channel = selected.Channel
@@ -108,7 +137,7 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 			if channel == nil {
-				channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, &service.RetryParam{
+				channel, selectedGroup, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, &service.RetryParam{
 					Ctx:         c,
 					ModelName:   modelRequest.Model,
 					TokenGroup:  usingGroup,
@@ -129,6 +158,19 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, selectErr.StatusCode, message, selectErr.Code)
 				return
 			}
+		}
+		if encryptedReasoningRequest {
+			if channel == nil || channel.Id != requiredAffinityChannelID {
+				abortWithOpenAiMessage(c, http.StatusConflict, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingMissing), types.ErrorCodeInvalidRequest)
+				return
+			}
+			if selectedGroup == "" {
+				selectedGroup = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+			}
+			if selectedGroup == "" {
+				selectedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			}
+			service.MarkChannelAffinityUsed(c, selectedGroup, channel.Id)
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
@@ -416,6 +458,48 @@ func getJSONStringValue(result ojson.Result, field string) (string, error) {
 		return "", fmt.Errorf("field %s must be a string", field)
 	}
 	return result.String(), nil
+}
+
+func hasStableResponsesPromptCacheKey(c *gin.Context) (bool, error) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return false, err
+	}
+	values, err := common.ReadBodyJSONFields(storage, "prompt_cache_key")
+	if err != nil {
+		return false, err
+	}
+	if len(values) == 0 || values[0].Type != ojson.String {
+		return false, nil
+	}
+	return strings.TrimSpace(values[0].Str) != "", nil
+}
+
+func hasEncryptedResponsesReasoningItem(c *gin.Context) (bool, error) {
+	if c == nil || c.Request == nil || c.Request.URL == nil || c.Request.Method != http.MethodPost || c.Request.URL.Path != "/v1/responses" {
+		return false, nil
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return false, err
+	}
+	values, err := common.ReadBodyJSONFields(storage, `input.#(encrypted_content!="")#.type`)
+	if err != nil {
+		return false, err
+	}
+	if len(values) == 0 || !values[0].Exists() || values[0].Type == ojson.Null {
+		return false, nil
+	}
+	itemTypes := values[0]
+	if !itemTypes.IsArray() {
+		return itemTypes.Type == ojson.String && itemTypes.Str == "reasoning", nil
+	}
+	for _, itemType := range itemTypes.Array() {
+		if itemType.Type == ojson.String && itemType.Str == "reasoning" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {

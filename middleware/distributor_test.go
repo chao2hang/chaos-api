@@ -96,6 +96,63 @@ func TestJSONModelRoutingUsesReadersForDiskBodies(t *testing.T) {
 	}
 }
 
+func TestHasEncryptedResponsesReasoningItem(t *testing.T) {
+	previous := common.GetDiskCacheConfig()
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
+	for _, disk := range []bool{false, true} {
+		common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: disk, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+		for _, tc := range []struct {
+			name, path, body string
+			want             bool
+		}{
+			{
+				name: "encrypted reasoning item after plain reasoning item",
+				path: "/v1/responses",
+				body: `{"model":"gpt-test","input":[{"type":"other","encrypted_content":"other-opaque"},{"type":"reasoning","id":"rs_plain","summary":[]},{"type":"reasoning","id":"rs_cipher","encrypted_content":"opaque"}]}`,
+				want: true,
+			},
+			{
+				name: "encrypted content on a non-reasoning item",
+				path: "/v1/responses",
+				body: `{"model":"gpt-test","input":[{"type":"other","encrypted_content":"other-opaque"}]}`,
+			},
+			{
+				name: "reasoning item id without encrypted content",
+				path: "/v1/responses",
+				body: `{"model":"gpt-test","input":[{"type":"reasoning","id":"rs_plain","summary":[]}]}`,
+			},
+			{
+				name: "empty encrypted content",
+				path: "/v1/responses",
+				body: `{"model":"gpt-test","input":[{"type":"reasoning","encrypted_content":""}]}`,
+			},
+			{
+				name: "other endpoint",
+				path: "/v1/chat/completions",
+				body: `{"model":"gpt-test","input":[{"type":"reasoning","encrypted_content":"opaque"}]}`,
+			},
+			{
+				name: "string input",
+				path: "/v1/responses",
+				body: `{"model":"gpt-test","input":"hello"}`,
+			},
+		} {
+			t.Run(fmt.Sprintf("disk=%t/%s", disk, tc.name), func(t *testing.T) {
+				storage, err := common.CreateBodyStorage([]byte(tc.body))
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, storage.Close()) })
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+				c.Set(common.KeyBodyStorage, storage)
+
+				got, err := hasEncryptedResponsesReasoningItem(c)
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			})
+		}
+	}
+}
+
 func TestChannelMatchesExpectedTaskPluginUsesGenericChannelSetting(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeTaskPlugin}
 	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "generic-alpha"})

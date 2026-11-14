@@ -1215,6 +1215,12 @@ test('quick options and detailed settings share changes across tabs and save the
   expect(
     screen.getByRole('switch', { name: 'Allow service_tier passthrough' })
   ).toBeVisible()
+  const stripReasoning = screen.getByRole('switch', {
+    name: 'Strip reasoning_content',
+  })
+  expect(stripReasoning).not.toBeChecked()
+  await user.click(stripReasoning)
+  expect(stripReasoning).toBeChecked()
 
   await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
   const modelCheck = screen.getByRole('switch', {
@@ -1256,6 +1262,7 @@ test('quick options and detailed settings share changes across tabs and save the
     responses_websocket_enabled: false,
   })
   expect(JSON.parse(payload.settings)).toMatchObject({
+    strip_reasoning_content: true,
     upstream_model_update_check_enabled: true,
     upstream_model_update_auto_sync_enabled: true,
   })

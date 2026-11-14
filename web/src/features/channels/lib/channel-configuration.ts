@@ -77,6 +77,7 @@ const CONFIGURATION_BLOCKS = {
     section: 'request',
     fields: [
       'allow_service_tier',
+      'strip_reasoning_content',
       'disable_store',
       'allow_safety_identifier',
       'allow_include_obfuscation',

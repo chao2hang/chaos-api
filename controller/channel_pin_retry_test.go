@@ -237,6 +237,160 @@ func TestChannelAffinityRetryPriorities(t *testing.T) {
 	}
 }
 
+func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	previousMemoryCache := common.MemoryCacheEnabled
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = previousMemoryCache
+		if previousMemoryCache {
+			model.InitChannelCache()
+		}
+	})
+	db := modelManagementDB(t, "sqlite", "")
+	previousGroups := setting.UserUsableGroups2JSONString()
+	previousGroupRatios := ratio_setting.GroupRatio2JSONString()
+	affinity := operation_setting.GetChannelAffinitySetting()
+	previousAffinity := *affinity
+	var affinityContext *gin.Context
+	t.Cleanup(func() {
+		if affinityContext != nil {
+			service.ClearCurrentChannelAffinityCache(affinityContext)
+		}
+		*affinity = previousAffinity
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(previousGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousGroupRatios))
+	})
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+
+	const modelName = "gpt-encrypted-affinity-test"
+	*affinity = operation_setting.ChannelAffinitySetting{
+		Enabled:           true,
+		SwitchOnSuccess:   true,
+		MaxEntries:        100,
+		DefaultTTLSeconds: 60,
+		Rules: []operation_setting.ChannelAffinityRule{{
+			Name:        "encrypted-reasoning-test",
+			ModelRegex:  []string{"^" + modelName + "$"},
+			PathRegex:   []string{"^/v1/responses$"},
+			KeySources:  []operation_setting.ChannelAffinityKeySource{{Type: "gjson", Path: "prompt_cache_key"}},
+			SessionMode: "prefer",
+		}},
+	}
+	common.MemoryCacheEnabled = true
+	for _, channelID := range []int{9101, 9102} {
+		priority := int64(10)
+		if channelID == 9102 {
+			priority = 5
+		}
+		channel := model.Channel{
+			Id: channelID, Name: fmt.Sprintf("encrypted-affinity-%d", channelID), Type: constant.ChannelTypeOpenAI,
+			Key: "test-only", Status: common.ChannelStatusEnabled, Models: modelName, Group: "default",
+			Priority: common.GetPointer(priority), Weight: common.GetPointer(uint(1)),
+		}
+		require.NoError(t, db.Create(&channel).Error)
+		require.NoError(t, channel.AddAbilities(db))
+	}
+	model.InitChannelCache()
+
+	var selectedChannels []int
+	var encryptedRetryDecision service.PolicyDecision
+	router := gin.New()
+	router.POST("/v1/responses", func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		userID := 1
+		if c.Request.Header.Get("X-Test-User") == "other" {
+			userID = 2
+		}
+		c.Set("id", userID)
+		if c.Request.Header.Get("X-Test-Pin") != "" {
+			service.GetChannelConstraints(c).AddPin(dto.ChannelPin{
+				ChannelId: 9102, Source: dto.PinSourceToken, Rank: dto.PinRankToken, RetryMode: dto.PinRetrySingleAttempt,
+			})
+		}
+	}, middleware.Distribute(), func(c *gin.Context) {
+		selectedChannels = append(selectedChannels, c.GetInt("channel_id"))
+		if c.Request.Header.Get("X-Test-Encrypted") != "" {
+			upstreamError := types.NewOpenAIError(errors.New("upstream failure"), types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError)
+			encryptedRetryDecision = service.DecideRelayRetry(c, upstreamError, 1)
+		} else if affinityContext == nil {
+			affinityContext = c
+		}
+		c.Status(http.StatusOK)
+	})
+
+	send := func(body, remoteAddr string, encrypted, pinned bool, user string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+		request.RemoteAddr = remoteAddr
+		request.Header.Set("Content-Type", "application/json")
+		if encrypted {
+			request.Header.Set("X-Test-Encrypted", "true")
+		}
+		if pinned {
+			request.Header.Set("X-Test-Pin", "true")
+		}
+		if user != "" {
+			request.Header.Set("X-Test-User", user)
+		}
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	affinityKey := "encrypted-reasoning-session-test"
+	initial := fmt.Sprintf(`{"model":%q,"prompt_cache_key":%q,"input":"hello"}`, modelName, affinityKey)
+	firstResponse := send(initial, "203.0.113.10:1234", false, false, "")
+	require.Equal(t, http.StatusOK, firstResponse.Code, firstResponse.Body.String())
+	require.Len(t, selectedChannels, 1)
+	boundChannelID := selectedChannels[0]
+	assert.Contains(t, []int{9101, 9102}, boundChannelID)
+
+	encryptedContinuation := fmt.Sprintf(`{"model":%q,"prompt_cache_key":%q,"input":[{"type":"reasoning","id":"rs_opaque","summary":[],"encrypted_content":"opaque-ciphertext"}]}`, modelName, affinityKey)
+	secondResponse := send(encryptedContinuation, "203.0.113.11:5678", true, false, "")
+	require.Equal(t, http.StatusOK, secondResponse.Code, secondResponse.Body.String())
+	require.Len(t, selectedChannels, 2)
+	assert.Equal(t, boundChannelID, selectedChannels[1], "a changed client IP must not move the reasoning item to another channel")
+	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "strict_session", Source: "encrypted_reasoning"}, encryptedRetryDecision)
+
+	beforeRejectedRequests := len(selectedChannels)
+	otherUserSameKey := send(encryptedContinuation, "203.0.113.17:1234", true, false, "other")
+	assert.Equal(t, http.StatusConflict, otherUserSameKey.Code, "another user must not inherit this session's channel binding")
+	assert.Len(t, selectedChannels, beforeRejectedRequests)
+
+	for _, requestBody := range []string{
+		fmt.Sprintf(`{"model":%q,"input":[{"type":"reasoning","id":"rs_missing_key","encrypted_content":"opaque-ciphertext"}]}`, modelName),
+		fmt.Sprintf(`{"model":%q,"prompt_cache_key":null,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName),
+		fmt.Sprintf(`{"model":%q,"prompt_cache_key":"  ","input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName),
+		fmt.Sprintf(`{"model":%q,"prompt_cache_key":123,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName),
+	} {
+		missingKeyResponse := send(requestBody, "203.0.113.12:1234", true, false, "")
+		assert.Equal(t, http.StatusBadRequest, missingKeyResponse.Code)
+		assert.Contains(t, missingKeyResponse.Body.String(), "prompt_cache_key")
+		assert.Len(t, selectedChannels, beforeRejectedRequests, "missing-key requests must stop before channel selection")
+	}
+
+	unknownKeyRequest := fmt.Sprintf(`{"model":%q,"prompt_cache_key":"unknown-session-key","input":[{"type":"reasoning","id":"rs_unknown_binding","encrypted_content":"opaque-ciphertext"}]}`, modelName)
+	unknownBindingResponse := send(unknownKeyRequest, "203.0.113.13:1234", true, false, "")
+	assert.Equal(t, http.StatusConflict, unknownBindingResponse.Code)
+	assert.Len(t, selectedChannels, beforeRejectedRequests, "an unknown binding must not fall back to random channel selection")
+
+	pinnedConflictResponse := send(encryptedContinuation, "203.0.113.14:1234", true, true, "")
+	assert.Equal(t, http.StatusConflict, pinnedConflictResponse.Code)
+	assert.Len(t, selectedChannels, beforeRejectedRequests, "an explicit pin must not override the session's original channel")
+
+	plainReasoning := fmt.Sprintf(`{"model":%q,"input":[{"type":"reasoning","id":"rs_without_cipher","summary":[]}]}`, modelName)
+	plainResponse := send(plainReasoning, "203.0.113.15:1234", false, false, "")
+	assert.Equal(t, http.StatusOK, plainResponse.Code, plainResponse.Body.String())
+	assert.Len(t, selectedChannels, beforeRejectedRequests+1, "reasoning IDs without encrypted content keep ordinary routing")
+
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", boundChannelID).Update("status", common.ChannelStatusAutoDisabled).Error)
+	model.InitChannelCache()
+	disabledBindingResponse := send(encryptedContinuation, "203.0.113.16:1234", true, false, "")
+	assert.Equal(t, http.StatusServiceUnavailable, disabledBindingResponse.Code)
+	assert.Len(t, selectedChannels, beforeRejectedRequests+1, "a disabled bound channel must not fall back to another account")
+}
+
 func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {
 	require.NoError(t, i18n.Init())
 	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {

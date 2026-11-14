@@ -345,6 +345,7 @@ const SENSITIVE_FORM_FIELDS = [
   'system_prompt',
   'system_prompt_override',
   'allow_service_tier',
+  'strip_reasoning_content',
   'disable_store',
   'allow_safety_identifier',
   'allow_include_obfuscation',
@@ -3109,6 +3110,32 @@ export function ChannelMutateDrawer({
 
           {OPENAI_FIELD_PASSTHROUGH_TYPES.has(currentType) && (
             <>
+              <FormField
+                control={form.control}
+                name='strip_reasoning_content'
+                render={({ field }) => (
+                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-sm'>
+                        {t('Strip reasoning_content')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Remove assistant reasoning_content before forwarding requests to the upstream'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        disabled={sensitiveLocked}
+                        checked={field.value === true}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name='disable_store'
