@@ -1,6 +1,6 @@
 package common
 
-import "github.com/chaos-api/chaos-api/constant"
+import "github.com/QuantumNous/new-api/constant"
 
 // EndpointInfo 描述单个端点的默认请求信息
 // path: 上游路径
@@ -21,6 +21,8 @@ var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
 	constant.EndpointTypeOpenAIResponse:        {Path: "/v1/responses", Method: "POST"},
 	constant.EndpointTypeOpenAIResponseCompact: {Path: "/v1/responses/compact", Method: "POST"},
 	constant.EndpointTypeOpenAIAlphaSearch:     {Path: "/v1/alpha/search", Method: "POST"},
+	constant.EndpointTypeDeepSeekToolsSearch:   {Path: "/v1/tools/search", Method: "POST"},
+	constant.EndpointTypeDeepSeekToolsFetch:    {Path: "/v1/tools/fetch", Method: "POST"},
 	constant.EndpointTypeAnthropic:             {Path: "/v1/messages", Method: "POST"},
 	constant.EndpointTypeGemini:                {Path: "/v1beta/models/{model}:generateContent", Method: "POST"},
 	constant.EndpointTypeJinaRerank:            {Path: "/v1/rerank", Method: "POST"},

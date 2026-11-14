@@ -3,9 +3,8 @@ package service
 import (
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"gorm.io/gorm"
 )
 
@@ -112,12 +111,6 @@ func RequireLoginVerification(token, method string) (*LoginVerification, error) 
 }
 
 func requireLoginVerificationMethod(state *model.UserVerificationState, method string) error {
-	if method == VerificationMethodPasskey && state.HasPasskey {
-		if !system_setting.PasskeySettingsSnapshot().Enabled {
-			return ErrVerificationUnavailable
-		}
-		return nil
-	}
 	methods, err := securityVerificationPolicy(VerificationScopeLogin, *state)
 	if err != nil {
 		return err

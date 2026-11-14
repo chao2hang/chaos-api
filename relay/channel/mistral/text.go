@@ -1,10 +1,9 @@
 package mistral
 
 import (
-	"regexp"
-
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/MoeForge/moego/regexp"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 var mistralToolCallIdRegexp = regexp.MustCompile("^[a-zA-Z0-9]{9}$")

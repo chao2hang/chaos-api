@@ -12,14 +12,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/relay/channel"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -62,6 +62,18 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		req.Set("Accept", "application/json")
 	}
 	return nil
+}
+
+// OutboundImageCount reads the image count of an image request body:
+// Replicate generates input.num_outputs images.
+func (a *Adaptor) OutboundImageCount(body []byte) (*uint, error) {
+	var request struct {
+		Input struct {
+			NumOutputs *uint `json:"num_outputs"`
+		} `json:"input"`
+	}
+	err := common.Unmarshal(body, &request)
+	return request.Input.NumOutputs, err
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {

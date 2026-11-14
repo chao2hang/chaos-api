@@ -6,14 +6,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/convdiag"
-	relaymedia "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/media"
-	sharedclaude "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/shared/claude"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -148,6 +148,11 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 			})
 		}
 	}
+	claudeRequest.Messages = omitTrailingAssistantText(c, claudeRequest.Messages,
+		func(message dto.ClaudeMessage) bool { return message.Role == "user" },
+		func(message dto.ClaudeMessage) bool {
+			return message.Role == "assistant" && !slices.ContainsFunc(claudeMessageContentParts(message.Content), func(part dto.ClaudeMediaMessage) bool { return part.Type == "tool_use" })
+		})
 
 	if len(systemMessages) > 0 {
 		claudeRequest.System = systemMessages
@@ -166,10 +171,11 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 func responsesFunctionDeclarationsToClaudeTools(functions []dto.FunctionRequest) []any {
 	tools := make([]any, 0, len(functions))
 	for _, function := range functions {
+		inputSchema, _ := sharedclaude.FunctionParametersToInputSchema(function.Parameters)
 		tools = append(tools, &dto.Tool{
 			Name:        function.Name,
 			Description: function.Description,
-			InputSchema: sharedclaude.FunctionParametersToInputSchema(function.Parameters),
+			InputSchema: inputSchema,
 		})
 	}
 	return tools

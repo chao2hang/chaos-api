@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -24,6 +25,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { logout } from '@/features/auth/api'
 import { clearAuthenticatedClientState } from '@/lib/auth-session'
+import { handleServerError } from '@/lib/handle-server-error'
 
 interface SignOutDialogProps {
   open: boolean
@@ -41,7 +43,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
     try {
       const response = await logout()
       if (!response.success) {
-        toast.error(response.message || t('Failed to sign out session'))
+        handleServerError(response, t('Failed to sign out session'))
         return
       }
 
@@ -49,9 +51,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
       toast.success(t('Signed out'))
       void navigate({ to: '/sign-in', replace: true })
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error ? error.message : t('Failed to sign out session')
-      )
+      handleServerError(error, t('Failed to sign out session'))
     } finally {
       setIsSigningOut(false)
     }

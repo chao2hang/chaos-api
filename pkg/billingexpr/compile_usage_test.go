@@ -3,7 +3,7 @@ package billingexpr_test
 import (
 	"testing"
 
-	"github.com/chaos-api/chaos-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
 )
 

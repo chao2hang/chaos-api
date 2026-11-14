@@ -1,7 +1,7 @@
 # Backend-only build for frontend development
 # Skips frontend build and uses a placeholder for //go:embed web/dist
 
-FROM golang:1.26.1-alpine AS builder
+FROM golang:1.26.10-alpine AS builder
 
 ENV GO111MODULE=on CGO_ENABLED=0
 ARG TARGETOS
@@ -10,16 +10,13 @@ ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
 
 WORKDIR /build
 
-# Copy the entire tree (including relaykit/) first so the local replace
-# target exists for go mod download. .dockerignore trims web/node_modules,
-# web/dist, and other large/unneeded paths.
 COPY . .
 RUN go mod download
 
 RUN mkdir -p web/dist && \
     echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/dist/index.html
 
-RUN go build -ldflags "-s -w -X 'github.com/chaos-api/chaos-api/common.Version=$(cat VERSION)'" -o new-api
+RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim
 

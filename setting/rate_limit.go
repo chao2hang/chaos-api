@@ -5,7 +5,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/chaos-api/chaos-api/common"
+	"github.com/QuantumNous/new-api/common"
 )
 
 // maxRateLimitDurationSeconds is the largest window the count cap is computed
@@ -31,7 +31,7 @@ func ModelRequestRateLimitGroup2JSONString() string {
 
 	jsonBytes, err := common.Marshal(ModelRequestRateLimitGroup)
 	if err != nil {
-		common.SysLog("error marshalling model ratio: " + err.Error())
+		common.SysLog(common.LogText("error marshalling model ratio: %s", err.Error()))
 	}
 	return string(jsonBytes)
 }

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { SettingsPage } from '../components/settings-page'
 import type { ModelSettings } from '../types'
@@ -53,6 +54,7 @@ const defaultModelSettings: ModelSettings = {
   ExposeRatioEnabled: false,
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
+  'billing_setting.plugin_billing_expr': '{}',
   'tool_price_setting.prices': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',
@@ -62,27 +64,6 @@ const defaultModelSettings: ModelSettings = {
   MaxTokenAutoGroups: 5,
   DefaultUseAutoGroup: false,
   'group_ratio_setting.group_special_usable_group': '{}',
-  RetryTimes: 0,
-  ChannelDisableThreshold: '',
-  AutomaticDisableChannelEnabled: false,
-  AutomaticEnableChannelEnabled: false,
-  AutomaticDisableKeywords: '',
-  AutomaticDisableStatusCodes: '401',
-  AutomaticRetryStatusCodes:
-    '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
-  'monitor_setting.auto_test_channel_enabled': false,
-  'monitor_setting.auto_test_channel_minutes': 10,
-  'monitor_setting.channel_test_concurrency': 1,
-  'monitor_setting.channel_test_mode': 'scheduled_all',
-  'monitor_setting.active_probe_enabled': false,
-  'monitor_setting.active_probe_interval_minutes': 360,
-  'monitor_setting.active_probe_concurrency': 5,
-  'channel_affinity_setting.enabled': false,
-  'channel_affinity_setting.switch_on_success': true,
-  'channel_affinity_setting.keep_on_channel_disabled': false,
-  'channel_affinity_setting.max_entries': 100000,
-  'channel_affinity_setting.default_ttl_seconds': 3600,
-  'channel_affinity_setting.rules': '[]',
   'model_deployment.ionet.api_key': '',
   'model_deployment.ionet.enabled': false,
 }
@@ -90,7 +71,7 @@ const defaultModelSettings: ModelSettings = {
 export function ModelSettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/admin/system-settings/models/$section'
+      routePath='/_authenticated/system-settings/models/$section'
       defaultSettings={defaultModelSettings}
       defaultSection={MODELS_DEFAULT_SECTION}
       getSectionContent={getModelsSectionContent}

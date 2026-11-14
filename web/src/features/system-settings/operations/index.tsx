@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useStatus } from '@/hooks/use-status'
 
@@ -29,7 +30,12 @@ const defaultOperationsSettings: OperationsSettings = {
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
+  QuotaRemindEnabled: true,
   QuotaRemindThreshold: '',
+  EmailProvider: 'smtp',
+  ResendApiKey: '',
+  ResendKeyConfigured: false,
+  ResendFrom: '',
   SMTPServer: '',
   SMTPPort: '',
   SMTPAccount: '',
@@ -43,6 +49,9 @@ const defaultOperationsSettings: OperationsSettings = {
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
   LogConsumeEnabled: false,
+  'log_setting.user_export_enabled': true,
+  'log_setting.max_range_days': 365,
+  'system_task_setting.retention_days': 30,
   'performance_setting.disk_cache_enabled': false,
   'performance_setting.disk_cache_threshold_mb': 10,
   'performance_setting.disk_cache_max_size_mb': 1024,
@@ -62,7 +71,7 @@ export function OperationsSettings() {
 
   return (
     <SettingsPage
-      routePath='/_authenticated/admin/system-settings/operations/$section'
+      routePath='/_authenticated/system-settings/operations/$section'
       defaultSettings={defaultOperationsSettings}
       defaultSection={OPERATIONS_DEFAULT_SECTION}
       getSectionContent={getOperationsSectionContent}

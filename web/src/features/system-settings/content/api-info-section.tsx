@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2, Save } from 'lucide-react'
@@ -59,6 +60,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getBgColorClass } from '@/lib/colors'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
@@ -156,8 +158,8 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
       })
       setIsEnabledDraft(checked)
       toast.success(t('Setting saved'))
-    } catch {
-      toast.error(t('Failed to update setting'))
+    } catch (error) {
+      handleServerError(error, t('Failed to update setting'))
     }
   }
 
@@ -244,8 +246,8 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
       if (result.success) {
         setDraftApiInfoList(null)
       }
-    } catch {
-      toast.error(t('Failed to save API info'))
+    } catch (error) {
+      handleServerError(error, t('Failed to save API info'))
     }
   }
 

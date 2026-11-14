@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -26,49 +27,25 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // Subpath aliases must precede the base package alias: alias matching
-      // replaces the matched prefix, so a longer key first keeps
-      // `@chaos_team/blbui-core/register` from resolving as
-      // `<base>/register` against the base file path.
-      '@chaos_team/blbui-core/register': path.resolve(
-        __dirname,
-        '../packages/blbui/core/src/register.ts'
-      ),
-      '@chaos_team/blbui-core/styles.css': path.resolve(
-        __dirname,
-        '../packages/blbui/core/src/styles.css'
-      ),
-      '@chaos_team/blbui-core': path.resolve(
-        __dirname,
-        '../packages/blbui/core/src/index.ts'
-      ),
-      '@chaos_team/blbui-react': path.resolve(
-        __dirname,
-        '../packages/blbui/react/src/index.tsx'
-      ),
-      react: path.resolve(__dirname, './node_modules/react'),
-      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-      // See rsbuild.config.ts: chaos-ui's layout chunk imports `next/link`
-      // at module scope; stub it so tests can load that chunk.
-      'next/link': path.resolve(__dirname, './src/lib/next-link-stub.tsx'),
     },
   },
   test: {
     environment: 'jsdom',
+    server: {
+      deps: { inline: [/@lobehub\//, /antd-style/] },
+    },
     setupFiles: ['./src/test-setup.ts'],
+    // Several heavy jsdom suites (channel-configuration, visual-billing-editor)
+    // legitimately take >5s per test on contended CI runners; the vitest
+    // default of 5000ms fails whichever of them crosses the line first. The
+    // heaviest test measures ~3.2s uncontended, so 20s keeps headroom for the
+    // ~4x slowdown observed on shared runners.
+    testTimeout: 20000,
     clearMocks: true,
     restoreMocks: true,
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    // Inline chaos-ui so the `next/link` alias above also applies to imports
-    // inside the package's own chunks (externalized deps bypass aliases).
-    server: {
-      deps: {
-        inline: [
-          '@chaos_team/chaos-ui',
-          '@chaos_team/blbui-core',
-          '@chaos_team/blbui-react',
-        ],
-      },
-    },
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'scripts/oxlint/__tests__/*.test.ts',
+    ],
   },
 })

@@ -5,14 +5,14 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/logger"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relay/helper"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -144,7 +144,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		var chunk dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &chunk); err != nil {
-			logger.LogError(c, "failed to unmarshal chat stream response: "+err.Error())
+			logger.LogError(c, common.LogText("failed to unmarshal chat stream response: %s", err.Error()))
 			if failResponsesStream(err) {
 				upstreamFailure = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 				sr.Stop(upstreamFailure)

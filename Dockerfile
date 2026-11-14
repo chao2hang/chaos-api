@@ -1,4 +1,4 @@
-FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS builder
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS builder
 
 WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
@@ -13,7 +13,7 @@ RUN cd /build/packages/blbui && bun add lit@3.3.3
 COPY ./VERSION /build/VERSION
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
 
-FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder2
+FROM golang:1.26.10-alpine@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca AS builder2
 ENV GO111MODULE=on CGO_ENABLED=0 GOWORK=off
 
 ARG TARGETOS
@@ -22,15 +22,12 @@ ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
 
 WORKDIR /build
 
-# Copy the entire tree (including relaykit/) first so the local replace
-# target exists for go mod download. .dockerignore trims web/node_modules,
-# web/dist, and other large/unneeded paths.
+# Copy the root and both independent modules before resolving the root module.
 COPY . .
-RUN echo "=== relaykit listing ===" && ls -la /build/relaykit/ | head -20 && echo "=== relaykit go.mod ===" && head -3 /build/relaykit/go.mod && echo "=== go list ./... 2>&1 | head -5 ===" && go list ./... 2>&1 | head -5
 RUN go mod download
 
 COPY --from=builder /build/web/dist ./web/dist
-RUN go build -ldflags "-s -w -X 'github.com/chaos-api/chaos-api/common.Version=$(cat VERSION)'" -o new-api
+RUN go build -pgo="$(go list -m -f '{{.Dir}}' github.com/MoeForge/moejs)/default.pgo" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 

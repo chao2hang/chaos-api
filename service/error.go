@@ -11,12 +11,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	taskdto "github.com/chaos-api/chaos-api/dto"
-	"github.com/chaos-api/chaos-api/logger"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/common"
+	taskdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
+
+func IsUpstreamSuccess(statusCode int) bool {
+	return statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
+}
 
 func MidjourneyErrorWrapper(code int, desc string) *taskdto.MidjourneyResponse {
 	return &taskdto.MidjourneyResponse{
@@ -64,8 +68,8 @@ func ClaudeErrorWrapper(err error, code string, statusCode int) *dto.ClaudeError
 	lowerText := strings.ToLower(text)
 	if !strings.HasPrefix(lowerText, "get file base64 from url") {
 		if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-			common.SysLog(fmt.Sprintf("error: %s", text))
-			text = "请求上游地址失败"
+			common.SysLog(common.LogText("error: %s", text))
+			text = "request to the upstream address failed"
 		}
 	}
 	claudeError := types.ClaudeError{
@@ -82,13 +86,6 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	claudeErr := ClaudeErrorWrapper(err, code, statusCode)
 	claudeErr.LocalError = true
 	return claudeErr
-}
-
-// IsUpstreamSuccess reports whether an upstream HTTP status code represents a
-// successful relay response. Upstreams occasionally answer POST endpoints with
-// other 2xx codes (e.g. 201 Created); only the 2xx range counts as success.
-func IsUpstreamSuccess(statusCode int) bool {
-	return statusCode >= 200 && statusCode < 300
 }
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
@@ -114,7 +111,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		if showBodyWhenFail {
 			newApiErr.Err = buildErrWithBody("")
 		} else {
-			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, responseBodyPreview))
+			logger.LogError(ctx, common.LogText("bad response status code %d, body: %s", resp.StatusCode, responseBodyPreview))
 			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		}
 		return
@@ -133,11 +130,10 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	}
 	message := errResponse.ToMessage()
 	if message == "" {
-		// The body parsed as JSON but carried no usable error message. Log the
-		// raw body so the upstream failure remains diagnosable, and surface a
-		// masked body preview to the client instead of an empty message.
-		logger.LogError(ctx, fmt.Sprintf("bad response status code %d with empty error message, body: %s", resp.StatusCode, responseBodyPreview))
-		message = fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, common.MaskSensitiveInfo(responseBodyPreview))
+		// A well-formed JSON body without an error envelope still needs a useful
+		// client-facing error, but its arbitrary body may contain sensitive data.
+		logger.LogError(ctx, common.LogText("bad response status code %d with empty error message, body: %s", resp.StatusCode, responseBodyPreview))
+		message = fmt.Sprintf("bad response status code %d", resp.StatusCode)
 	}
 	newApiErr = types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 	if showBodyWhenFail {
@@ -206,13 +202,15 @@ func TaskErrorWrapperLocal(err error, code string, statusCode int) *taskdto.Task
 	return openaiErr
 }
 
-func TaskErrorWrapper(err error, code string, statusCode int) *taskdto.TaskError {
+// TaskErrorWrapper masks the upstream addresses of the task channel in network
+// errors; see common.MaskSensitiveInfo.
+func TaskErrorWrapper(err error, code string, statusCode int, upstreamURLs ...string) *taskdto.TaskError {
 	text := err.Error()
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-		common.SysLog(fmt.Sprintf("error: %s", text))
+		common.SysLog(common.LogText("error: %s", text))
 		//text = "请求上游地址失败"
-		text = common.MaskSensitiveInfo(text)
+		text = common.MaskSensitiveInfo(text, upstreamURLs...)
 	}
 	//避免暴露内部错误
 	taskError := &taskdto.TaskError{

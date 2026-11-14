@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Radio as RadioPrimitive } from '@base-ui/react/radio'
 import { RadioGroup as Radio } from '@base-ui/react/radio-group'
@@ -22,6 +23,12 @@ import type { SVGProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconDir } from '@/assets/custom/icon-dir'
+import { IconLayoutCompact } from '@/assets/custom/icon-layout-compact'
+import { IconLayoutDefault } from '@/assets/custom/icon-layout-default'
+import { IconLayoutFull } from '@/assets/custom/icon-layout-full'
+import { IconSidebarFloating } from '@/assets/custom/icon-sidebar-floating'
+import { IconSidebarInset } from '@/assets/custom/icon-sidebar-inset'
+import { IconSidebarSidebar } from '@/assets/custom/icon-sidebar-sidebar'
 import { IconThemeDark } from '@/assets/custom/icon-theme-dark'
 import { IconThemeLight } from '@/assets/custom/icon-theme-light'
 import { IconThemeSystem } from '@/assets/custom/icon-theme-system'
@@ -42,10 +49,12 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { useDirection } from '@/context/direction-provider'
+import { type Collapsible, useLayout } from '@/context/layout-provider'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import {
   type ContentLayout,
+  resolveThemeFont,
   THEME_PRESETS,
   type ThemeFont,
   type ThemePreset,
@@ -54,17 +63,23 @@ import {
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
+import { useSidebar } from './ui/sidebar'
+
 const Item = RadioPrimitive.Root
 
 export function ConfigDrawer() {
   const { t } = useTranslation()
+  const { setOpen } = useSidebar()
   const { resetDir } = useDirection()
   const { resetTheme } = useTheme()
+  const { resetLayout } = useLayout()
   const { resetCustomization } = useThemeCustomization()
 
   const handleReset = () => {
+    setOpen(true)
     resetDir()
     resetTheme()
+    resetLayout()
     resetCustomization()
   }
 
@@ -96,6 +111,8 @@ export function ConfigDrawer() {
           <FontConfig />
           <RadiusConfig />
           <ScaleConfig />
+          <SidebarConfig />
+          <LayoutConfig />
           <ContentLayoutConfig />
           <DirConfig />
         </div>
@@ -289,28 +306,26 @@ function PresetConfig() {
 /**
  * Font options shown in the theme drawer.
  *
- * Each option renders a live "Aa" preview in the font it represents.
- * `Auto` deliberately leaves `fontFamily` undefined so the preview inherits
- * the currently active body font — that way the user sees what `Auto` will
- * actually look like for the active preset (Anthropic → serif glyphs,
- * everything else → sans glyphs) without us having to duplicate the
- * preset-default mapping in the UI.
+ * Each option previews the font it will select, including Auto when the
+ * user currently has an explicit font selected.
  */
 const FONT_OPTIONS: {
   value: ThemeFont
   label: string
-  // CSS font-family applied to the "Aa" preview. `undefined` = inherit
-  // from the current theme (used by the `default` option).
+  // Auto resolves its preview from the active preset.
   preview?: string
 }[] = [
   { value: 'default', label: 'Auto', preview: undefined },
-  { value: 'sans', label: 'Sans', preview: 'var(--font-sans)' },
+  { value: 'sans', label: 'Sans', preview: 'var(--font-public-sans)' },
   { value: 'serif', label: 'Serif', preview: 'var(--font-serif)' },
 ]
 
 function FontConfig() {
   const { t } = useTranslation()
   const { defaults, customization, setFont } = useThemeCustomization()
+  const autoFont = resolveThemeFont('default', customization.preset)
+  const autoFontFamily =
+    autoFont === 'serif' ? 'var(--font-serif)' : 'sans-serif'
   return (
     <div>
       <SectionTitle
@@ -351,13 +366,7 @@ function FontConfig() {
               <span
                 aria-hidden='true'
                 className='text-foreground absolute inset-0 flex items-center justify-center text-lg leading-none font-medium'
-                style={
-                  option.preview
-                    ? { fontFamily: option.preview }
-                    : // `font: inherit` defers to the active theme so the
-                      // "Auto" tile previews what the resolved font will be.
-                      { font: 'inherit', fontSize: '1.125rem' }
-                }
+                style={{ fontFamily: option.preview ?? autoFontFamily }}
               >
                 Aa
               </span>
@@ -519,6 +528,94 @@ function ScaleConfig() {
           </Item>
         ))}
       </Radio>
+    </div>
+  )
+}
+
+function SidebarConfig() {
+  const { t } = useTranslation()
+  const { defaultVariant, variant, setVariant } = useLayout()
+  return (
+    <div className='max-md:hidden'>
+      <SectionTitle
+        title={t('Sidebar')}
+        showReset={defaultVariant !== variant}
+        onReset={() => setVariant(defaultVariant)}
+      />
+      <Radio
+        value={variant}
+        onValueChange={setVariant}
+        className='grid w-full max-w-md grid-cols-3 gap-4'
+        aria-label={t('Select sidebar style')}
+        aria-describedby='sidebar-description'
+      >
+        {[
+          { value: 'inset', label: t('Inset'), icon: IconSidebarInset },
+          {
+            value: 'floating',
+            label: t('Floating'),
+            icon: IconSidebarFloating,
+          },
+          { value: 'sidebar', label: t('Sidebar'), icon: IconSidebarSidebar },
+        ].map((item) => (
+          <RadioGroupItem key={item.value} item={item} />
+        ))}
+      </Radio>
+      <div id='sidebar-description' className='sr-only'>
+        {t('Choose between inset, floating, or standard sidebar layout')}
+      </div>
+    </div>
+  )
+}
+
+function LayoutConfig() {
+  const { t } = useTranslation()
+  const { open, setOpen } = useSidebar()
+  const { defaultCollapsible, collapsible, setCollapsible } = useLayout()
+
+  const radioState = open ? 'default' : collapsible
+
+  return (
+    <div className='max-md:hidden'>
+      <SectionTitle
+        title={t('Layout')}
+        showReset={radioState !== 'default'}
+        onReset={() => {
+          setOpen(true)
+          setCollapsible(defaultCollapsible)
+        }}
+      />
+      <Radio
+        value={radioState}
+        onValueChange={(v) => {
+          if (v === 'default') {
+            setOpen(true)
+            return
+          }
+          setOpen(false)
+          setCollapsible(v as Collapsible)
+        }}
+        className='grid w-full max-w-md grid-cols-3 gap-4'
+        aria-label={t('Select layout style')}
+        aria-describedby='layout-description'
+      >
+        {[
+          { value: 'default', label: t('Default'), icon: IconLayoutDefault },
+          { value: 'icon', label: t('Compact'), icon: IconLayoutCompact },
+          {
+            value: 'offcanvas',
+            label: t('Full layout'),
+            icon: IconLayoutFull,
+          },
+        ].map((item) => (
+          <RadioGroupItem key={item.value} item={item} />
+        ))}
+      </Radio>
+      <div id='layout-description' className='sr-only'>
+        {t(
+          'Choose between default expanded, compact icon-only, or full layout mode'
+        )}
+      </div>
     </div>
   )
 }

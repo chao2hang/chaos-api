@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,13 +14,33 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import z from 'zod'
+
+import { Redemptions } from '@/features/redemption-codes'
+import { REDEMPTION_FILTER_VALUES } from '@/features/redemption-codes/constants'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+
+const redemptionsSearchSchema = z.object({
+  page: z.number().optional().catch(1),
+  pageSize: z.number().optional().catch(10),
+  filter: z.string().optional().catch(''),
+  status: z.array(z.enum(REDEMPTION_FILTER_VALUES)).optional().catch([]),
+})
 
 export const Route = createFileRoute('/_authenticated/redemption-codes/')({
   beforeLoad: () => {
-    throw redirect({
-      href: '/admin/redemption-codes',
-    })
+    const { auth } = useAuthStore.getState()
+
+    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+      throw redirect({
+        to: '/403',
+      })
+    }
   },
+  validateSearch: redemptionsSearchSchema,
+  component: Redemptions,
 })

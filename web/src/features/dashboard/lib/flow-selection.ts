@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,11 +14,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type {
   FlowQuotaDataItem,
   FlowUserFilterOption,
 } from '@/features/dashboard/types'
+import { createServerError } from '@/lib/server-error-message'
 
 export type FlowDisplayState = 'loading' | 'error' | 'empty' | 'chart'
 
@@ -33,7 +35,7 @@ export function requireSuccessfulFlowRows(
   fallbackMessage: string
 ): FlowQuotaDataItem[] {
   if (!response.success) {
-    throw new Error(response.message || fallbackMessage)
+    throw createServerError(response, response.message || fallbackMessage)
   }
   return response.data ?? []
 }

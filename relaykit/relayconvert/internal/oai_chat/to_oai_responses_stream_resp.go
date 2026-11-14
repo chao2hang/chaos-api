@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
 type ChatToResponsesStreamEvent struct {

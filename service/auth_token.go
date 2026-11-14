@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/model"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )

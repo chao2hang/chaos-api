@@ -5,20 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/dto"
-	"github.com/chaos-api/chaos-api/middleware"
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/relay"
-	relaychannel "github.com/chaos-api/chaos-api/relay/channel"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/service"
-	"github.com/chaos-api/chaos-api/types"
+	"github.com/MoeForge/moego/regexp"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -233,10 +234,12 @@ func initTaskArtifactAdaptor(task *model.Task) (relaychannel.TaskAdaptor, error)
 	}
 	adaptor.Init(&relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType:    channelModel.Type,
-			ChannelBaseUrl: baseURL,
-			ApiKey:         pluginKey,
-			ChannelSetting: channelModel.GetSetting(),
+			ChannelType:     channelModel.Type,
+			ChannelId:       channelModel.Id,
+			ChannelBaseUrl:  baseURL,
+			ApiKey:          pluginKey,
+			ChannelSetting:  channelModel.GetSetting(),
+			HeadersOverride: channelModel.GetHeaderOverride(),
 		},
 	})
 	return adaptor, nil
@@ -383,8 +386,11 @@ func TaskArtifactContent(c *gin.Context) {
 		Method:  c.Request.Method,
 		Headers: taskArtifactClientHeaders(c.Request.Header),
 	}
-	descriptor, err := provider.BuildContentRequest(task, artifactKey, clientRequest)
+	descriptor, err := provider.BuildContentRequest(c.Request.Context(), task, artifactKey, clientRequest)
 	if err != nil || descriptor == nil {
+		if err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Failed to resolve plugin %s content for task %s: %v", artifactKey, task.TaskID, err))
+		}
 		writeTaskArtifactError(c, http.StatusInternalServerError, "artifact_plugin_error", "Artifact content plugin failed")
 		return
 	}

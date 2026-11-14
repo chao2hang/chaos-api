@@ -9,6 +9,7 @@
     "builtin": true
   },
   "globals": {
+    "TextEncoder": "readonly",
     "console": "readonly",
     "utils": "readonly"
   },

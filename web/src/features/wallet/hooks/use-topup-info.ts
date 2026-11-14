@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,8 +14,11 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback } from 'react'
+
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { getTopupInfo } from '../api'
 import {
@@ -174,8 +177,7 @@ export function useTopupInfo() {
       const response = await getTopupInfo()
 
       if (!response.success || !response.data) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to fetch topup info:', response.message)
+        handleServerError(response)
         return
       }
 
@@ -207,8 +209,7 @@ export function useTopupInfo() {
         setPresetAmounts(defaultPresets)
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch topup info:', err)
+      handleServerError(err)
     } finally {
       setLoading(false)
     }

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { SettingsPage } from '../components/settings-page'
 import type { SiteSettings } from '../types'
@@ -32,6 +33,7 @@ const defaultSiteSettings: SiteSettings = {
   HomePageContent: '',
   ServerAddress: '',
   TaskPublicAddress: '',
+  'general_setting.docs_link': '',
   'legal.user_agreement': '',
   'legal.privacy_policy': '',
   HeaderNavModules: '',
@@ -41,7 +43,7 @@ const defaultSiteSettings: SiteSettings = {
 export function SiteSettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/admin/system-settings/site/$section'
+      routePath='/_authenticated/system-settings/site/$section'
       defaultSettings={defaultSiteSettings}
       defaultSection={SITE_DEFAULT_SECTION}
       getSectionContent={getSiteSectionContent}

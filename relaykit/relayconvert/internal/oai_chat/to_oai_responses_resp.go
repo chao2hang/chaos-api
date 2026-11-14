@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
 const (
@@ -186,8 +186,9 @@ func UsageFromChatUsage(src *dto.Usage) *dto.Usage {
 		src.PromptTokensDetails.AudioTokens != 0 ||
 		src.PromptTokensDetails.CachedCreationTokens != 0 ||
 		src.PromptTokensDetails.CacheWriteTokens != 0 ||
+		src.PromptTokensDetails.CacheCreationInputTokens != 0 ||
 		src.PromptTokensDetails.TextTokens != 0 {
-		details := src.PromptTokensDetails
+		details := src.PromptTokensDetails.Clone()
 		usage.InputTokensDetails = &details
 	}
 	if src.CompletionTokenDetails.ReasoningTokens != 0 ||

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemInfoSection } from '../general/system-info-section'
 import {
@@ -42,6 +43,9 @@ const SITE_SECTIONS = [
           HomePageContent: settings.HomePageContent,
           ServerAddress: settings.ServerAddress,
           TaskPublicAddress: settings.TaskPublicAddress,
+          general_setting: {
+            docs_link: settings['general_setting.docs_link'],
+          },
           legal: {
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],
@@ -94,7 +98,7 @@ export type SiteSectionId = (typeof SITE_SECTIONS)[number]['id']
 const siteRegistry = createSectionRegistry<SiteSectionId, SiteSettings>({
   sections: SITE_SECTIONS,
   defaultSection: 'system-info',
-  basePath: '/admin/system-settings/site',
+  basePath: '/system-settings/site',
   urlStyle: 'path',
 })
 

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Plus } from 'lucide-react'
 import { type ChangeEvent, useRef, type SetStateAction, useState } from 'react'
@@ -408,7 +409,7 @@ export function WaffoSettingsSection({
       >
         <div className='space-y-3'>
           <div className='grid gap-1.5'>
-            <Label>{t('Display name')} *</Label>
+            <Label required>{t('Display name')}</Label>
             <Input
               value={methodForm.name}
               onChange={(e) =>

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/model"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,6 +16,15 @@ func GetModelPricingConfig(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, snapshot)
+}
+
+func GetModelPricingIssues(c *gin.Context) {
+	issues, err := model.GetModelPricingIssues("")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, issues)
 }
 
 func PreviewModelPricingConversion(c *gin.Context) {

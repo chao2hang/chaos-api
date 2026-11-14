@@ -1,7 +1,7 @@
 package minimax
 
 import (
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 type MiniMaxBaseResp struct {

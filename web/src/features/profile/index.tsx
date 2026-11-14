@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,7 +14,9 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
+import { Main } from '@/components/layout'
 import {
   CardStaggerContainer,
   CardStaggerItem,
@@ -24,13 +26,9 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
-import { LoginSessionsCard } from './components/login-sessions-card'
-import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
-import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
 import { SidebarModulesCard } from './components/sidebar-modules-card'
-import { TwoFACard } from './components/two-fa-card'
 import { useProfile } from './hooks'
 
 export function Profile() {
@@ -44,9 +42,12 @@ export function Profile() {
   )
   const turnstileSiteKey = status?.turnstile_site_key || ''
   const canConfigureSidebar = permissions?.sidebar_settings !== false
+  // Older cached status payloads lack these fields; the site default is on.
+  const quotaRemindEnabled = status?.quota_remind_enabled !== false
+  const quotaRemindThreshold = status?.quota_remind_threshold ?? 0
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+    <Main>
       <div className='min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-4 sm:py-6'>
         <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
           <CardStaggerItem>
@@ -60,13 +61,13 @@ export function Profile() {
                   profile={profile}
                   loading={loading}
                   onProfileUpdate={refreshProfile}
+                  quotaRemindEnabled={quotaRemindEnabled}
+                  quotaRemindThreshold={quotaRemindThreshold}
                 />
                 <LanguagePreferencesCard
                   profile={profile}
                   onProfileUpdate={refreshProfile}
                 />
-                <ProfileSecurityCard profile={profile} loading={loading} />
-                <LoginSessionsCard />
               </div>
 
               <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
@@ -78,13 +79,11 @@ export function Profile() {
                   />
                 )}
                 {canConfigureSidebar && <SidebarModulesCard />}
-                <PasskeyCard loading={loading} />
-                <TwoFACard loading={loading} />
               </div>
             </div>
           </CardStaggerItem>
         </CardStaggerContainer>
       </div>
-    </div>
+    </Main>
   )
 }

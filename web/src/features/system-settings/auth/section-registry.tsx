@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { AuthSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
@@ -64,8 +65,8 @@ const AUTH_SECTIONS = [
           'oidc.token_endpoint': settings['oidc.token_endpoint'],
           'oidc.user_info_endpoint': settings['oidc.user_info_endpoint'],
           TelegramOAuthEnabled: settings.TelegramOAuthEnabled,
-          TelegramBotToken: settings.TelegramBotToken,
-          TelegramBotName: settings.TelegramBotName,
+          'telegram.client_id': settings['telegram.client_id'],
+          'telegram.client_secret': settings['telegram.client_secret'],
           LinuxDOOAuthEnabled: settings.LinuxDOOAuthEnabled,
           LinuxDOClientId: settings.LinuxDOClientId,
           LinuxDOClientSecret: settings.LinuxDOClientSecret,
@@ -87,6 +88,7 @@ const AUTH_SECTIONS = [
           'passkey.enabled': settings['passkey.enabled'],
           'passkey.rp_display_name': settings['passkey.rp_display_name'],
           'passkey.rp_id': settings['passkey.rp_id'],
+          'passkey.legacy_rp_ids': settings['passkey.legacy_rp_ids'],
           'passkey.origins': settings['passkey.origins'],
           'passkey.allow_insecure_origin':
             settings['passkey.allow_insecure_origin'],
@@ -127,7 +129,7 @@ export type AuthSectionId = (typeof AUTH_SECTIONS)[number]['id']
 const authRegistry = createSectionRegistry<AuthSectionId, AuthSettings>({
   sections: AUTH_SECTIONS,
   defaultSection: 'basic-auth',
-  basePath: '/admin/system-settings/auth',
+  basePath: '/system-settings/auth',
   urlStyle: 'path',
 })
 

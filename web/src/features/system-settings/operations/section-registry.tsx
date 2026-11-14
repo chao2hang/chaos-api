@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
@@ -41,11 +42,10 @@ const OPERATIONS_SECTIONS = [
   },
   {
     id: 'alerts',
-    titleKey: 'Monitoring & Alerts',
+    titleKey: 'Model performance metrics',
     build: (settings: OperationsSettings) => (
       <MonitoringSettingsSection
         defaultValues={{
-          QuotaRemindThreshold: settings.QuotaRemindThreshold,
           'perf_metrics_setting.enabled':
             settings['perf_metrics_setting.enabled'] ?? true,
           'perf_metrics_setting.flush_interval':
@@ -60,10 +60,16 @@ const OPERATIONS_SECTIONS = [
   },
   {
     id: 'email',
-    titleKey: 'SMTP Email',
+    titleKey: 'Email & Notifications',
     build: (settings: OperationsSettings) => (
       <EmailSettingsSection
         defaultValues={{
+          QuotaRemindEnabled: settings.QuotaRemindEnabled,
+          QuotaRemindThreshold: settings.QuotaRemindThreshold,
+          EmailProvider: settings.EmailProvider,
+          ResendApiKey: settings.ResendApiKey,
+          ResendKeyConfigured: settings.ResendKeyConfigured,
+          ResendFrom: settings.ResendFrom,
           SMTPServer: settings.SMTPServer,
           SMTPPort: settings.SMTPPort,
           SMTPAccount: settings.SMTPAccount,
@@ -96,7 +102,15 @@ const OPERATIONS_SECTIONS = [
     titleKey: 'Log Maintenance',
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
-        defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultValues={{
+          LogConsumeEnabled: Boolean(settings.LogConsumeEnabled),
+          'log_setting.user_export_enabled':
+            settings['log_setting.user_export_enabled'] ?? true,
+          'log_setting.max_range_days':
+            settings['log_setting.max_range_days'] ?? 365,
+          'system_task_setting.retention_days':
+            settings['system_task_setting.retention_days'] ?? 30,
+        }}
       />
     ),
   },
@@ -151,7 +165,7 @@ const operationsRegistry = createSectionRegistry<
 >({
   sections: OPERATIONS_SECTIONS,
   defaultSection: 'behavior',
-  basePath: '/admin/system-settings/operations',
+  basePath: '/system-settings/operations',
   urlStyle: 'path',
 })
 

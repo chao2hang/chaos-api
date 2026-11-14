@@ -5,9 +5,10 @@
 package convmeta
 
 import (
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 // Meta is the only view of the relay session that format converters may use.

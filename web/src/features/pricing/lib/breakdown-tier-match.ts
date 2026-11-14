@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import {
   normalizeTierLabel,
@@ -42,12 +43,43 @@ export function isBreakdownTierMatched(
   tier: BreakdownMatchTier,
   tiers: readonly BreakdownMatchTier[],
   matchedTierLabel?: string | null,
-  usageFacts?: Record<string, string | number>
+  usageFacts?: Record<string, string | number>,
+  billingUnit?: 'token' | 'request',
+  fixedPrice?: number
 ): boolean {
+  if (!('unitPrices' in tier) && billingUnit) {
+    if ((tier.billingUnit ?? 'token') !== billingUnit) return false
+    if (
+      billingUnit === 'request' &&
+      fixedPrice !== undefined &&
+      tier.fixedPrice !== fixedPrice
+    ) {
+      return false
+    }
+  }
   const normalizedMatchedTierLabel = normalizeTierLabel(
     matchedTierLabel ?? undefined
   )
   if (tierMatchesNormalizedLabel(tier, normalizedMatchedTierLabel)) {
+    if (
+      'unitPrices' in tier &&
+      tiers.filter((candidate) =>
+        tierMatchesNormalizedLabel(candidate, normalizedMatchedTierLabel)
+      ).length > 1
+    ) {
+      // Expanded rows can share one engine label. Time-dependent rows cannot
+      // be resolved from usage alone; never substitute the current wall clock.
+      return (
+        !tier.conditionText &&
+        Boolean(usageFacts) &&
+        tier.conditions.length > 0 &&
+        tier.conditions.every(
+          (condition) =>
+            'field' in condition &&
+            String(usageFacts?.[condition.field]) === condition.value
+        )
+      )
+    }
     return true
   }
   if (
@@ -57,7 +89,11 @@ export function isBreakdownTierMatched(
   ) {
     return false
   }
-  if (!usageFacts || tier.conditions.length === 0) {
+  if (
+    !usageFacts ||
+    tier.conditions.length === 0 ||
+    ('unitPrices' in tier && tier.conditionText)
+  ) {
     return false
   }
   return tier.conditions.every((condition) => {

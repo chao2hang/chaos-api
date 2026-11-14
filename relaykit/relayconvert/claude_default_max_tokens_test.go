@@ -2,14 +2,15 @@ package relayconvert
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	sharedclaude "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/shared/claude"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,11 +164,7 @@ func TestOpenAIChatRequestToClaudeMessagesOmitsEmptyTools(t *testing.T) {
 					Function: dto.FunctionRequest{
 						Name:        "get_weather",
 						Description: "Get weather by city",
-						Parameters: map[string]any{
-							"type":       "object",
-							"properties": map[string]any{"city": map[string]any{"type": "string"}},
-							"required":   []any{"city"},
-						},
+						Parameters:  json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}`),
 					},
 				}},
 			},

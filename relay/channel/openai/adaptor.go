@@ -13,25 +13,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/logger"
-	"github.com/chaos-api/chaos-api/relay/channel"
-	"github.com/chaos-api/chaos-api/relay/channel/ai360"
-	"github.com/chaos-api/chaos-api/relay/channel/lingyiwanwu"
-	"github.com/chaos-api/chaos-api/relay/channel/openrouter"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/ai360"
+	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
+	"github.com/QuantumNous/new-api/relay/channel/openrouter"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 
-	//"github.com/chaos-api/chaos-api/relay/channel/minimax"
-	"github.com/chaos-api/chaos-api/relay/channel/xinference"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relay/common_handler"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	kitreasoning "github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
-	"github.com/chaos-api/chaos-api/setting/model_setting"
-	"github.com/chaos-api/chaos-api/setting/reasoning"
+	//"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/QuantumNous/new-api/relay/channel/xinference"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/common_handler"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -97,6 +97,9 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
+	if info.ChannelType == constant.ChannelTypeAzure && info.RelayMode == relayconstant.RelayModeResponses {
+		info.VendorToolUsage = azureResponsesToolUsage
+	}
 
 	// initialize ThinkingContentInfo when thinking_to_content is enabled
 	if info.ChannelSetting.ThinkingToContent {
@@ -608,31 +611,29 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				_ = file.Close()
 			}
 
-			// Handle mask file if present
-			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
-				maskFile, err := maskFiles[0].Open()
-				if err != nil {
-					return nil, errors.New("failed to open mask file")
+			for _, name := range []string{"mask", "markup"} {
+				files, exists := mf.File[name]
+				if !exists || len(files) == 0 {
+					continue
 				}
-				// 复制完立即关闭，避免在循环内使用 defer 占用资源
+				file, err := files[0].Open()
+				if err != nil {
+					return nil, fmt.Errorf("failed to open %s file", name)
+				}
 
-				// Determine MIME type for mask file
-				mimeType := detectImageMimeType(maskFiles[0].Filename)
-
-				// Create a form file with the appropriate content type
 				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="mask"; filename="%s"`, maskFiles[0].Filename))
-				h.Set("Content-Type", mimeType)
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, name, files[0].Filename))
+				h.Set("Content-Type", detectImageMimeType(files[0].Filename))
 
-				maskPart, err := writer.CreatePart(h)
+				part, err := writer.CreatePart(h)
 				if err != nil {
-					return nil, errors.New("create form file failed for mask")
+					return nil, fmt.Errorf("create form file failed for %s", name)
 				}
 
-				if _, err := io.Copy(maskPart, maskFile); err != nil {
-					return nil, errors.New("copy mask file failed")
+				if _, err := io.Copy(part, file); err != nil {
+					return nil, fmt.Errorf("copy %s file failed", name)
 				}
-				_ = maskFile.Close()
+				_ = file.Close()
 			}
 		} else {
 			return nil, errors.New("no multipart form data found")

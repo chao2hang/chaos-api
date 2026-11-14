@@ -6,10 +6,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/reasonmap"
-	sharedclaude "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/shared/claude"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/reasonmap"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
 func ResponsesResponseToClaudeMessagesResponse(resp *dto.OpenAIResponsesResponse) (*dto.ClaudeResponse, *dto.Usage, error) {

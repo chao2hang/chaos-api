@@ -3,8 +3,8 @@ package helper
 import (
 	"errors"
 
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 // StreamResult is passed to each dataHandler invocation, providing methods
@@ -13,6 +13,7 @@ import (
 type StreamResult struct {
 	status  *relaycommon.StreamStatus
 	stopped bool
+	done    bool
 }
 
 func newStreamResult(status *relaycommon.StreamStatus) *StreamResult {
@@ -44,6 +45,7 @@ func (r *StreamResult) Stop(err error) {
 func (r *StreamResult) Done() {
 	r.status.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 	r.stopped = true
+	r.done = true
 }
 
 // IsStopped returns whether Stop() or Done() was called during this chunk.

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,16 +14,17 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import useDialogState from '@/hooks/use-dialog'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { fetchTokenKey, fetchTokenKeysBatch } from '../api'
 import { ERROR_MESSAGES } from '../constants'
-import { type ApiKey, type ApiKeysDialogType } from '../types'
+import type { ApiKey, ApiKeysDialogType } from '../types'
 
 type ApiKeysContextType = {
   open: ApiKeysDialogType | null
@@ -86,10 +87,10 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
             setResolvedKeys((prev) => ({ ...prev, [id]: fullKey }))
             return fullKey
           }
-          toast.error(res.message || t(ERROR_MESSAGES.UNEXPECTED))
+          handleServerError(res, t(ERROR_MESSAGES.UNEXPECTED))
           return null
-        } catch {
-          toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+        } catch (error) {
+          handleServerError(error, t(ERROR_MESSAGES.UNEXPECTED))
           return null
         } finally {
           delete pendingRequests.current[id]
@@ -135,10 +136,10 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
           }
           return result
         }
-        toast.error(res.message || t(ERROR_MESSAGES.UNEXPECTED))
+        handleServerError(res, t(ERROR_MESSAGES.UNEXPECTED))
         return {}
-      } catch {
-        toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+      } catch (error) {
+        handleServerError(error, t(ERROR_MESSAGES.UNEXPECTED))
         return {}
       } finally {
         for (const id of uncachedIds) {

@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/convdiag"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 func ClaudeMessagesRequestToOpenAIResponses(ctx context.Context, claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.OpenAIResponsesRequest, error) {
@@ -177,6 +178,7 @@ func claudeMessagesToResponsesInput(messages []dto.ClaudeMessage) (json.RawMessa
 					contentParts = append(contentParts, map[string]any{
 						"type":      "input_image",
 						"image_url": source,
+						"detail":    relaymedia.DefaultResponsesImageDetail,
 					})
 				}
 			case "document":
@@ -298,7 +300,11 @@ func claudeToolResultToResponsesOutput(content any) (any, error) {
 			parts = append(parts, map[string]any{"type": "input_text", "text": block.GetText()})
 		case "image":
 			if source := claudeSourceURL(block.Source); source != "" {
-				parts = append(parts, map[string]any{"type": "input_image", "image_url": source})
+				parts = append(parts, map[string]any{
+					"type":      "input_image",
+					"image_url": source,
+					"detail":    relaymedia.DefaultResponsesImageDetail,
+				})
 			}
 		case "document":
 			if source := claudeSourceURL(block.Source); source != "" {

@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/model"
-	pluginruntime "github.com/chaos-api/chaos-api/pkg/jsplugin"
-	"github.com/chaos-api/chaos-api/relay/channel"
-	vertexcore "github.com/chaos-api/chaos-api/relay/channel/vertex"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
+	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relay/channel"
+	vertexcore "github.com/QuantumNous/new-api/relay/channel/vertex"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +56,7 @@ func TestOAuth2JWTContextDoesNotExposeServiceAccountKey(t *testing.T) {
 	credentials, err := common.Marshal(vertexcore.Credentials{ProjectID: "project", ClientEmail: "a@example.com", PrivateKey: "secret"})
 	require.NoError(t, err)
 	source := `
-export const meta = {apiVersion:1,key:"oauth",name:"OAuth",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",auth:{type:"oauth2_jwt"}};
+export const meta = {apiVersion:1,key:"oauth-probe",name:"OAuth",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",auth:{type:"oauth2_jwt"}};
 export function buildSubmitRequest(ctx) {
   if (ctx.apiKey !== undefined) throw new Error("raw key exposed");
   return {url:ctx.baseUrl+"/submit",headers:{Authorization:ctx.authHeader}};
@@ -140,7 +140,7 @@ export function buildContentRequest(ctx){return {url:ctx.baseUrl+"/content/"+ctx
 				assert.Equal(t, tc.wantAuthHeader, ctx["auth"].(map[string]any)["authHeader"], name)
 			}
 
-			content, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
+			content, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
 			require.NoError(t, err)
 			assert.Equal(t, base+"/content/"+tc.wantKind, content.URL)
 			assert.Equal(t, tc.wantAuthHeader, content.Headers["Authorization"])

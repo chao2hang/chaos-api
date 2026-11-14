@@ -60,37 +60,11 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-        // Subpath aliases must precede the base package alias: alias matching
-        // replaces the matched prefix, so a longer key first keeps
-        // `@chaos_team/blbui-core/register` from resolving as
-        // `<base>/register` against the base file path.
-        '@chaos_team/blbui-core/register': path.resolve(
-          __dirname,
-          '../packages/blbui/core/src/register.ts'
-        ),
-        '@chaos_team/blbui-core/styles.css': path.resolve(
-          __dirname,
-          '../packages/blbui/core/src/styles.css'
-        ),
-        '@chaos_team/blbui-core': path.resolve(
-          __dirname,
-          '../packages/blbui/core/src/index.ts'
-        ),
-        '@chaos_team/blbui-react': path.resolve(
-          __dirname,
-          '../packages/blbui/react/src/index.tsx'
-        ),
-        react: path.resolve(__dirname, './node_modules/react'),
-        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-        // `@chaos_team/chaos-ui/layout` imports `next/link` at module scope for
-        // its optional Next.js adapter. This app always passes its own
-        // `linkComponent` (TanStack Router), so the adapter is never rendered
-        // and resolves to a no-op stub instead of pulling in Next.js.
-        'next/link': path.resolve(__dirname, './src/lib/next-link-stub.tsx'),
       },
     },
     html: {
       template: './index.html',
+      favicon: './public/favicon.ico',
     },
     server: {
       host: '0.0.0.0',

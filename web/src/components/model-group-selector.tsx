@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,10 +14,11 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronsUpDown, Check, CpuIcon, LayersIcon } from 'lucide-react'
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -32,6 +33,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,6 +62,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
+import { formatGroupDetail } from './model-group-selector/group-detail'
 import {
   modelGroupSelectorLayoutClasses,
   scrollSelectedOptionIntoView,
@@ -75,7 +78,7 @@ interface ModelOption {
 interface GroupOption {
   label: string
   value: string
-  ratio?: number
+  ratio?: number | string
   desc?: string
   description?: string
 }
@@ -438,13 +441,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                     </span>
                     {(group.desc || group.description) && (
                       <div className='text-muted-foreground truncate text-[9px] leading-tight'>
-                        {group.desc || group.description}
-                        {group.ratio && (
-                          <>
-                            {' · '}
-                            {t('Ratio: {{value}}', { value: group.ratio })}
-                          </>
-                        )}
+                        {formatGroupDetail(group, t)}
                       </div>
                     )}
                   </div>
@@ -498,15 +495,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                       </span>
                       {(group.desc || group.description) && (
                         <div className='text-muted-foreground mt-0.5 text-xs'>
-                          {group.desc || group.description}
-                          {group.ratio && (
-                            <>
-                              {' · '}
-                              {t('Ratio: {{value}}', {
-                                value: group.ratio,
-                              })}
-                            </>
-                          )}
+                          {formatGroupDetail(group, t)}
                         </div>
                       )}
                     </div>

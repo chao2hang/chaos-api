@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,12 +14,16 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { useCountdown } from '@/hooks/use-countdown'
+import { handleServerError } from '@/lib/handle-server-error'
+import { AuthOperationError } from '@/lib/secure-verification'
+import { createServerError } from '@/lib/server-error-message'
 
 import { sendEmailVerification } from '../api'
 import { EMAIL_VERIFICATION_COUNTDOWN } from '../constants'
@@ -62,12 +66,17 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
         toast.success(i18next.t('Verification email sent'))
         return true
       }
-      toast.error(
-        res?.message || i18next.t('Failed to send verification email')
+      handleServerError(
+        createServerError(res, i18next.t('Failed to send verification email'))
       )
       return false
     } catch (_error) {
-      // Errors are handled by global interceptor
+      handleServerError(
+        AuthOperationError.from(
+          _error,
+          i18next.t('Failed to send verification email')
+        )
+      )
       return false
     } finally {
       setIsSending(false)

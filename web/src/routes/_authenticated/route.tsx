@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,14 +14,22 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { AdminLayout } from '@/components/admin/admin-layout'
+import { AuthenticatedLayout } from '@/components/layout'
+import { resolveAuthentication } from '@/lib/auth-session'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ location }) => {
+    // The root guard may have skipped its refresh because no session hint was
+    // present. That skip is an optimization for public pages and must not
+    // decide a protected route, so resolve against the server before
+    // redirecting. An in-memory session returns without a request.
+    await resolveAuthentication()
+
     const { auth } = useAuthStore.getState()
 
     if (!auth.user || !auth.accessToken) {
@@ -31,5 +39,5 @@ export const Route = createFileRoute('/_authenticated')({
       })
     }
   },
-  component: AdminLayout,
+  component: AuthenticatedLayout,
 })

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
@@ -28,7 +29,6 @@ export const apiKeySchema = z.object({
   status: z.number(), // 1: enabled, 2: disabled, 3: expired, 4: exhausted
   remain_quota: z.number(),
   used_quota: z.number(),
-  used_tokens: z.number().nullish().default(0).optional(),
   unlimited_quota: z.boolean(),
   expired_time: z.number(), // -1 for never expires
   created_time: z.number(),
@@ -46,6 +46,7 @@ export const apiKeySchema = z.object({
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
+  allow_user_quota_query: z.boolean().optional().default(false),
 })
 
 export type ApiKey = z.infer<typeof apiKeySchema>
@@ -91,6 +92,7 @@ export interface ApiKeyFormData {
   model_limits_enabled: boolean
   model_limits: string
   allow_ips: string
+  allow_user_quota_query: boolean
   group: string
   auto_groups: string[]
   cross_group_retry: boolean

@@ -9,15 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/relay/channel"
-	"github.com/chaos-api/chaos-api/relay/channel/claude"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relay/helper"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 
@@ -26,7 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	bedrockruntimeTypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/aws/smithy-go/auth/bearer"
-	"github.com/chaos-api/chaos-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 )
 
 // getAwsErrorStatusCode extracts HTTP status code from AWS SDK error
@@ -186,13 +187,18 @@ func buildAwsRequestBody(c *gin.Context, info *relaycommon.RelayInfo, awsClaudeR
 		if err != nil {
 			return nil, errors.Wrap(err, "get request body bytes fail")
 		}
-		var data map[string]any
-		if err := common.Unmarshal(body, &data); err != nil {
-			return nil, errors.Wrap(err, "pass-through unmarshal request body fail")
+		// Only model and stream are removed: the rest keeps the client's bytes
+		// and key order. The Doc reads body in place and never changes it.
+		if !ojson.ValidBytes(body) || !ojson.GetBytesNoCopy(body, "@this").IsObject() {
+			return nil, errors.New("pass-through unmarshal request body fail: request body must be a JSON object")
 		}
-		delete(data, "model")
-		delete(data, "stream")
-		return common.Marshal(data)
+		data := ojson.NewDoc(body)
+		for _, key := range []string{"model", "stream"} {
+			if err := relaycommon.DeleteJSONMember(data, key); err != nil {
+				return nil, errors.Wrap(err, "pass-through unmarshal request body fail")
+			}
+		}
+		return data.Bytes(), nil
 	}
 	return common.Marshal(awsClaudeReq)
 }
@@ -299,10 +305,10 @@ streamLoop:
 					return respErr, nil
 				}
 			case *bedrockruntimeTypes.UnknownUnionMember:
-				fmt.Println("unknown tag:", v.Tag)
+				fmt.Println(common.LogText("unknown tag: %v", v.Tag))
 				return types.NewError(errors.New("unknown response type"), types.ErrorCodeInvalidRequest), nil
 			default:
-				fmt.Println("union is nil or unknown type")
+				fmt.Println(common.LogText("union is nil or unknown type"))
 				return types.NewError(errors.New("nil or unknown response type"), types.ErrorCodeInvalidRequest), nil
 			}
 		}

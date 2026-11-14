@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { Fragment, useMemo } from 'react'
@@ -128,7 +129,7 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
     <span className='text-muted-foreground/45'>
       &copy; {props.currentYear}{' '}
       <a
-        href='https://github.com/chaos-api/chaos-api'
+        href='https://github.com/QuantumNous/new-api'
         target='_blank'
         rel='noopener noreferrer'
         className='text-foreground/70 hover:text-foreground font-medium transition-colors'
@@ -157,9 +158,8 @@ export function Footer(props: FooterProps) {
     demoSiteEnabled,
   } = useSystemConfig()
 
-  // Only show a logo when one is actually configured.
-  const displayLogo = systemLogo || props.logo || ''
-  const displayName = systemName || props.name || 'chaos-api'
+  const displayLogo = systemLogo || props.logo || '/logo.png'
+  const displayName = systemName || props.name || 'New API'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
@@ -255,13 +255,11 @@ export function Footer(props: FooterProps) {
           {/* Brand column */}
           <div className='shrink-0'>
             <Link to='/' className='group flex items-center gap-2.5'>
-              {displayLogo && (
-                <img
-                  src={displayLogo}
-                  alt={displayName}
-                  className='size-7 rounded-lg object-contain'
-                />
-              )}
+              <img
+                src={displayLogo}
+                alt={displayName}
+                className='size-7 rounded-lg object-contain'
+              />
               <span className='text-sm font-semibold tracking-tight'>
                 {displayName}
               </span>

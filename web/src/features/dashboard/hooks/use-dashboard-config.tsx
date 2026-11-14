@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,11 +14,14 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Hash,
   Coins,
   Layers,
+  Download,
+  Upload,
   Gauge,
   Zap,
   Flame,
@@ -67,6 +70,22 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       icon: Layers,
       iconTone: 'chart-4',
       getValue: (stat) => stat?.tpm ?? 0,
+    },
+    {
+      key: 'cacheRead',
+      title: t('Cache Read'),
+      description: t('Statistical tokens'),
+      icon: Download,
+      iconTone: 'chart-3',
+      getValue: (stat) => stat?.cacheRead ?? 0,
+    },
+    {
+      key: 'cacheCreation',
+      title: t('Cache Write'),
+      description: t('Statistical tokens'),
+      icon: Upload,
+      iconTone: 'chart-5',
+      getValue: (stat) => stat?.cacheCreation ?? 0,
     },
     {
       key: 'avgRpm',

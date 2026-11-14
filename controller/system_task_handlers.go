@@ -2,28 +2,49 @@ package controller
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/service"
-	"github.com/chaos-api/chaos-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
-// RegisterScheduledSystemTasks wires the periodic channel test, upstream model
-// update, and async task polling (Midjourney / Suno / video) jobs into the
-// system task framework so a DB lease dedups execution across multiple master
-// instances and each run is recorded as one task row. Call this before
-// service.StartSystemTaskRunner.
+// RegisterScheduledSystemTasks wires the periodic channel test, balance update,
+// upstream model update, async task polling (Midjourney / Suno / video) and
+// task history cleanup jobs into the system task framework so a DB lease
+// dedups execution across multiple master instances and each run is recorded
+// as one task row. Call this before service.StartSystemTaskRunner.
 func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(channelTestHandler{})
-	service.RegisterSystemTaskHandler(channelProbeHandler{})
+	service.RegisterSystemTaskHandler(channelBalanceHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(systemTaskCleanupHandler{})
+}
+
+// systemTaskCleanupHandler deletes, once a day, the finished system tasks
+// older than the configured retention.
+type systemTaskCleanupHandler struct{}
+
+func (systemTaskCleanupHandler) Type() string { return model.SystemTaskTypeCleanup }
+
+func (systemTaskCleanupHandler) Enabled() bool { return true }
+
+func (systemTaskCleanupHandler) Interval() time.Duration { return 24 * time.Hour }
+
+func (systemTaskCleanupHandler) NewPayload() any { return nil }
+
+func (systemTaskCleanupHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	days := max(operation_setting.GetSystemTaskSetting().RetentionDays, 1)
+	deleted, err := model.DeleteFinishedSystemTasks(ctx, common.GetTimestamp()-int64(days)*24*60*60)
+	status := model.SystemTaskStatusSucceeded
+	if err != nil {
+		status = model.SystemTaskStatusFailed
+	}
+	finishSystemTaskHandler(task, runnerID, status, map[string]int64{"deleted_count": deleted}, err)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and
@@ -34,7 +55,7 @@ type channelTestHandler struct{}
 func (channelTestHandler) Type() string { return model.SystemTaskTypeChannelTest }
 
 func (channelTestHandler) Enabled() bool {
-	return operation_setting.GetMonitorSetting().AutoTestChannelEnabled || common.AutomaticEnableChannelEnabled
+	return operation_setting.GetMonitorSetting().AutoTestChannelEnabled
 }
 
 func (channelTestHandler) Interval() time.Duration {
@@ -63,11 +84,6 @@ func (channelTestHandler) Run(ctx context.Context, task *model.SystemTask, runne
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
 		return
 	}
-	if strings.TrimSpace(payload.Mode) == "" {
-		if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled && common.AutomaticEnableChannelEnabled {
-			payload.Mode = operation_setting.ChannelTestModePassiveRecovery
-		}
-	}
 	summary, err := runChannelTestTask(ctx, payload.Mode, payload.Notify, service.NewSystemTaskProgressReporter(task, runnerID))
 	if err != nil {
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
@@ -76,33 +92,27 @@ func (channelTestHandler) Run(ctx context.Context, task *model.SystemTask, runne
 	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
 
-// channelProbeHandler runs the scheduled read-only credential probe of the
-// enabled channels. The probe exists because the relay error path only sees
-// the channels that are actually selected for a request, so a channel whose
-// upstream credentials died would stay enabled forever when it is not part of
-// the routing anymore.
-type channelProbeHandler struct{}
+// channelBalanceHandler runs an update of all balances, queued by an
+// administrator or every CHANNEL_UPDATE_FREQUENCY minutes when that is set.
+// Its progress is the task's state, so every node can show it.
+type channelBalanceHandler struct{}
 
-func (channelProbeHandler) Type() string { return model.SystemTaskTypeChannelProbe }
+func (channelBalanceHandler) Type() string { return model.SystemTaskTypeChannelBalance }
 
-func (channelProbeHandler) Enabled() bool {
-	return operation_setting.GetMonitorSetting().ActiveProbeEnabled && common.AutomaticDisableChannelEnabled
+func (channelBalanceHandler) Enabled() bool {
+	return common.GetEnvOrDefault("CHANNEL_UPDATE_FREQUENCY", 0) > 0
 }
 
-func (channelProbeHandler) Interval() time.Duration {
-	minutes := operation_setting.GetMonitorSetting().ActiveProbeIntervalMinutes
-	if minutes <= 0 {
-		minutes = operation_setting.DefaultActiveProbeIntervalMinutes
-	}
-	return time.Duration(minutes) * time.Minute
+func (channelBalanceHandler) Interval() time.Duration {
+	return time.Duration(common.GetEnvOrDefault("CHANNEL_UPDATE_FREQUENCY", 0)) * time.Minute
 }
 
-func (channelProbeHandler) NewPayload() any { return nil }
+func (channelBalanceHandler) NewPayload() any { return nil }
 
-func (channelProbeHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
-	summary, err := runChannelCredentialProbe(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
+func (channelBalanceHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := updateAllChannelsBalance(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
 	if err != nil {
-		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, summary, err)
 		return
 	}
 	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
@@ -197,6 +207,6 @@ func finishSystemTaskHandler(task *model.SystemTask, runnerID string, status mod
 		errorMessage = runErr.Error()
 	}
 	if err := model.FinishSystemTask(task.TaskID, runnerID, status, result, errorMessage); err != nil {
-		common.SysLog(fmt.Sprintf("system task %s failed to persist result: %v", task.TaskID, err))
+		common.SysLog(common.LogText("system task %s failed to persist result: %v", task.TaskID, err))
 	}
 }

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, test } from 'vitest'
@@ -292,7 +293,14 @@ describe('authentication session coordination', () => {
       mutationFn: async () => undefined,
     })
     useAuthStore.getState().auth.setBundle(bundle)
-    useAuthStore.getState().auth.setPending2FAFlowToken('pending-flow')
+    useAuthStore.getState().auth.setPendingLoginVerification({
+      challenge: {
+        require_verification: true,
+        flow_token: 'pending-flow',
+        expires_at: 9999999999,
+        methods: [{ method: '2fa', available: true }],
+      },
+    })
 
     clearAuthenticatedClientState(queryClient, false)
 
@@ -301,7 +309,7 @@ describe('authentication session coordination', () => {
     expect(useAuthStore.getState().auth.user).toBe(null)
     expect(useAuthStore.getState().auth.accessToken).toBe(null)
     expect(useAuthStore.getState().auth.session).toBe(null)
-    expect(useAuthStore.getState().auth.pending2FAFlowToken).toBe(null)
+    expect(useAuthStore.getState().auth.pendingLoginVerification).toBe(null)
     expect(useAuthStore.getState().auth.bootstrapState).toBe('complete')
 
     const nextBundle: AuthBundle = {

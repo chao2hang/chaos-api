@@ -6,17 +6,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/logger"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relay/helper"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
-	"github.com/chaos-api/chaos-api/setting/model_setting"
-	"github.com/chaos-api/chaos-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -88,7 +89,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
 
 		if containAudioTokens && containsAudioRatios {
-			service.PostAudioConsumeQuota(c, info, usage, "")
+			service.PostAudioConsumeQuota(c, info, usage, nil)
 		} else {
 			service.PostTextConsumeQuota(c, info, usage, nil)
 		}
@@ -102,12 +103,33 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		outboundStorage := storage
+		if info.ChannelOtherSettings.StripReasoningContent {
+			bodyBytes, bodyErr := storage.Bytes()
+			if bodyErr != nil {
+				return types.NewError(bodyErr, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			strippedBody, stripErr := relaycommon.StripReasoningContentFromAssistantMessages(bodyBytes)
+			if stripErr != nil {
+				return types.NewError(stripErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			if len(strippedBody) != len(bodyBytes) {
+				outboundStorage, err = common.CreateBodyStorage(strippedBody)
+				if err != nil {
+					return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+				}
+				defer outboundStorage.Close()
+			}
+		}
+		if newAPIError = requestplugin.PassThrough(c, info, outboundStorage); newAPIError != nil {
+			return newAPIError
+		}
 		if common.DebugEnabled {
-			if debugBytes, bErr := storage.Bytes(); bErr == nil {
+			if debugBytes, bErr := outboundStorage.Bytes(); bErr == nil {
 				logger.LogDebug(c, "requestBody: %s", debugBytes)
 			}
 		}
-		requestBody = common.NewReplayableBodyReader(storage)
+		requestBody = common.NewReplayableBodyReader(outboundStorage)
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
 		if err != nil {
@@ -130,12 +152,24 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 
+		if jsonData, newAPIError = requestplugin.Outbound(c, info, jsonData); newAPIError != nil {
+			return newAPIError
+		}
 		// apply param override
 		if len(info.ParamOverride) > 0 {
 			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 			if err != nil {
 				return newAPIErrorFromParamOverride(err)
 			}
+		}
+		if info.ChannelOtherSettings.StripReasoningContent {
+			jsonData, err = relaycommon.StripReasoningContentFromAssistantMessages(jsonData)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+		}
+		if newAPIError = requestplugin.Egress(c, info, jsonData); newAPIError != nil {
+			return newAPIError
 		}
 
 		logger.LogDebug(c, "text request body: %s", jsonData)
@@ -160,7 +194,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-		if !service.IsUpstreamSuccess(httpResp.StatusCode) {
+		if httpResp.StatusCode != http.StatusOK {
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
@@ -179,7 +213,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
 
 	if containAudioTokens && containsAudioRatios {
-		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
+		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	} else {
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}

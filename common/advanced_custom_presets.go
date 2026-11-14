@@ -1,8 +1,8 @@
 package common
 
 import (
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // DefaultAdvancedCustomConfig returns fresh defaults for Advanced Custom channels.

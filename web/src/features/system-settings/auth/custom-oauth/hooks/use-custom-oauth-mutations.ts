@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,10 +14,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   createCustomOAuthProvider,
@@ -47,10 +50,12 @@ export function useCreateProvider() {
       if (res.success) {
         toast.success(i18next.t('Provider created successfully'))
         invalidate.onSuccess()
+      } else {
+        handleServerError(res)
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to create provider'))
+      handleServerError(error, i18next.t('Failed to create provider'))
     },
   })
 }
@@ -70,10 +75,12 @@ export function useUpdateProvider() {
       if (res.success) {
         toast.success(i18next.t('Provider updated successfully'))
         invalidate.onSuccess()
+      } else {
+        handleServerError(res)
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to update provider'))
+      handleServerError(error, i18next.t('Failed to update provider'))
     },
   })
 }
@@ -87,10 +94,12 @@ export function useDeleteProvider() {
       if (res.success) {
         toast.success(i18next.t('Provider deleted successfully'))
         invalidate.onSuccess()
+      } else {
+        handleServerError(res)
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to delete provider'))
+      handleServerError(error, i18next.t('Failed to delete provider'))
     },
   })
 }
@@ -101,12 +110,12 @@ export function useDiscoverEndpoints() {
     onSuccess: (res: DiscoveryResponse) => {
       if (res.success) {
         toast.success(i18next.t('OIDC endpoints discovered successfully'))
+      } else {
+        handleServerError(res)
       }
     },
     onError: (error: Error) => {
-      toast.error(
-        error.message || i18next.t('Failed to discover OIDC endpoints')
-      )
+      handleServerError(error, i18next.t('Failed to discover OIDC endpoints'))
     },
   })
 }

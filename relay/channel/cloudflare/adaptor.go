@@ -7,12 +7,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/chaos-api/chaos-api/relay/channel"
-	"github.com/chaos-api/chaos-api/relay/channel/openai"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -105,7 +105,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case constant.RelayModeEmbeddings:
-		fallthrough
+		return openai.OpenaiHandler(c, info, resp)
 	case constant.RelayModeChatCompletions:
 		if info.IsStream {
 			err, usage = cfStreamHandler(c, info, resp)

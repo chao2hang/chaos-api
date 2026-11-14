@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/logger"
-	"github.com/chaos-api/chaos-api/model"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/shopspring/decimal"
 
@@ -123,7 +123,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	}
 
 	if err := PostConsumeQuota(relayInfo, feeQuota, 0, true); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("failed to charge violation fee: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("failed to charge violation fee: %s", err.Error()))
 		return false
 	}
 
@@ -132,7 +132,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	tokenName := ctx.GetString("token_name")
-	oai := apiErr.ToOpenAIError()
+	oai := apiErr.ToOpenAIError(common.UpstreamAddresses(ctx)...)
 
 	other := model.NewLogOther()
 	other.MergePublic(map[string]any{
@@ -152,7 +152,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		ModelName:      relayInfo.OriginModelName,
 		TokenName:      tokenName,
 		Quota:          feeQuota,
-		Content:        "Violation fee charged",
+		Content:        []*common.Message{common.NewMessage("Violation fee charged")},
 		TokenId:        relayInfo.TokenId,
 		UseTimeSeconds: int(useTimeSeconds),
 		IsStream:       relayInfo.IsStream,

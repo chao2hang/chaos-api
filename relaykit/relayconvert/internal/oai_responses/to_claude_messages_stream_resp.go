@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	sharedclaude "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/shared/claude"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
 const responsesEventOutputTextDone = "response.output_text.done"

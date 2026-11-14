@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { TimeGranularity } from '@/lib/time'
 
@@ -27,6 +28,8 @@ export interface QuotaDataItem {
   username?: string
   model_name?: string
   created_at: number
+  cache_read_tokens?: number
+  cache_creation_tokens?: number
   token_used?: number
   count?: number
   quota?: number
@@ -192,8 +195,6 @@ export interface DashboardFilters {
 
 export type ConsumptionDistributionChartType = 'bar' | 'area'
 
-export type ConsumptionDistributionMetric = 'quota' | 'tokens'
-
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'
 
 export interface DashboardChartPreferences {
@@ -243,10 +244,8 @@ export interface ProcessedChartData {
   spec_area: VChartSpec
   spec_model_line: VChartSpec
   spec_rank_bar: VChartSpec
-  metric: ConsumptionDistributionMetric
   totalQuotaDisplay: string
   totalCountDisplay: string
-  totalTokensDisplay: string
 }
 
 export interface ProcessedUserChartData {

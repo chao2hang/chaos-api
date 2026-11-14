@@ -1,6 +1,6 @@
 package system_setting
 
-import "github.com/chaos-api/chaos-api/setting/config"
+import "github.com/QuantumNous/new-api/setting/config"
 
 type DiscordSettings struct {
 	Enabled      bool   `json:"enabled"`

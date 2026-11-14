@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,17 +14,19 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Loader2, Send, Shield, UserRound, type LucideIcon } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiLinux, SiWechat } from 'react-icons/si'
+
+import { IconGithub, IconLinuxDo, IconWeChat } from '@/assets/brand-icons'
 
 import { AuthLayout } from '../auth-layout'
 
 type OAuthCallbackScreenProps = {
   provider: string
-  mode: 'login' | 'bind'
+  mode: 'login' | 'bind' | 'verify'
 }
 
 type ProviderMeta = {
@@ -36,21 +38,21 @@ const providerDictionary: Record<string, ProviderMeta> = {
   github: {
     label: 'GitHub',
     Icon: (props: { className?: string }) => (
-      <SiGithub className={props.className} focusable='false' />
+      <IconGithub className={props.className} focusable='false' />
     ),
   },
   oidc: { label: 'OIDC', Icon: Shield },
   linuxdo: {
     label: 'LinuxDO',
     Icon: (props: { className?: string }) => (
-      <SiLinux className={props.className} focusable='false' />
+      <IconLinuxDo className={props.className} focusable='false' />
     ),
   },
   telegram: { label: 'Telegram', Icon: Send },
   wechat: {
     label: 'WeChat',
     Icon: (props: { className?: string }) => (
-      <SiWechat className={props.className} focusable='false' />
+      <IconWeChat className={props.className} focusable='false' />
     ),
   },
 }
@@ -71,23 +73,30 @@ export function OAuthCallbackScreen({
   }, [provider])
 
   const providerLabel = t(label)
-  const isBindMode = mode === 'bind'
-
-  const headline = isBindMode
-    ? t('Binding your {{provider}} account', { provider: providerLabel })
-    : t('Signing you in with {{provider}}', { provider: providerLabel })
-
-  const description = isBindMode
-    ? t('Hang tight while we securely link this account to your profile.')
-    : t('Hang tight while we finish connecting your account.')
-
-  const secondaryNote = isBindMode
-    ? t(
-        'You can close this tab once the binding completes or a success message appears in the original window.'
-      )
-    : t(
-        "You'll be redirected automatically. You can return to the previous page if nothing happens after a few seconds."
-      )
+  let headline = t('Signing you in with {{provider}}', {
+    provider: providerLabel,
+  })
+  let description = t('Hang tight while we finish connecting your account.')
+  let secondaryNote = t(
+    "You'll be redirected automatically. You can return to the previous page if nothing happens after a few seconds."
+  )
+  if (mode === 'bind') {
+    headline = t('Binding your {{provider}} account', {
+      provider: providerLabel,
+    })
+    description = t(
+      'Hang tight while we securely link this account to your profile.'
+    )
+  }
+  if (mode === 'verify') {
+    headline = t('Verifying your {{provider}} account', {
+      provider: providerLabel,
+    })
+    description = t('Confirming the account linked to your profile.')
+  }
+  if (mode !== 'login') {
+    secondaryNote = t('Return to the original window to continue.')
+  }
 
   return (
     <AuthLayout>

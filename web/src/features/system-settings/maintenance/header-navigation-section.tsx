@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
@@ -32,8 +33,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 
 import {
+  SettingsControlChildren,
   SettingsForm,
   SettingsSwitchContent,
+  SettingsControlGroup,
   SettingsSwitchItem,
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
@@ -48,6 +51,12 @@ import {
 const headerNavSchema = z.object({
   home: z.boolean(),
   console: z.boolean(),
+  pricingEnabled: z.boolean(),
+  pricingRequireAuth: z.boolean(),
+  rankingsEnabled: z.boolean(),
+  rankingsRequireAuth: z.boolean(),
+  docs: z.boolean(),
+  about: z.boolean(),
 })
 
 type HeaderNavFormValues = z.infer<typeof headerNavSchema>
@@ -64,6 +73,28 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.console === undefined
       ? HEADER_NAV_DEFAULT.console
       : Boolean(config.console),
+  pricingEnabled:
+    config.pricing?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.pricing.enabled
+      : Boolean(config.pricing.enabled),
+  pricingRequireAuth:
+    config.pricing?.requireAuth === undefined
+      ? HEADER_NAV_DEFAULT.pricing.requireAuth
+      : Boolean(config.pricing.requireAuth),
+  rankingsEnabled:
+    config.rankings?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.rankings.enabled
+      : Boolean(config.rankings.enabled),
+  rankingsRequireAuth:
+    config.rankings?.requireAuth === undefined
+      ? HEADER_NAV_DEFAULT.rankings.requireAuth
+      : Boolean(config.rankings.requireAuth),
+  docs:
+    config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
+  about:
+    config.about === undefined
+      ? HEADER_NAV_DEFAULT.about
+      : Boolean(config.about),
 })
 
 export function HeaderNavigationSection({
@@ -88,6 +119,18 @@ export function HeaderNavigationSection({
       ...config,
       home: values.home,
       console: values.console,
+      docs: values.docs,
+      about: values.about,
+      pricing: {
+        ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
+        enabled: values.pricingEnabled,
+        requireAuth: values.pricingRequireAuth,
+      },
+      rankings: {
+        ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
+        enabled: values.rankingsEnabled,
+        requireAuth: values.rankingsRequireAuth,
+      },
     }
 
     const serialized = serializeHeaderNavModules(payload)
@@ -119,6 +162,49 @@ export function HeaderNavigationSection({
       key: 'console',
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
+    },
+    {
+      key: 'docs',
+      title: t('Docs'),
+      description: t('Documentation or external knowledge base.'),
+    },
+    {
+      key: 'about',
+      title: t('About'),
+      description: t('Static page describing the platform.'),
+    },
+  ]
+
+  const accessModules: Array<{
+    enabledKey: keyof HeaderNavFormValues
+    requireAuthKey: keyof HeaderNavFormValues
+    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
+    title: string
+    description: string
+    requireAuthTitle: string
+    requireAuthDescription: string
+  }> = [
+    {
+      enabledKey: 'pricingEnabled',
+      requireAuthKey: 'pricingRequireAuth',
+      requireAuthDependsOn: 'pricingEnabled',
+      title: t('Model Square'),
+      description: t('Public model catalog and pricing page.'),
+      requireAuthTitle: t('Require login to view models'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the pricing directory.'
+      ),
+    },
+    {
+      enabledKey: 'rankingsEnabled',
+      requireAuthKey: 'rankingsRequireAuth',
+      requireAuthDependsOn: 'rankingsEnabled',
+      title: t('Rankings'),
+      description: t('Public rankings page based on live usage data.'),
+      requireAuthTitle: t('Require login to view rankings'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the rankings page.'
+      ),
     },
   ]
 
@@ -155,6 +241,57 @@ export function HeaderNavigationSection({
                   </SettingsSwitchItem>
                 )}
               />
+            ))}
+          </div>
+
+          <div className='grid gap-4 lg:grid-cols-2'>
+            {accessModules.map((module) => (
+              <SettingsControlGroup key={module.enabledKey}>
+                <FormField
+                  control={form.control}
+                  name={module.enabledKey}
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{module.title}</FormLabel>
+                        <FormDescription>{module.description}</FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={module.requireAuthKey}
+                  render={({ field }) => (
+                    <SettingsControlChildren>
+                      <SettingsSwitchItem className='py-2'>
+                        <SettingsSwitchContent>
+                          <FormLabel>{module.requireAuthTitle}</FormLabel>
+                          <FormDescription>
+                            {module.requireAuthDescription}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!form.watch(module.requireAuthDependsOn)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </SettingsSwitchItem>
+                    </SettingsControlChildren>
+                  )}
+                />
+              </SettingsControlGroup>
             ))}
           </div>
         </SettingsForm>

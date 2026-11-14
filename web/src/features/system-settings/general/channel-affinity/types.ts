@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 export interface KeySource {
   type: 'context_int' | 'context_string' | 'request_header' | 'gjson'
@@ -21,7 +22,10 @@ export interface KeySource {
   path?: string
 }
 
+export type SessionMode = 'off' | 'prefer' | 'strict'
+
 export interface AffinityRule {
+  session_mode?: SessionMode | 'inherit'
   id?: number
   name: string
   model_regex: string[]
@@ -48,6 +52,7 @@ export interface CacheStats {
 
 export interface ChannelAffinitySettings {
   'channel_affinity_setting.enabled': boolean
+  'channel_affinity_setting.session_mode'?: '' | SessionMode
   'channel_affinity_setting.switch_on_success': boolean
   'channel_affinity_setting.keep_on_channel_disabled': boolean
   'channel_affinity_setting.max_entries': number

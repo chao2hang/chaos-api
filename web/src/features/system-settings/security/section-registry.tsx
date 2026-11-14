@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,9 +14,9 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { RateLimitSection } from '../request-limits/rate-limit-section'
-import { SensitiveWordsSection } from '../request-limits/sensitive-words-section'
 import { SSRFSection } from '../request-limits/ssrf-section'
 import { TokenLimitSection } from '../request-limits/token-limit-section'
 import type { SecuritySettings } from '../types'
@@ -40,19 +40,7 @@ const SECURITY_SECTIONS = [
       />
     ),
   },
-  {
-    id: 'sensitive-words',
-    titleKey: 'Sensitive Words',
-    build: (settings: SecuritySettings) => (
-      <SensitiveWordsSection
-        defaultValues={{
-          CheckSensitiveEnabled: settings.CheckSensitiveEnabled,
-          CheckSensitiveOnPromptEnabled: settings.CheckSensitiveOnPromptEnabled,
-          SensitiveWords: settings.SensitiveWords,
-        }}
-      />
-    ),
-  },
+
   {
     id: 'ssrf',
     titleKey: 'SSRF Protection',
@@ -99,7 +87,7 @@ const securityRegistry = createSectionRegistry<
 >({
   sections: SECURITY_SECTIONS,
   defaultSection: 'rate-limit',
-  basePath: '/admin/system-settings/security',
+  basePath: '/system-settings/security',
   urlStyle: 'path',
 })
 

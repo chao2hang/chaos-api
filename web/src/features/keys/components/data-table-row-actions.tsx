@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row } from '@tanstack/react-table'
 import {
@@ -21,6 +22,7 @@ import {
   Edit,
   Power,
   PowerOff,
+  ExternalLink,
   ArrowRightLeft,
   Copy,
   Link,
@@ -35,6 +37,9 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -42,8 +47,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
+import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
+import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
 import { encodeChannelConnectionInfo } from '@/lib/channel-connection-info'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -78,36 +87,61 @@ export function DataTableRowActions<TData>({
     triggerRefresh,
     setResolvedKey,
     resolveRealKey,
-    resolvedKeys,
     loadingKeys,
   } = useApiKeys()
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
+  const { chatPresets, serverAddress } = useChatPresets()
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
-  const resolvedRealKey = resolvedKeys[apiKey.id]
   const isRealKeyLoading = Boolean(loadingKeys[apiKey.id])
 
+  const hasChatPresets = chatPresets.length > 0
   const toggleLabel = isEnabled ? t('Disable') : t('Enable')
 
-  const handleMenuOpenChange = useCallback(
-    (open: boolean) => {
-      if (open && !resolvedRealKey && !isRealKeyLoading) {
-        void resolveRealKey(apiKey.id)
+  const handleOpenChatPreset = useCallback(
+    async (preset: ChatPreset) => {
+      const realKey = await resolveRealKey(apiKey.id)
+      if (!realKey) return
+
+      if (preset.type === 'fluent') {
+        const success = sendToFluent(realKey, serverAddress)
+        if (success) {
+          toast.success(t('Sent the API key to FluentRead.'))
+        } else {
+          toast.info(
+            t(
+              'FluentRead extension not detected. Please ensure it is installed and active.'
+            )
+          )
+        }
+        return
+      }
+
+      const resolvedUrl = resolveChatUrl({
+        template: preset.url,
+        apiKey: realKey,
+        serverAddress,
+      })
+
+      if (!resolvedUrl) {
+        toast.error(t('Invalid chat link. Please contact your administrator.'))
+        return
+      }
+
+      if (typeof window === 'undefined') return
+
+      try {
+        window.open(resolvedUrl, '_blank', 'noopener')
+      } catch {
+        window.location.href = resolvedUrl
       }
     },
-    [apiKey.id, isRealKeyLoading, resolvedRealKey, resolveRealKey]
+    [resolveRealKey, apiKey.id, serverAddress, t]
   )
 
-  const getCachedRealKey = useCallback(() => {
-    if (resolvedRealKey) return resolvedRealKey
-    void resolveRealKey(apiKey.id)
-    toast.info(t('API key is loading, please try again in a moment'))
-    return null
-  }, [apiKey.id, resolvedRealKey, resolveRealKey, t])
-
   const handleToggleStatus = async (
-    e?: React.MouseEvent<HTMLButtonElement>
+    event?: React.MouseEvent<HTMLButtonElement>
   ) => {
-    e?.stopPropagation()
+    event?.stopPropagation()
     const newStatus = isEnabled
       ? API_KEY_STATUS.DISABLED
       : API_KEY_STATUS.ENABLED
@@ -122,10 +156,10 @@ export function DataTableRowActions<TData>({
         toast.success(message)
         triggerRefresh()
       } else {
-        toast.error(result.message || t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
+        handleServerError(result, t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
       }
-    } catch {
-      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    } catch (error) {
+      handleServerError(error, t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsTogglingStatus(false)
     }
@@ -185,11 +219,11 @@ export function DataTableRowActions<TData>({
         ariaLabel={t('Open menu')}
         contentClassName='w-[200px]'
         modal={false}
-        onOpenChange={handleMenuOpenChange}
       >
         <DropdownMenuItem
+          disabled={isRealKeyLoading}
           onClick={async () => {
-            const realKey = getCachedRealKey()
+            const realKey = await resolveRealKey(apiKey.id)
             if (!realKey) return
             const ok = await copyToClipboard(realKey)
             if (ok) toast.success(t('Copied'))
@@ -201,8 +235,9 @@ export function DataTableRowActions<TData>({
           </DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
+          disabled={isRealKeyLoading}
           onClick={async () => {
-            const realKey = getCachedRealKey()
+            const realKey = await resolveRealKey(apiKey.id)
             if (!realKey) return
             const connStr = encodeChannelConnectionInfo(
               realKey,
@@ -232,6 +267,26 @@ export function DataTableRowActions<TData>({
             <ArrowRightLeft size={16} />
           </DropdownMenuShortcut>
         </DropdownMenuItem>
+        {hasChatPresets && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t('Chat')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {chatPresets.map((preset) => (
+                <DropdownMenuItem
+                  key={preset.id}
+                  onClick={() => handleOpenChatPreset(preset)}
+                >
+                  {preset.name}
+                  {preset.type !== 'web' && (
+                    <DropdownMenuShortcut>
+                      <ExternalLink size={16} />
+                    </DropdownMenuShortcut>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {

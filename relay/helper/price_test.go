@@ -6,17 +6,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/pkg/billingexpr"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
-	"github.com/chaos-api/chaos-api/setting/billing_setting"
-	"github.com/chaos-api/chaos-api/setting/config"
-	"github.com/chaos-api/chaos-api/setting/model_setting"
-	"github.com/chaos-api/chaos-api/setting/operation_setting"
-	"github.com/chaos-api/chaos-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -645,6 +646,60 @@ func TestModelPriceHelperPreservesGpt51CodexMaxIdentity(t *testing.T) {
 	assert.Equal(t, 1.75, priceData.ModelRatio)
 }
 
+// DeepSeek thinking tails and @ modifiers bill at the base model's built-in
+// expression; a name on the thinking-suffix blacklist stays opaque and needs
+// its own price.
+func TestModelPriceHelperDeepSeekThinkingTailsBillAtBase(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	require.NoError(t, i18n.Init())
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{}`,
+		"billing_setting.billing_expr": `{}`,
+	}))
+	oldSelfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = false
+	t.Cleanup(func() { operation_setting.SelfUseModeEnabled = oldSelfUse })
+	settings := model_setting.GetGlobalSettings()
+	originalBlacklist := append([]string(nil), settings.ThinkingModelBlacklist...)
+	t.Cleanup(func() { settings.ThinkingModelBlacklist = originalBlacklist })
+	settings.ThinkingModelBlacklist = append(originalBlacklist, "deepseek-v4-pro-max")
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Set("group", "default")
+	for origin, base := range map[string]string{
+		"deepseek-flash-none":           "deepseek-flash",
+		"deepseek-flash-low":            "deepseek-flash",
+		"deepseek-flash-max":            "deepseek-flash",
+		"deepseek-v4-pro-low":           "deepseek-v4-pro",
+		"deepseek-flash@effort:max":     "deepseek-flash",
+		"deepseek-flash-max@effort:low": "deepseek-flash",
+		"deepseek-v4-pro@thinking:off":  "deepseek-v4-pro",
+	} {
+		info := &relaycommon.RelayInfo{
+			OriginModelName: origin, UserGroup: "default", UsingGroup: "default",
+			BillingRequestInput: &billingexpr.RequestInput{Body: []byte(`{}`)},
+		}
+		_, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+		require.NoError(t, err, origin)
+		assert.Equal(t, base, info.BillingModelName, origin)
+		expression, _ := billing_setting.GetBuiltinBillingExpr(base)
+		require.NotNil(t, info.TieredBillingSnapshot, origin)
+		assert.Equal(t, expression, info.TieredBillingSnapshot.ExprString, origin)
+	}
+
+	info := &relaycommon.RelayInfo{OriginModelName: "deepseek-v4-pro-max", UserGroup: "default", UsingGroup: "default"}
+	_, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.Error(t, err)
+	assert.Equal(t, "deepseek-v4-pro-max", info.GetBillingModelName())
+}
+
 func TestModelPriceHelperNativeGeminiNoThinkingDoesNotAliasBillingModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -745,3 +800,5 @@ func (s *priceTestReservation) Refund(*gin.Context)      {}
 func (s *priceTestReservation) NeedsRefund() bool        { return false }
 func (s *priceTestReservation) GetPreConsumedQuota() int { return s.held }
 func (s *priceTestReservation) Reserve(quota int) error  { s.held = max(s.held, quota); return nil }
+
+func (s *priceTestReservation) ReserveBeforeSubmit(quota int) error { return s.Reserve(quota) }

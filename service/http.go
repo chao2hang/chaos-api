@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/logger"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +19,7 @@ func CloseResponseBodyGracefully(httpResponse *http.Response) {
 	}
 	err := httpResponse.Body.Close()
 	if err != nil {
-		common.SysError("failed to close response body: " + err.Error())
+		common.SysError(common.LogText("failed to close response body: %s", err.Error()))
 	}
 }
 
@@ -73,7 +73,7 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 
 	_, err := io.Copy(c.Writer, body)
 	if err != nil {
-		logger.LogError(c, fmt.Sprintf("failed to copy response body: %s", err.Error()))
+		logger.LogError(c, common.LogText("failed to copy response body: %s", err.Error()))
 	}
 	c.Writer.Flush()
 }

@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,6 +132,10 @@ func TestMiniMaxChatDoResponse_StreamJSON_2056(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeChatCompletions,
 		IsStream:  true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeMiniMax,
+			UpstreamModelName: "abab6.5s-chat",
+		},
 	}
 
 	rawJSON := `{"base_resp":{"status_code":2056,"status_msg":"已达到 Token Plan 用量上限"},"choices":null}`
@@ -160,6 +165,10 @@ func TestMiniMaxChatDoResponse_StreamSSE_2056(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeChatCompletions,
 		IsStream:  true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeMiniMax,
+			UpstreamModelName: "abab6.5s-chat",
+		},
 	}
 
 	rawSSE := "data: {\"base_resp\":{\"status_code\":2056,\"status_msg\":\"已达到 Token Plan 用量上限\"}}\n\n"
@@ -220,6 +229,10 @@ func TestMiniMaxChatDoResponse_StreamSSE_1008(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeChatCompletions,
 		IsStream:  true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeMiniMax,
+			UpstreamModelName: "abab6.5s-chat",
+		},
 	}
 
 	rawSSE := "data: {\"base_resp\":{\"status_code\":1008,\"status_msg\":\"insufficient balance\"}}\n\n"

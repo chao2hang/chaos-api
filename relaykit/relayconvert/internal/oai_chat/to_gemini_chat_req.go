@@ -8,12 +8,12 @@ import (
 
 	"context"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	relaymedia "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/media"
-	sharedgemini "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/shared/gemini"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
@@ -22,6 +22,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		Contents: make([]dto.GeminiChatContent, 0, len(textRequest.Messages)),
 		GenerationConfig: dto.GeminiChatGenerationConfig{
 			Temperature: textRequest.Temperature,
+			ImageConfig: textRequest.ImageConfig,
 		},
 	}
 
@@ -159,14 +160,11 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	if textRequest.Tools != nil {
 		functions := make([]dto.FunctionRequest, 0, len(textRequest.Tools))
 		for _, tool := range textRequest.Tools {
-			if tool.Function.Parameters != nil {
-				if params, ok := tool.Function.Parameters.(map[string]any); ok {
-					if props, hasProps := params["properties"].(map[string]any); hasProps && len(props) == 0 {
-						tool.Function.Parameters = nil
-					}
-				}
+			parameters, err := sharedgemini.CleanFunctionParametersJSON(tool.Function.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("invalid tool parameters: %w", err)
 			}
-			tool.Function.Parameters = sharedgemini.CleanFunctionParameters(tool.Function.Parameters)
+			tool.Function.Parameters = parameters
 			functions = append(functions, tool.Function)
 		}
 		geminiTools := geminiRequest.GetTools()
@@ -186,11 +184,8 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		geminiRequest.GenerationConfig.ResponseMimeType = "application/json"
 
 		if len(textRequest.ResponseFormat.JsonSchema) > 0 {
-			var jsonSchema dto.FormatJsonSchema
-			if err := kitutil.Unmarshal(textRequest.ResponseFormat.JsonSchema, &jsonSchema); err == nil {
-				cleanedSchema := sharedgemini.RemoveAdditionalProperties(jsonSchema.Schema, 0)
-				geminiRequest.GenerationConfig.ResponseSchema = cleanedSchema
-			}
+			sharedgemini.ApplyResponseSchema(c, &geminiRequest.GenerationConfig, textRequest.ResponseFormat.JsonSchema,
+				"response_format.json_schema.schema", opts.Gemini.SupportsJSONSchemaModel(upstreamModelName))
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { SettingsPage } from '../components/settings-page'
 import type { AuthSettings } from '../types'
@@ -47,6 +48,8 @@ const defaultAuthSettings: AuthSettings = {
   'oidc.token_endpoint': '',
   'oidc.user_info_endpoint': '',
   TelegramOAuthEnabled: false,
+  'telegram.client_id': '',
+  'telegram.client_secret': '',
   TelegramBotToken: '',
   TelegramBotName: '',
   LinuxDOOAuthEnabled: false,
@@ -63,6 +66,7 @@ const defaultAuthSettings: AuthSettings = {
   'passkey.enabled': false,
   'passkey.rp_display_name': '',
   'passkey.rp_id': '',
+  'passkey.legacy_rp_ids': '',
   'passkey.origins': '',
   'passkey.allow_insecure_origin': false,
   'passkey.user_verification': 'preferred',
@@ -72,7 +76,7 @@ const defaultAuthSettings: AuthSettings = {
 export function AuthSettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/admin/system-settings/auth/$section'
+      routePath='/_authenticated/system-settings/auth/$section'
       defaultSettings={defaultAuthSettings}
       defaultSection={AUTH_DEFAULT_SECTION}
       getSectionContent={getAuthSectionContent}

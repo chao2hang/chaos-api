@@ -2,15 +2,14 @@ package service
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/logger"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // shardedRoundTripper fans requests for each origin across N independent
@@ -69,15 +68,13 @@ func (s *shardedRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		}
 		logger.LogDebug(
 			req.Context(),
-			fmt.Sprintf(
-				"http transport: host=%s protocol=%s shard=%d/%d policy=%s negotiated=%s",
-				host,
-				s.policy.Protocol,
-				idx,
-				s.n,
-				s.policy.cacheKeyPart(),
-				proto,
-			),
+			"http transport: host=%s protocol=%s shard=%d/%d policy=%s negotiated=%s",
+			host,
+			s.policy.Protocol,
+			idx,
+			s.n,
+			s.policy.cacheKeyPart(),
+			proto,
 		)
 	}
 	return resp, err

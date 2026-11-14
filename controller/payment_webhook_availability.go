@@ -3,8 +3,8 @@ package controller
 import (
 	"strings"
 
-	"github.com/chaos-api/chaos-api/setting"
-	"github.com/chaos-api/chaos-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 func isPaymentComplianceConfirmed() bool {
@@ -100,9 +100,14 @@ func isEpayTopUpEnabled() bool {
 }
 
 func isEpayWebhookConfigured() bool {
-	return strings.TrimSpace(operation_setting.PayAddress) != "" &&
-		strings.TrimSpace(operation_setting.EpayId) != "" &&
-		strings.TrimSpace(operation_setting.EpayKey) != ""
+	if strings.TrimSpace(operation_setting.PayAddress) == "" || strings.TrimSpace(operation_setting.EpayId) == "" {
+		return false
+	}
+	if paymentSetting := operation_setting.GetPaymentSetting(); paymentSetting.EpaySignType == operation_setting.EpaySignTypeRSA {
+		return strings.TrimSpace(paymentSetting.EpayMerchantPrivateKey) != "" &&
+			strings.TrimSpace(paymentSetting.EpayPlatformPublicKey) != ""
+	}
+	return strings.TrimSpace(operation_setting.EpayKey) != ""
 }
 
 func isEpayWebhookEnabled() bool {

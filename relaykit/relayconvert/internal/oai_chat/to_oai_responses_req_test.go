@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/MoeForge/moego/ojson"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing.T) {
@@ -34,10 +34,41 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 
 	assert.Equal(t, "gpt-test", got.Model)
 	assert.Equal(t, `"system rules\n\ndeveloper rules"`, string(got.Instructions))
-	assert.Equal(t, "input_image", gjson.GetBytes(got.Input, "0.content.1.type").String())
-	assert.Equal(t, "function_call", gjson.GetBytes(got.Input, "2.type").String())
-	assert.Equal(t, "call_1", gjson.GetBytes(got.Input, "2.call_id").String())
-	assert.Equal(t, "function_call_output", gjson.GetBytes(got.Input, "3.type").String())
+	assert.Equal(t, "input_image", ojson.GetBytes(got.Input, "0.content.1.type").String())
+	assert.Equal(t, "function_call", ojson.GetBytes(got.Input, "2.type").String())
+	assert.Equal(t, "call_1", ojson.GetBytes(got.Input, "2.call_id").String())
+	assert.Equal(t, "function_call_output", ojson.GetBytes(got.Input, "3.type").String())
+}
+
+func TestChatCompletionsRequestToResponsesRequestImageDetail(t *testing.T) {
+	tests := []struct {
+		name     string
+		imageURL any
+		want     string
+	}{
+		{name: "object without detail defaults to auto", imageURL: map[string]any{"url": "https://example.test/a.png"}, want: "auto"},
+		{name: "low detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "low"}, want: "low"},
+		{name: "high detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "high"}, want: "high"},
+		{name: "auto detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "auto"}, want: "auto"},
+		{name: "original detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "original"}, want: "original"},
+		{name: "unknown detail falls back to auto", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "bogus"}, want: "auto"},
+		{name: "plain string url defaults to auto", imageURL: "https://example.test/a.png", want: "auto"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
+				Model: "gpt-test",
+				Messages: []dto.Message{{Role: "user", Content: []any{
+					map[string]any{"type": "image_url", "image_url": tt.imageURL},
+				}}},
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, "input_image", ojson.GetBytes(got.Input, "0.content.0.type").String())
+			assert.Equal(t, tt.want, ojson.GetBytes(got.Input, "0.content.0.detail").String())
+		})
+	}
 }
 
 func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *testing.T) {
@@ -56,7 +87,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *test
 
 		encoded, err := kitutil.Marshal(got)
 		require.NoError(t, err)
-		assert.Equal(t, key, gjson.GetBytes(encoded, "prompt_cache_key").String())
+		assert.Equal(t, key, ojson.GetBytes(encoded, "prompt_cache_key").String())
 	})
 
 	t.Run("absent", func(t *testing.T) {
@@ -68,7 +99,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *test
 
 		encoded, err := kitutil.Marshal(got)
 		require.NoError(t, err)
-		assert.False(t, gjson.GetBytes(encoded, "prompt_cache_key").Exists())
+		assert.False(t, ojson.GetBytes(encoded, "prompt_cache_key").Exists())
 	})
 }
 
@@ -100,8 +131,8 @@ func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *
 			encoded, err := kitutil.Marshal(got)
 			require.NoError(t, err)
 
-			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, ojson.GetBytes(encoded, "enable_thinking").Bool())
+			value := ojson.GetBytes(encoded, "thinking_budget")
 			assert.True(t, value.Exists())
 			assert.Equal(t, tt.want, value.Int())
 		})
@@ -175,89 +206,4 @@ func assistantMessageWithTool(content string, id string, name string, args strin
 		},
 	})
 	return msg
-}
-
-func TestChatCompletionsRequestToResponsesRequestStoreDefault(t *testing.T) {
-	t.Run("defaults to false", func(t *testing.T) {
-		got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
-			Model:    "gpt-test",
-			Messages: []dto.Message{{Role: "user", Content: "hello"}},
-		})
-		require.NoError(t, err)
-		assert.Equal(t, "false", string(got.Store))
-	})
-
-	t.Run("keeps explicit client choice", func(t *testing.T) {
-		got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
-			Model:    "gpt-test",
-			Messages: []dto.Message{{Role: "user", Content: "hello"}},
-			Store:    json.RawMessage("true"),
-		})
-		require.NoError(t, err)
-		assert.Equal(t, "true", string(got.Store))
-	})
-}
-
-func TestChatCompletionsRequestToResponsesRequestSkipsEmptyAssistantItems(t *testing.T) {
-	nilContentAssistant := dto.Message{Role: "assistant"}
-	nilContentAssistant.SetToolCalls([]dto.ToolCallRequest{{
-		ID:       "call_2",
-		Type:     "function",
-		Function: dto.FunctionRequest{Name: "get_time", Arguments: `{}`},
-	}})
-
-	req := &dto.GeneralOpenAIRequest{
-		Model: "gpt-test",
-		Messages: []dto.Message{
-			{Role: "user", Content: "weather?"},
-			assistantMessageWithTool("", "call_1", "get_weather", `{"city":"Paris"}`),
-			{Role: "tool", ToolCallId: "call_1", Content: "15 degrees"},
-			nilContentAssistant,
-			{Role: "tool", ToolCallId: "call_2", Content: "noon"},
-			{Role: "user", Content: "thanks"},
-		},
-	}
-
-	got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), req)
-	require.NoError(t, err)
-
-	var input []map[string]any
-	require.NoError(t, json.Unmarshal(got.Input, &input))
-	require.Len(t, input, 6)
-
-	itemTypes := make([]string, 0, len(input))
-	for _, item := range input {
-		itemTypes = append(itemTypes, kitutil.Interface2String(item["type"]))
-	}
-	// No {"role":"assistant","content":""} items, only the function calls.
-	assert.Equal(t, []string{"", "function_call", "function_call_output", "function_call", "function_call_output", ""}, itemTypes)
-}
-
-func TestChatCompletionsRequestToResponsesRequestMapsStrictAndReasoning(t *testing.T) {
-	req := &dto.GeneralOpenAIRequest{
-		Model:           "gpt-test",
-		Messages:        []dto.Message{{Role: "user", Content: "hello"}},
-		ReasoningEffort: "high",
-		Tools: []dto.ToolCallRequest{
-			{
-				Type: "function",
-				Function: dto.FunctionRequest{
-					Name:        "get_weather",
-					Description: "Get weather",
-					Parameters:  map[string]any{"type": "object"},
-					Strict:      lo.ToPtr(true),
-				},
-			},
-		},
-	}
-
-	got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), req)
-	require.NoError(t, err)
-
-	require.NotNil(t, got.Reasoning)
-	assert.Equal(t, "high", got.Reasoning.Effort)
-	assert.Equal(t, "detailed", got.Reasoning.Summary)
-
-	assert.Equal(t, "function", gjson.GetBytes(got.Tools, "0.type").String())
-	assert.Equal(t, true, gjson.GetBytes(got.Tools, "0.strict").Bool())
 }

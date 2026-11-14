@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/dto"
-	"github.com/chaos-api/chaos-api/model"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -194,6 +194,25 @@ func TestExtractChannelAffinityValue_RequestHeader(t *testing.T) {
 	})
 
 	require.Equal(t, "tenant-123", value)
+}
+
+func TestExtractChannelAffinityValue_JSONFile(t *testing.T) {
+	previous := common.GetDiskCacheConfig()
+	common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: true, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"image":"`+strings.Repeat("A", 1<<20)+`","metadata":{"key":" tenant-123 ","count":0,"enabled":false},"items":[{"id":"chosen"}]}`))
+	t.Cleanup(func() { common.CleanupBodyStorage(c) })
+	for _, tc := range []struct{ path, want string }{
+		{"metadata.key", "tenant-123"},
+		{"metadata.count", "0"},
+		{"metadata.enabled", "false"},
+		{"items.0.id", "chosen"},
+		{`items.#(id=="chosen").id`, "chosen"},
+		{"absent", ""},
+	} {
+		assert.Equal(t, tc.want, extractChannelAffinityValue(c, operation_setting.ChannelAffinityKeySource{Type: "gjson", Path: tc.path}), tc.path)
+	}
 }
 
 func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {

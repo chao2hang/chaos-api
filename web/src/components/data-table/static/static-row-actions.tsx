@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Pencil, Trash2 } from 'lucide-react'
 
@@ -30,7 +31,8 @@ type StaticRowActionsProps = {
   deleteLabel: string
   menuLabel: string
   onEdit: () => void
-  onDelete: () => void
+  /** Without it the row has nothing to delete and shows only the edit button. */
+  onDelete?: () => void
   editDisabled?: boolean
   deleteDisabled?: boolean
 }
@@ -47,18 +49,20 @@ export function StaticRowActions(props: StaticRowActionsProps) {
       >
         <Pencil />
       </Button>
-      <DataTableRowActionMenu ariaLabel={props.menuLabel}>
-        <DropdownMenuItem
-          onClick={props.onDelete}
-          disabled={props.deleteDisabled}
-          className='text-destructive focus:text-destructive'
-        >
-          {props.deleteLabel}
-          <DropdownMenuShortcut>
-            <Trash2 size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DataTableRowActionMenu>
+      {props.onDelete && (
+        <DataTableRowActionMenu ariaLabel={props.menuLabel}>
+          <DropdownMenuItem
+            onClick={props.onDelete}
+            disabled={props.deleteDisabled}
+            className='text-destructive focus:text-destructive'
+          >
+            {props.deleteLabel}
+            <DropdownMenuShortcut>
+              <Trash2 size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DataTableRowActionMenu>
+      )}
     </div>
   )
 }

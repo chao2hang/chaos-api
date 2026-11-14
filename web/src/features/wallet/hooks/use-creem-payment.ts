@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,10 +14,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { requestCreemPayment, isApiSuccess } from '../api'
 
@@ -41,10 +44,10 @@ export function useCreemPayment() {
         return true
       }
 
-      toast.error(response.message || i18next.t('Payment request failed'))
+      handleServerError(response, i18next.t('Payment request failed'))
       return false
     } catch (_error) {
-      toast.error(i18next.t('Payment request failed'))
+      handleServerError(_error, i18next.t('Payment request failed'))
       return false
     } finally {
       setProcessing(false)

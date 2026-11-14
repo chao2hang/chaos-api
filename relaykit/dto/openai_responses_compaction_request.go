@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 type OpenAIResponsesCompactionRequest struct {

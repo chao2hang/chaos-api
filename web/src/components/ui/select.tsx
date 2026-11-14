@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
@@ -27,6 +28,7 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import * as React from 'react'
 
+import { usePortalContainer } from '@/components/ui/portal-container'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
@@ -99,6 +101,7 @@ function SelectContent({
     'align' | 'alignOffset' | 'side' | 'sideOffset' | 'alignItemWithTrigger'
   >) {
   const isMobile = useMediaQuery('(max-width: 640px)')
+  const container = usePortalContainer()
 
   const content = (
     <SelectPrimitive.Positioner
@@ -129,7 +132,11 @@ function SelectContent({
     return content
   }
 
-  return <SelectPrimitive.Portal>{content}</SelectPrimitive.Portal>
+  return (
+    <SelectPrimitive.Portal container={container}>
+      {content}
+    </SelectPrimitive.Portal>
+  )
 }
 
 function SelectLabel({

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,12 +14,14 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { authRequestOptions, authResult } from '@/lib/secure-verification'
 
 import type {
   SecurityProof,
-  SecurityProofScope,
+  VerificationOperation,
 } from '../secure-verification/types'
 import type { ApiResponse, PasskeyOptionsPayload, PasskeyStatus } from './types'
 
@@ -32,116 +34,106 @@ export async function getPasskeyStatus(): Promise<ApiResponse<PasskeyStatus>> {
   return res.data
 }
 
-export async function beginPasskeyRegistration(
-  proofToken?: string
-): Promise<ApiResponse<PasskeyOptionsPayload>> {
-  const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/passkey/register/begin',
-    undefined,
-    { headers: proofHeaders(proofToken) }
+export function beginPasskeyRegistration(
+  proofToken: string,
+  signal?: AbortSignal
+): Promise<PasskeyOptionsPayload> {
+  return authResult(
+    api.post('/api/user/passkey/register/begin', undefined, {
+      ...authRequestOptions,
+      headers: proofHeaders(proofToken),
+      signal,
+    })
   )
-  return res.data
 }
 
-export async function finishPasskeyRegistration(
+export function finishPasskeyRegistration(
   flowToken: string,
   payload: Record<string, unknown>,
-  proofToken?: string
-): Promise<ApiResponse> {
-  const res = await api.post<ApiResponse>(
-    '/api/user/passkey/register/finish',
-    {
-      flow_token: flowToken,
-      credential: payload,
-    },
-    { headers: proofHeaders(proofToken), acceptAuthRotation: true }
+  signal?: AbortSignal
+): Promise<unknown> {
+  return authResult(
+    api.post(
+      '/api/user/passkey/register/finish',
+      { flow_token: flowToken, credential: payload },
+      {
+        ...authRequestOptions,
+        acceptAuthRotation: true,
+        singleUseAuthorization: true,
+        signal,
+      }
+    )
   )
-  return res.data
 }
 
-export async function deletePasskey(proofToken?: string): Promise<ApiResponse> {
-  const res = await api.delete<ApiResponse>('/api/user/passkey', {
-    headers: proofHeaders(proofToken),
-    acceptAuthRotation: true,
-  })
-  return res.data
+export function deletePasskey(
+  proofToken: string,
+  signal?: AbortSignal
+): Promise<unknown> {
+  return authResult(
+    api.delete('/api/user/passkey', {
+      ...authRequestOptions,
+      headers: proofHeaders(proofToken),
+      acceptAuthRotation: true,
+      signal,
+    })
+  )
 }
 
-export async function beginPasskeyLogin(): Promise<
-  ApiResponse<PasskeyOptionsPayload>
-> {
-  const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/passkey/login/begin'
+export function beginPasskeyLogin(
+  rpID?: string,
+  signal?: AbortSignal
+): Promise<PasskeyOptionsPayload> {
+  return authResult(
+    api.post<ApiResponse<PasskeyOptionsPayload>>(
+      '/api/user/passkey/login/begin',
+      rpID ? { rp_id: rpID } : undefined,
+      { ...authRequestOptions, signal, skipAuthRefresh: true }
+    )
   )
-  return res.data
 }
 
 export async function finishPasskeyLogin(
   flowToken: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<ApiResponse> {
   const res = await api.post<ApiResponse>(
     '/api/user/passkey/login/finish',
     { flow_token: flowToken, credential: payload },
-    { skipAuthRefresh: true }
+    { skipAuthRefresh: true, signal }
   )
   return res.data
 }
 
-/**
- * Begin the passkey factor of a password-login verification challenge
- * (POST /api/user/login returned require_verification).
- */
-export async function beginLoginVerificationPasskey(
-  flowToken: string
-): Promise<ApiResponse<PasskeyOptionsPayload>> {
-  const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/login/passkey/begin',
-    { flow_token: flowToken },
-    { skipAuthRefresh: true }
+export function beginPasskeyVerification(
+  operation: VerificationOperation,
+  signal?: AbortSignal,
+  rpID?: string
+): Promise<PasskeyOptionsPayload> {
+  return authResult(
+    api.post(
+      '/api/user/passkey/verify/begin',
+      {
+        scope: operation.scope,
+        ...(rpID ? { rp_id: rpID } : {}),
+        ...(operation.context ? { context: operation.context } : {}),
+      },
+      { ...authRequestOptions, signal }
+    )
   )
-  return res.data
 }
 
-/**
- * Finish the passkey factor of a password-login verification challenge; the
- * response carries the authenticated session bundle.
- */
-export async function finishLoginVerificationPasskey(
+export function finishPasskeyVerification(
   flowToken: string,
-  passkeyFlowToken: string,
-  payload: Record<string, unknown>
-): Promise<ApiResponse> {
-  const res = await api.post<ApiResponse>(
-    '/api/user/login/passkey/finish',
-    {
-      flow_token: flowToken,
-      passkey_flow_token: passkeyFlowToken,
-      credential: payload,
-    },
-    { skipAuthRefresh: true }
+  payload: Record<string, unknown>,
+  signal?: AbortSignal
+): Promise<SecurityProof> {
+  return authResult(
+    api.post(
+      '/api/user/passkey/verify/finish',
+      { flow_token: flowToken, credential: payload },
+      { ...authRequestOptions, singleUseAuthorization: true, signal }
+    )
   )
-  return res.data
-}
-
-export async function beginPasskeyVerification(
-  scope: SecurityProofScope,
-  context?: Record<string, unknown>
-): Promise<ApiResponse<PasskeyOptionsPayload>> {
-  const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/passkey/verify/begin',
-    { scope, context }
-  )
-  return res.data
-}
-
-export async function finishPasskeyVerification(
-  flowToken: string,
-  payload: Record<string, unknown>
-): Promise<ApiResponse<SecurityProof>> {
-  const res = await api.post<ApiResponse<SecurityProof>>(
-    '/api/user/passkey/verify/finish',
-    { flow_token: flowToken, credential: payload }
-  )
-  return res.data
 }

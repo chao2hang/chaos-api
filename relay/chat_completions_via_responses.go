@@ -6,15 +6,16 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/relay/channel"
-	openaichannel "github.com/chaos-api/chaos-api/relay/channel/openai"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relay/channel"
+	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -73,7 +74,9 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 }
 
 func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request any) (*dto.Usage, *types.NewAPIError) {
-	paramOverrideApplied := false
+	// A chat request takes the outbound plugins and the param override in
+	// chat form, before the conversion.
+	outboundApplied := false
 	if chatRequest, ok := request.(*dto.GeneralOpenAIRequest); ok {
 		chatJSON, err := common.Marshal(chatRequest)
 		if err != nil {
@@ -85,13 +88,17 @@ func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adapto
 			return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 
+		chatJSON, apiErr := requestplugin.Outbound(c, info, chatJSON)
+		if apiErr != nil {
+			return nil, apiErr
+		}
 		if len(info.ParamOverride) > 0 {
 			chatJSON, err = relaycommon.ApplyParamOverrideWithRelayInfo(chatJSON, info)
 			if err != nil {
 				return nil, newAPIErrorFromParamOverride(err)
 			}
-			paramOverrideApplied = true
 		}
+		outboundApplied = true
 
 		var overriddenChatReq dto.GeneralOpenAIRequest
 		if err := common.Unmarshal(chatJSON, &overriddenChatReq); err != nil {
@@ -108,10 +115,10 @@ func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adapto
 	if !ok {
 		return nil, types.NewError(fmt.Errorf("expected OpenAI responses request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
-	return relayResponsesRequest(c, info, adaptor, responsesReq, paramOverrideApplied)
+	return relayResponsesRequest(c, info, adaptor, responsesReq, outboundApplied)
 }
 
-func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, responsesReq *dto.OpenAIResponsesRequest, paramOverrideApplied bool) (*dto.Usage, *types.NewAPIError) {
+func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, responsesReq *dto.OpenAIResponsesRequest, outboundApplied bool) (*dto.Usage, *types.NewAPIError) {
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
 	defer func() {
@@ -137,11 +144,20 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
-	if !paramOverrideApplied && len(info.ParamOverride) > 0 {
-		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
-		if err != nil {
-			return nil, newAPIErrorFromParamOverride(err)
+	if !outboundApplied {
+		var apiErr *types.NewAPIError
+		if jsonData, apiErr = requestplugin.Outbound(c, info, jsonData); apiErr != nil {
+			return nil, apiErr
 		}
+		if len(info.ParamOverride) > 0 {
+			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			if err != nil {
+				return nil, newAPIErrorFromParamOverride(err)
+			}
+		}
+	}
+	if apiErr := requestplugin.Egress(c, info, jsonData); apiErr != nil {
+		return nil, apiErr
 	}
 
 	body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
@@ -167,7 +183,7 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 	clientStream := info.IsStream
 	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
 	info.IsStream = clientStream || upstreamStream
-	if !service.IsUpstreamSuccess(httpResp.StatusCode) {
+	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 		return nil, newApiErr

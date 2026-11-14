@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
@@ -60,15 +61,19 @@ export function createSectionRegistry<
   ]
 
   /**
-   * Get navigation items for sidebar
+   * Get navigation items for sidebar, with an optional badge per section
    */
-  function getSectionNavItems(t: TFunction) {
+  function getSectionNavItems(
+    t: TFunction,
+    badges?: Partial<Record<SectionId, string>>
+  ) {
     return sections.map((section) => ({
       title: t(section.titleKey),
       url:
         urlStyle === 'path'
           ? `${basePath}/${section.id}`
           : `${basePath}?section=${section.id}`,
+      badge: badges?.[section.id as SectionId],
     }))
   }
 

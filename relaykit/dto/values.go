@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
 type StringValue string

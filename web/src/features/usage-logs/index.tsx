@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,118 +14,181 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
-import { useRouterState } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AdminPage } from '@/components/admin/admin-page'
-import { ROLE } from '@/lib/roles'
-import { useAuthStore } from '@/stores/auth-store'
+import { SectionPageLayout } from '@/components/layout'
+import type { NavGroup } from '@/components/layout/types'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 
-import { CommonLogsFilterBar } from './components/common-logs-filter-bar'
-import { CommonLogsTable } from './components/common-logs-table'
-import { DrawingLogsTable } from './components/drawing-logs-table'
-import { LogStatPanel } from './components/log-stat-panel'
-import { SectionTabs } from './components/section-tabs'
-import { SimpleLogsFilterBar } from './components/simple-logs-filter-bar'
-import { TaskLogsTable } from './components/task-logs-table'
-import { getUsageLogsBasePath, getUsageLogsSection } from './section-registry'
-import type { UsageLogsSectionId, UsageLogsSearchPatcher } from './types'
-import type { UsageLogsSearch } from './lib/search-schema'
+import { UserInfoDialog } from './components/dialogs/user-info-dialog'
+import {
+  type LogsViewScope,
+  UsageLogsProvider,
+  useLogsViewScope,
+  useUsageLogsContext,
+} from './components/usage-logs-provider'
+import { UsageLogsTable } from './components/usage-logs-table'
+import {
+  isUsageLogsSectionId,
+  USAGE_LOGS_DEFAULT_SECTION,
+  type UsageLogsSectionId,
+} from './section-registry'
 
-type UsageLogsProps = {
-  section: UsageLogsSectionId
-  search: UsageLogsSearch
-  /** Route-bound URL search patcher provided by the active route file. */
-  patchSearch: UsageLogsSearchPatcher
+const route = getRouteApi('/_authenticated/usage-logs/$section')
+const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
+
+const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
+  common: {
+    titleKey: 'Common Logs',
+  },
+  drawing: {
+    titleKey: 'Drawing Logs',
+  },
+  task: {
+    titleKey: 'Task Logs',
+  },
 }
 
-type SectionProps = {
-  search: UsageLogsSearch
-  admin: boolean
-  patchSearch: UsageLogsSearchPatcher
-}
-
-/**
- * Usage logs page, shared by `/usage-logs` and `/admin/usage-logs`. Admins
- * (role >= ROLE.ADMIN) query the admin endpoints, regular users get the
- * self variants of the same endpoints automatically.
- */
-export function UsageLogs(props: UsageLogsProps) {
+function UsageLogsContent() {
   const { t } = useTranslation()
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const basePath = getUsageLogsBasePath(pathname)
-  const user = useAuthStore((state) => state.auth.user)
-  const admin = (user?.role ?? 0) >= ROLE.ADMIN
-  const sectionMeta = getUsageLogsSection(props.section)
-  const sectionProps: SectionProps = {
-    search: props.search,
-    admin,
-    patchSearch: props.patchSearch,
-  }
-
-  return (
-    <AdminPage title={t('Usage Logs')} description={t(sectionMeta.labelKey)}>
-      <SectionTabs section={props.section} basePath={basePath} />
-      {props.section === 'common' ? <CommonLogsSection {...sectionProps} /> : null}
-      {props.section === 'drawing' ? <DrawingLogsSection {...sectionProps} /> : null}
-      {props.section === 'task' ? <TaskLogsSection {...sectionProps} /> : null}
-    </AdminPage>
+  const navigate = useNavigate()
+  const params = route.useParams()
+  const activeCategory: UsageLogsSectionId =
+    params.section && isUsageLogsSectionId(params.section)
+      ? params.section
+      : USAGE_LOGS_DEFAULT_SECTION
+  const {
+    selectedUserId,
+    userInfoDialogOpen,
+    setUserInfoDialogOpen,
+    affinityTarget,
+    affinityDialogOpen,
+    setAffinityDialogOpen,
+  } = useUsageLogsContext()
+  const { canManageScope, viewScope, setViewScope } = useLogsViewScope()
+  const tabNavGroups = useMemo<NavGroup[]>(
+    () => [
+      {
+        title: 'Task Logs',
+        items: TASK_LOG_SECTIONS.map((section) => ({
+          title: SECTION_META[section].titleKey,
+          url: `/usage-logs/${section}`,
+        })),
+      },
+    ],
+    []
   )
-}
+  const filteredTabGroups = useSidebarConfig(tabNavGroups)
+  const visibleSections = useMemo(
+    () =>
+      (filteredTabGroups[0]?.items ?? [])
+        .map((item) => {
+          if (!('url' in item) || typeof item.url !== 'string') return null
+          return item.url.split('/').pop() ?? null
+        })
+        .filter((section): section is UsageLogsSectionId =>
+          Boolean(section && isUsageLogsSectionId(section))
+        ),
+    [filteredTabGroups]
+  )
 
-function CommonLogsSection(props: SectionProps) {
+  const handleSectionChange = useCallback(
+    (section: string) => {
+      void navigate({
+        to: '/usage-logs/$section',
+        params: { section: section as UsageLogsSectionId },
+      })
+    },
+    [navigate]
+  )
+
+  const handleViewScopeChange = useCallback(
+    (scope: string) => {
+      if (scope === 'all' || scope === 'self') {
+        setViewScope(scope as LogsViewScope)
+      }
+    },
+    [setViewScope]
+  )
+
+  const pageMeta =
+    activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
+  const showTaskSwitcher =
+    activeCategory !== 'common' && visibleSections.length > 1
+
   return (
     <>
-      <LogStatPanel search={props.search} admin={props.admin} />
-      <CommonLogsFilterBar
-        search={props.search}
-        admin={props.admin}
-        patchSearch={props.patchSearch}
+      <SectionPageLayout fixedContent>
+        <SectionPageLayout.Title>
+          {t(pageMeta.titleKey)}
+        </SectionPageLayout.Title>
+        <SectionPageLayout.Actions>
+          {canManageScope && (
+            <Tabs value={viewScope} onValueChange={handleViewScopeChange}>
+              <TabsList>
+                <TabsTrigger value='all'>{t('All')}</TabsTrigger>
+                <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
+          <div className='flex h-full min-h-0 flex-col gap-4'>
+            {showTaskSwitcher && (
+              <Tabs value={activeCategory} onValueChange={handleSectionChange}>
+                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+                  {visibleSections.map((section) => (
+                    <TabsTrigger key={section} value={section}>
+                      {t(SECTION_META[section].titleKey)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            )}
+            <div className='min-h-0 flex-1'>
+              <UsageLogsTable logCategory={activeCategory} />
+            </div>
+          </div>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
+
+      <UserInfoDialog
+        userId={selectedUserId}
+        open={userInfoDialogOpen}
+        onOpenChange={setUserInfoDialogOpen}
       />
-      <CommonLogsTable
-        search={props.search}
-        admin={props.admin}
-        patchSearch={props.patchSearch}
+
+      <CacheStatsDialog
+        open={affinityDialogOpen}
+        onOpenChange={setAffinityDialogOpen}
+        target={
+          affinityTarget
+            ? {
+                rule_name: affinityTarget.rule_name || '',
+                using_group:
+                  affinityTarget.using_group ||
+                  affinityTarget.selected_group ||
+                  '',
+                key_hint: affinityTarget.key_hint || '',
+                key_fp: affinityTarget.key_fp || '',
+              }
+            : null
+        }
       />
     </>
   )
 }
 
-function DrawingLogsSection(props: SectionProps) {
-  const { t } = useTranslation()
+export function UsageLogs() {
   return (
-    <>
-      <SimpleLogsFilterBar
-        search={props.search}
-        admin={props.admin}
-        filterLabel={t('MJ ID')}
-        patchSearch={props.patchSearch}
-      />
-      <DrawingLogsTable
-        search={props.search}
-        admin={props.admin}
-        patchSearch={props.patchSearch}
-      />
-    </>
-  )
-}
-
-function TaskLogsSection(props: SectionProps) {
-  const { t } = useTranslation()
-  return (
-    <>
-      <SimpleLogsFilterBar
-        search={props.search}
-        admin={props.admin}
-        filterLabel={t('Task ID')}
-        patchSearch={props.patchSearch}
-      />
-      <TaskLogsTable
-        search={props.search}
-        admin={props.admin}
-        patchSearch={props.patchSearch}
-      />
-    </>
+    <UsageLogsProvider>
+      <UsageLogsContent />
+    </UsageLogsProvider>
   )
 }

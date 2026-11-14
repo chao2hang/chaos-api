@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -145,7 +145,7 @@ func TestRelayErrorHandlerNeverReturnsEmptyMessage(t *testing.T) {
 
 	require.NotNil(t, newAPIError)
 	require.Contains(t, newAPIError.Error(), "bad response status code 400")
-	require.Contains(t, newAPIError.Error(), body)
+	require.NotContains(t, newAPIError.Error(), body, "upstream error bodies are not exposed when showBodyWhenFail is false")
 }
 
 func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {

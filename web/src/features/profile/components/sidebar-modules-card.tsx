@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { LayoutDashboard } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -30,7 +31,10 @@ import {
 } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Switch } from '@/components/ui/switch'
+import { parseSidebarModulesAdmin } from '@/features/system-settings/maintenance/config'
+import { useStatus } from '@/hooks/use-status'
 import { api } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
 type SidebarModuleConfig = {
@@ -49,12 +53,30 @@ type SectionDef = {
 
 export function SidebarModulesCard() {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const [loading, setLoading] = useState(false)
   const [config, setConfig] = useState<SidebarModulesConfig>({})
   const currentUser = useAuthStore((s) => s.auth.user)
   const setUser = useAuthStore((s) => s.auth.setUser)
 
   const sectionDefs: SectionDef[] = [
+    {
+      key: 'chat',
+      title: t('Chat Area'),
+      description: t('Playground and chat functions'),
+      modules: [
+        {
+          key: 'playground',
+          title: t('Playground'),
+          description: t('AI model testing environment'),
+        },
+        {
+          key: 'chat',
+          title: t('Chat'),
+          description: t('Chat session management'),
+        },
+      ],
+    },
     {
       key: 'console',
       title: t('Console Area'),
@@ -74,6 +96,11 @@ export function SidebarModulesCard() {
           key: 'log',
           title: t('Usage Logs'),
           description: t('API usage records'),
+        },
+        {
+          key: 'audit',
+          title: t('Audit Logs'),
+          description: t('Login, security and access records'),
         },
         {
           key: 'midjourney',
@@ -102,9 +129,29 @@ export function SidebarModulesCard() {
           title: t('Personal Settings'),
           description: t('Personal info settings'),
         },
+        {
+          key: 'security',
+          title: t('Security & Access'),
+          description: t('Manage your security settings and account access'),
+        },
       ],
     },
   ]
+
+  const adminConfig = parseSidebarModulesAdmin(
+    status?.SidebarModulesAdmin as string | null | undefined
+  )
+  const visibleSectionDefs = status
+    ? sectionDefs.flatMap((section) => {
+        const adminSection = adminConfig[section.key]
+        if (!adminSection?.enabled) return []
+
+        const modules = section.modules.filter(
+          (module) => adminSection[module.key] === true
+        )
+        return modules.length ? [{ ...section, modules }] : []
+      })
+    : []
 
   const loadConfig = useCallback(async () => {
     try {
@@ -114,12 +161,7 @@ export function SidebarModulesCard() {
         const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
         setConfig(parsed)
       } else {
-        const defaults: SidebarModulesConfig = {}
-        for (const sec of sectionDefs) {
-          defaults[sec.key] = { enabled: true }
-          for (const mod of sec.modules) defaults[sec.key][mod.key] = true
-        }
-        setConfig(defaults)
+        setConfig({})
       }
     } catch {
       /* ignore */
@@ -164,10 +206,10 @@ export function SidebarModulesCard() {
         }
         toast.success(t('Saved successfully'))
       } else {
-        toast.error(res.data.message || t('Save failed'))
+        handleServerError(res.data, t('Save failed'))
       }
-    } catch {
-      toast.error(t('Save failed, please retry'))
+    } catch (error) {
+      handleServerError(error, t('Save failed, please retry'))
     } finally {
       setLoading(false)
     }
@@ -175,13 +217,15 @@ export function SidebarModulesCard() {
 
   const handleReset = () => {
     const defaults: SidebarModulesConfig = {}
-    for (const sec of sectionDefs) {
+    for (const sec of visibleSectionDefs) {
       defaults[sec.key] = { enabled: true }
       for (const mod of sec.modules) defaults[sec.key][mod.key] = true
     }
     setConfig(defaults)
     toast.success(t('Reset to default configuration'))
   }
+
+  if (!status) return null
 
   return (
     <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
@@ -201,7 +245,7 @@ export function SidebarModulesCard() {
         </div>
       </CardHeader>
       <CardContent className='space-y-4 p-3 sm:space-y-5 sm:p-5'>
-        {sectionDefs.map((section) => {
+        {visibleSectionDefs.map((section) => {
           const sectionEnabled = config[section.key]?.enabled !== false
           return (
             <div

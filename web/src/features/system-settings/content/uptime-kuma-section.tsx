@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2, Save } from 'lucide-react'
@@ -48,6 +49,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
@@ -137,8 +139,8 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
       })
       setIsEnabled(checked)
       toast.success(t('Setting saved'))
-    } catch {
-      toast.error(t('Failed to update setting'))
+    } catch (error) {
+      handleServerError(error, t('Failed to update setting'))
     }
   }
 
@@ -221,8 +223,8 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
       })
       setHasChanges(false)
       toast.success(t('Uptime Kuma groups saved successfully'))
-    } catch {
-      toast.error(t('Failed to save Uptime Kuma groups'))
+    } catch (error) {
+      handleServerError(error, t('Failed to save Uptime Kuma groups'))
     }
   }
 

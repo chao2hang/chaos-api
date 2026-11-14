@@ -4,10 +4,10 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/setting/operation_setting"
-	hostreasoning "github.com/chaos-api/chaos-api/setting/reasoning"
-	"github.com/chaos-api/chaos-api/types"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
+	"github.com/QuantumNous/new-api/types"
 )
 
 // from songquanpeng/one-api
@@ -365,7 +365,7 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	}
 
 	if printErr {
-		common.SysError("model price not found: " + name)
+		common.SysError(common.LogText("model price not found: %s", name))
 	}
 	return -1, false
 }
@@ -395,7 +395,7 @@ func GetModelRatio(name string) (float64, bool, string) {
 func DefaultModelRatio2JSONString() string {
 	jsonBytes, err := common.Marshal(defaultModelRatio)
 	if err != nil {
-		common.SysError("error marshalling model ratio: " + err.Error())
+		common.SysError(common.LogText("error marshalling model ratio: %s", err.Error()))
 	}
 	return string(jsonBytes)
 }

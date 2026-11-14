@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
@@ -90,41 +91,3 @@ export async function getUptimeStatus() {
   )
   return res.data
 }
-
-// ----------------------------------------------------------------------------
-// Traffic Distribution (Volume, Latency, Errors)
-// ----------------------------------------------------------------------------
-
-export interface TrafficDistributionPoint {
-  timestamp: number
-  time_label: string
-  volume: number
-  latency: number
-  error_count: number
-  error_rate: number
-  quota: number
-}
-
-export interface TrafficDistributionData {
-  start_time: number
-  end_time: number
-  bucket_size: number
-  total_requests: number
-  avg_latency: number
-  total_errors: number
-  error_rate: number
-  points: TrafficDistributionPoint[]
-}
-
-export async function getTrafficDistribution(params?: {
-  start_timestamp?: number
-  end_timestamp?: number
-  buckets?: number
-}): Promise<TrafficDistributionData> {
-  const res = await api.get<{
-    success: boolean
-    data: TrafficDistributionData
-  }>('/api/data/traffic', { params })
-  return res.data.data
-}
-

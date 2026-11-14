@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -35,19 +36,17 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         to='/'
         className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
       >
-        {loading && !logo ? null : (
-          <div className='relative h-8 w-8'>
-            {loading ? (
-              <Skeleton className='absolute inset-0 rounded-full' />
-            ) : (
-              <img
-                src={logo}
-                alt={t('Logo')}
-                className='h-8 w-8 rounded-full object-cover'
-              />
-            )}
-          </div>
-        )}
+        <div className='relative h-8 w-8'>
+          {loading ? (
+            <Skeleton className='absolute inset-0 rounded-full' />
+          ) : (
+            <img
+              src={logo}
+              alt={t('Logo')}
+              className='h-8 w-8 rounded-full object-cover'
+            />
+          )}
+        </div>
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (

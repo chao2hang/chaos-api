@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
@@ -22,7 +23,7 @@ import { Separator } from '@/components/ui/separator'
 import { getGatewayFeatures } from '../constants'
 
 interface GatewayCardProps {
-  logo?: string
+  logo: string
   systemName: string
 }
 
@@ -44,13 +45,11 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
       <div className='relative'>
         {/* Gateway Header */}
         <div className='mb-8 flex items-center justify-center gap-3'>
-          {logo && (
-            <img
-              src={logo}
-              alt={systemName}
-              className='h-12 w-12 rounded-lg object-cover'
-            />
-          )}
+          <img
+            src={logo}
+            alt={systemName}
+            className='h-12 w-12 rounded-lg object-cover'
+          />
           <h3 className='from-foreground to-foreground/70 bg-gradient-to-r bg-clip-text text-2xl font-bold text-transparent'>
             {systemName}
           </h3>

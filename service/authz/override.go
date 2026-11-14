@@ -5,8 +5,8 @@ import (
 	"sort"
 
 	"github.com/casbin/casbin/v2"
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/model"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

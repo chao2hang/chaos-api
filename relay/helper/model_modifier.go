@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 type parsedModelModifiers struct {
@@ -252,7 +252,8 @@ func applyModelControls(req dto.Request, parsed parsedModelModifiers) error {
 		if parsed.hasThinking {
 			request.Thinking = nil
 			if len(request.OutputConfig) > 0 && common.GetJsonType(request.OutputConfig) == "object" {
-				var output map[string]any
+				// Raw members keep a format schema's property order.
+				var output map[string]common.RawMessage
 				if err := common.Unmarshal(request.OutputConfig, &output); err == nil {
 					delete(output, "effort")
 					encoded, err := common.Marshal(output)

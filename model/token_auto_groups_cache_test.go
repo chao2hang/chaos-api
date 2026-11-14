@@ -3,7 +3,7 @@ package model
 import (
 	"testing"
 
-	"github.com/chaos-api/chaos-api/common"
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,6 +26,19 @@ func TestTokenAutoGroupsRoundTripThroughRedisHashCache(t *testing.T) {
 	groups, err := cached.GetAutoGroups()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"vip", "default"}, groups)
+}
+
+func TestTokenAllowUserQuotaQueryRoundTripsThroughRedisHashCache(t *testing.T) {
+	server := useUserCacheMiniRedis(t)
+	token := Token{Id: 43, UserId: 7, Key: "token-user-quota-cache-key", Name: "user-quota-cache", AllowUserQuotaQuery: true}
+
+	initialized, err := cacheInitToken(token)
+	require.NoError(t, err)
+	require.Equal(t, 1, initialized)
+	cached, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.True(t, cached.AllowUserQuotaQuery)
+	assert.Positive(t, server.TTL(getTokenCacheKey(token.Key)))
 }
 
 func TestTokenUpdateSynchronouslyNarrowsPreheatedAutoGroupsCache(t *testing.T) {

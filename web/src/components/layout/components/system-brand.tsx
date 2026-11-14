@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +51,7 @@ export function SystemBrand(props: SystemBrandProps) {
   const { logo } = useSystemConfig()
 
   const variant = props.variant ?? 'sidebar'
-  const name = status?.system_name || props.defaultName || 'chaos-api'
+  const name = status?.system_name || props.defaultName || 'New API'
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 
@@ -60,19 +61,17 @@ export function SystemBrand(props: SystemBrandProps) {
         to='/'
         aria-label={t('Go to home')}
         className={cn(
-          'text-foreground inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
+          'text-foreground inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
         )}
       >
-        {logo && (
-          <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
-            <img
-              src={logo}
-              alt={t('Logo')}
-              className='size-full rounded-md object-cover'
-            />
-          </div>
-        )}
+        <div className='flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-md'>
+          <img
+            src={logo}
+            alt={t('Logo')}
+            className='size-full rounded-md object-cover'
+          />
+        </div>
         <span className='max-w-[12rem] truncate'>{name}</span>
       </Link>
     )
@@ -86,15 +85,13 @@ export function SystemBrand(props: SystemBrandProps) {
           className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
           render={<div />}
         >
-          {logo && (
-            <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
-              <img
-                src={logo}
-                alt={t('Logo')}
-                className='size-full rounded-lg object-cover'
-              />
-            </div>
-          )}
+          <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
+            <img
+              src={logo}
+              alt={t('Logo')}
+              className='size-full rounded-lg object-cover'
+            />
+          </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
             <span className='truncate font-semibold'>{name}</span>
             <span className='truncate text-xs'>{version}</span>

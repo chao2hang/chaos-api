@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,7 +65,7 @@ type RiskAcknowledgementDialogProps = {
 }
 
 function getRequiredTextRows(text: string) {
-  return Math.max(1, Math.ceil(Array.from(text).length / 42))
+  return Math.max(1, Math.ceil([...text].length / 42))
 }
 
 export function RiskAcknowledgementDialog({
@@ -246,6 +247,7 @@ export function RiskAcknowledgementDialog({
                   {normalizedRequiredTextParts.map((part, index) =>
                     part.type === 'static' ? (
                       <span
+                        // oxlint-disable-next-line react/no-array-index-key -- Punctuation can repeat in the fixed sentence order.
                         key={`static-${index}`}
                         className='text-muted-foreground bg-background/70 border-border w-fit rounded-md border px-2 py-1.5 font-mono text-sm select-none'
                       >
@@ -253,12 +255,24 @@ export function RiskAcknowledgementDialog({
                       </span>
                     ) : (
                       <Textarea
-                        key={`input-${index}`}
+                        key={`input-${part.inputIndex}`}
                         value={typedTextParts[part.inputIndex ?? 0] ?? ''}
                         onChange={(event) =>
                           handleTextPartChange(
                             part.inputIndex ?? 0,
-                            event.target.value
+                            event.currentTarget.value
+                          )
+                        }
+                        onCompositionEnd={(event) =>
+                          handleTextPartChange(
+                            part.inputIndex ?? 0,
+                            event.currentTarget.value
+                          )
+                        }
+                        onBlur={(event) =>
+                          handleTextPartChange(
+                            part.inputIndex ?? 0,
+                            event.currentTarget.value
                           )
                         }
                         placeholder={
@@ -279,7 +293,11 @@ export function RiskAcknowledgementDialog({
               ) : (
                 <Textarea
                   value={typedText}
-                  onChange={(event) => setTypedText(event.target.value)}
+                  onChange={(event) => setTypedText(event.currentTarget.value)}
+                  onCompositionEnd={(event) =>
+                    setTypedText(event.currentTarget.value)
+                  }
+                  onBlur={(event) => setTypedText(event.currentTarget.value)}
                   placeholder={
                     inputPlaceholder ?? t('Type the confirmation text here')
                   }

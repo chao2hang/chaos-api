@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff } from 'lucide-react'
@@ -63,6 +64,8 @@ const LOG_STAT_CARD_FALLBACK_KEYS = [
   'count',
   'quota',
   'tokens',
+  'cache-read',
+  'cache-creation',
   'average-rpm',
   'average-tpm',
 ] as const
@@ -115,12 +118,12 @@ const LazyFlowCharts = lazy(() =>
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
+      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-7'>
         {LOG_STAT_CARD_FALLBACK_KEYS.map((key, index) => (
           <div
             key={key}
             className={cn(
-              'px-2.5 py-1.5 sm:px-5 sm:py-4',
+              'min-w-0 px-2.5 py-1.5 sm:px-3 sm:py-4 xl:px-4',
               index === LOG_STAT_CARD_FALLBACK_KEYS.length - 1 &&
                 'col-span-2 sm:col-span-1'
             )}
@@ -133,6 +136,9 @@ function LogStatCardsFallback() {
             <Skeleton className='mt-1 hidden h-3.5 w-28 md:block' />
           </div>
         ))}
+      </div>
+      <div className='border-t px-3 py-2'>
+        <Skeleton className='h-4 w-full max-w-md' />
       </div>
     </div>
   )
@@ -316,34 +322,35 @@ export function Dashboard() {
     ) : null
   const sectionActions = modelActions ?? flowActions
 
+  if (activeSection === 'overview') {
+    return <OverviewDashboard />
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
-          {activeSection !== 'overview' && (
-            <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
-              {showSectionTabs ? (
-                <Tabs value={activeSection} onValueChange={handleSectionChange}>
-                  <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
-                    {visibleSections.map((section) => (
-                      <TabsTrigger key={section} value={section}>
-                        {t(SECTION_META[section].titleKey)}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              ) : (
-                <div />
-              )}
-              {sectionActions != null && (
-                <div className='flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2'>
-                  {sectionActions}
-                </div>
-              )}
-            </div>
-          )}
-          {activeSection === 'overview' && <OverviewDashboard />}
+          <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
+            {showSectionTabs ? (
+              <Tabs value={activeSection} onValueChange={handleSectionChange}>
+                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+                  {visibleSections.map((section) => (
+                    <TabsTrigger key={section} value={section}>
+                      {t(SECTION_META[section].titleKey)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            ) : (
+              <div />
+            )}
+            {sectionActions != null && (
+              <div className='flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2'>
+                {sectionActions}
+              </div>
+            )}
+          </div>
           {activeSection === 'models' && (
             <>
               <FadeIn>

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 import { describe, expect, test } from 'vitest'
@@ -50,6 +51,7 @@ const baseApiKey: ApiKey = {
   model_limits_enabled: false,
   model_limits: '',
   allow_ips: '',
+  allow_user_quota_query: false,
 }
 
 describe('API key Auto group form mapping', () => {
@@ -178,4 +180,32 @@ describe('API key Auto group form mapping', () => {
       'Auto groups must not contain duplicates'
     )
   })
+})
+
+describe('API key user quota query form mapping', () => {
+  test('lets a new key query the user quota by default', () => {
+    for (const defaultUseAutoGroup of [true, false]) {
+      const defaults = getApiKeyFormDefaultValues(defaultUseAutoGroup)
+
+      expect(defaults.allow_user_quota_query).toBe(true)
+      expect(transformFormDataToPayload(defaults).allow_user_quota_query).toBe(
+        true
+      )
+    }
+  })
+
+  test.each([true, false])(
+    'keeps the stored value %s when an existing key is edited and saved',
+    (stored) => {
+      const defaults = transformApiKeyToFormDefaults({
+        ...baseApiKey,
+        allow_user_quota_query: stored,
+      })
+
+      expect(defaults.allow_user_quota_query).toBe(stored)
+      expect(transformFormDataToPayload(defaults).allow_user_quota_query).toBe(
+        stored
+      )
+    }
+  )
 })

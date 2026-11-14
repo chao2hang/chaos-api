@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,9 +14,10 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import { User, Wallet, LogOut, Settings } from 'lucide-react'
+import { User, Wallet, LogOut, Settings, ShieldCheck } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,6 +48,7 @@ export function ProfileDropdown() {
   const { displayName, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
   const isWalletVisible = useIsSidebarModuleVisible('/wallet')
+  const isSecurityVisible = useIsSidebarModuleVisible('/security')
   const avatarName = user?.username || displayName
   const avatarFallback = getUserAvatarFallback(avatarName)
   const avatarFallbackStyle = useMemo(
@@ -106,6 +108,13 @@ export function ProfileDropdown() {
             {t('Profile')}
           </DropdownMenuItem>
 
+          {isSecurityVisible && (
+            <DropdownMenuItem onClick={() => navigate({ to: '/security' })}>
+              <ShieldCheck className='size-4' />
+              {t('Security & Access')}
+            </DropdownMenuItem>
+          )}
+
           {isWalletVisible && (
             <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
               <Wallet className='size-4' />
@@ -115,7 +124,12 @@ export function ProfileDropdown() {
 
           {isSuperAdmin && (
             <DropdownMenuItem
-              onClick={() => navigate({ to: '/admin/system-info' })}
+              onClick={() =>
+                navigate({
+                  to: '/system-settings/site/$section',
+                  params: { section: 'system-info' },
+                })
+              }
             >
               <Settings className='size-4' />
               {t('System Settings')}

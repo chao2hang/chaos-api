@@ -7,11 +7,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
 // WebhookPayload webhook 通知的负载数据
@@ -35,7 +36,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	// 处理占位符
 	content := data.Content
 	for _, value := range data.Values {
-		content = fmt.Sprintf(content, value)
+		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
 
 	// 构建 webhook 负载

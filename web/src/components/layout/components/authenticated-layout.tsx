@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,31 +14,53 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
+import { CommandMenu } from '@/components/command-menu'
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
+import { getCookie } from '@/lib/cookies'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
-import { AdminConsoleShell } from './admin-console-shell'
+import { AppHeader } from './app-header'
+import { AppSidebar } from './app-sidebar'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
 }
 
-/**
- * Authenticated console layout.
- *
- * The shell (header, sidebar, content frame) is chaos-ui's `AdminShell`
- * via {@link AdminConsoleShell}; global search (⌘K) and the command menu
- * are provided by `SearchProvider`.
- */
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
+  const defaultOpen = getCookie('sidebar_state') !== 'false'
+  const signedIn = useAuthStore((s) => !!s.auth.user)
+  // Unmount pages on sign-out, otherwise their queries refetch and toast "Session expired!" / "invalid access token"
+  if (!signedIn) return null
+
   return (
-    <SearchProvider>
-      <SkipToMain />
-      <AdminConsoleShell>
-        {props.children ?? <AnimatedOutlet />}
-      </AdminConsoleShell>
-    </SearchProvider>
+    <LayoutProvider>
+      <SearchProvider>
+        <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
+          <SkipToMain />
+          <AppHeader />
+          <div className='flex min-h-0 w-full flex-1'>
+            <AppSidebar />
+            <SidebarInset
+              className={cn(
+                '@container/content',
+                'h-[calc(100svh-var(--app-header-height,0px))]',
+                'min-h-0 overflow-hidden',
+                'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
+              )}
+            >
+              {props.children ?? <AnimatedOutlet />}
+            </SidebarInset>
+          </div>
+        </SidebarProvider>
+        <CommandMenu />
+      </SearchProvider>
+    </LayoutProvider>
   )
 }

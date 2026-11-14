@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"reflect"
 
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 // MaxImageN caps the image generation count. Without this bound a huge or
@@ -40,6 +40,11 @@ type ImageRequest struct {
 	Images            json.RawMessage `json:"images,omitempty"`
 	Mask              json.RawMessage `json:"mask,omitempty"`
 	InputFidelity     json.RawMessage `json:"input_fidelity,omitempty"`
+	Complexity        json.RawMessage `json:"complexity,omitempty"`
+	Markup            json.RawMessage `json:"markup,omitempty"`
+	Svg               json.RawMessage `json:"svg,omitempty"`
+	FrameCount        json.RawMessage `json:"frame_count,omitempty"`
+	FrameDurationMs   json.RawMessage `json:"frame_duration_ms,omitempty"`
 	Watermark         *bool           `json:"watermark,omitempty"`
 	// zhipu 4v
 	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`

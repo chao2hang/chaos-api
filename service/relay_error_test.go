@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/dto"
-	"github.com/chaos-api/chaos-api/model"
-	kitdto "github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -23,6 +23,22 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestIsUpstreamSuccess(t *testing.T) {
+	for _, test := range []struct {
+		status int
+		want   bool
+	}{
+		{status: http.StatusOK, want: true},
+		{status: http.StatusCreated, want: true},
+		{status: http.StatusAccepted, want: true},
+		{status: http.StatusNoContent, want: true},
+		{status: http.StatusMovedPermanently, want: false},
+		{status: http.StatusBadRequest, want: false},
+	} {
+		assert.Equal(t, test.want, IsUpstreamSuccess(test.status))
+	}
+}
 
 func TestShouldRetryRelayErrorHonorsChannelPinOnChannelError(t *testing.T) {
 	err := types.NewError(errors.New("channel failed"), types.ErrorCodeChannelNoAvailableKey)
@@ -105,6 +121,7 @@ func TestProcessChannelErrorMasksDisableReasonAndNotification(t *testing.T) {
 	notifyLimitStore.Delete(notifyKey)
 	t.Cleanup(func() { notifyLimitStore.Delete(notifyKey) })
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://private.example.com")
 	apiErr := types.NewErrorWithStatusCode(errors.New("upstream https://private.example.com/path?token=review-token api_key:review-secret"), types.ErrorCodeChannelNoAvailableKey, http.StatusUnauthorized)
 	ProcessChannelError(c, types.ChannelError{ChannelId: channel.Id, ChannelName: channel.Name, AutoBan: true}, apiErr, nil)
 	var notification WebhookPayload
@@ -123,6 +140,72 @@ func TestProcessChannelErrorMasksDisableReasonAndNotification(t *testing.T) {
 	assert.NotContains(t, notification.Content, "review-token")
 	assert.NotContains(t, notification.Content, "review-secret")
 	assert.Equal(t, http.StatusUnauthorized, apiErr.StatusCode)
+}
+
+// Only addresses the admin configured are masked: a channel on the base URL
+// new-api presets reaches a public official endpoint, and so do adaptors that
+// build official endpoints themselves.
+func TestUpstreamAddressesMaskOnlyConfiguredAddresses(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		channelType int
+		baseURL     string
+		origin      string
+		proxyEnv    string
+		message     string
+		want        string
+	}{
+		{
+			name:        "preset base URL stays readable",
+			channelType: constant.ChannelTypeAnthropic,
+			baseURL:     "https://api.anthropic.com",
+			origin:      "https://api.anthropic.com",
+			message:     "request to https://api.anthropic.com/v1/messages failed, see https://platform.claude.com/docs/en/build-with-claude/task-budgets",
+			want:        "request to https://api.anthropic.com/v1/messages failed, see https://platform.claude.com/docs/en/build-with-claude/task-budgets",
+		},
+		{
+			name:        "official endpoint built by the adaptor stays readable",
+			channelType: constant.ChannelTypeVertexAi,
+			origin:      "https://us-central1-aiplatform.googleapis.com",
+			message:     "request to https://us-central1-aiplatform.googleapis.com/v1/projects failed",
+			want:        "request to https://us-central1-aiplatform.googleapis.com/v1/projects failed",
+		},
+		{
+			name:        "configured base URL is masked",
+			channelType: constant.ChannelTypeOpenAI,
+			baseURL:     "https://relay.private.example",
+			origin:      "https://relay.private.example",
+			message:     "request to https://relay.private.example/v1/chat/completions failed",
+			want:        "request to https://***.example/***/***/*** failed",
+		},
+		{
+			name:        "absolute Advanced Custom route is masked",
+			channelType: constant.ChannelTypeAdvancedCustom,
+			origin:      "https://route.private.example",
+			message:     "dial tcp: lookup route.private.example: no such host",
+			want:        "dial tcp: lookup ***.***.example: no such host",
+		},
+		{
+			name:        "environment proxy is masked on a preset channel",
+			channelType: constant.ChannelTypeAnthropic,
+			baseURL:     "https://api.anthropic.com",
+			proxyEnv:    "http://egress.private.invalid:8080",
+			message:     "proxyconnect tcp: dial tcp: lookup egress.private.invalid: no such host",
+			want:        "proxyconnect tcp: dial tcp: lookup ***.***.invalid: no such host",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("HTTPS_PROXY", tc.proxyEnv)
+			t.Setenv("HTTP_PROXY", "")
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			common.SetContextKey(c, constant.ContextKeyChannelType, tc.channelType)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, tc.baseURL)
+			common.SetContextKey(c, constant.ContextKeyUpstreamRequestOrigin, tc.origin)
+			apiErr := types.NewErrorWithStatusCode(errors.New(tc.message), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway)
+
+			assert.Equal(t, tc.want, apiErr.ToOpenAIError(common.UpstreamAddresses(c)...).Message)
+		})
+	}
 }
 
 func TestDecideRelayRetryReasons(t *testing.T) {

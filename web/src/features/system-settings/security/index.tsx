@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { SettingsPage } from '../components/settings-page'
 import type { SecuritySettings } from '../types'
@@ -29,9 +30,6 @@ const defaultSecuritySettings: SecuritySettings = {
   ModelRequestRateLimitSuccessCount: 1000,
   ModelRequestRateLimitDurationMinutes: 1,
   ModelRequestRateLimitGroup: '',
-  CheckSensitiveEnabled: false,
-  CheckSensitiveOnPromptEnabled: false,
-  SensitiveWords: '',
   'fetch_setting.enable_ssrf_protection': true,
   'fetch_setting.allow_private_ip': false,
   'fetch_setting.domain_filter_mode': false,
@@ -46,7 +44,7 @@ const defaultSecuritySettings: SecuritySettings = {
 export function SecuritySettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/admin/system-settings/security/$section'
+      routePath='/_authenticated/system-settings/security/$section'
       defaultSettings={defaultSecuritySettings}
       defaultSection={SECURITY_DEFAULT_SECTION}
       getSectionContent={getSecuritySectionContent}

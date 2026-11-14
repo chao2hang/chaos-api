@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
@@ -167,7 +167,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 			switch *candidate.FinishReason {
 			case "STOP":
 				choice.FinishReason = types.FinishReasonStop
-			case "MAX_TOKENS":
+			case "MAX_TOKENS", "CONTINUATION":
 				choice.FinishReason = types.FinishReasonLength
 			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "OTHER":
 				choice.FinishReason = types.FinishReasonContentFilter
@@ -220,7 +220,7 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			switch *candidate.FinishReason {
 			case "STOP":
 				choice.FinishReason = &types.FinishReasonStop
-			case "MAX_TOKENS":
+			case "MAX_TOKENS", "CONTINUATION":
 				choice.FinishReason = &types.FinishReasonLength
 			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "OTHER":
 				choice.FinishReason = &types.FinishReasonContentFilter

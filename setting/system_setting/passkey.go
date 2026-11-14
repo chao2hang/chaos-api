@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/setting/config"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/config"
 	"golang.org/x/net/idna"
 	"golang.org/x/net/publicsuffix"
 )

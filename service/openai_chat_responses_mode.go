@@ -1,10 +1,10 @@
 package service
 
 import (
-	"regexp"
 	"sync"
 
-	"github.com/chaos-api/chaos-api/setting/model_setting"
+	"github.com/MoeForge/moego/regexp"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 )
 
 // Chat→Responses upgrade policy is host routing logic (it decides *whether*

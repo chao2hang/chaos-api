@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relay/helper"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -156,7 +156,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		var chatData CozeChatResponseData
 		err := json.Unmarshal([]byte(data), &chatData)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			common.SysLog(common.LogText("error_unmarshalling_stream_response: %s", err.Error()))
 			return
 		}
 
@@ -173,14 +173,14 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		var messageData CozeChatV3MessageDetail
 		err := json.Unmarshal([]byte(data), &messageData)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			common.SysLog(common.LogText("error_unmarshalling_stream_response: %s", err.Error()))
 			return
 		}
 
 		var content string
 		err = json.Unmarshal(messageData.Content, &content)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			common.SysLog(common.LogText("error_unmarshalling_stream_response: %s", err.Error()))
 			return
 		}
 
@@ -205,11 +205,11 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		var errorData CozeError
 		err := json.Unmarshal([]byte(data), &errorData)
 		if err != nil {
-			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			common.SysLog(common.LogText("error_unmarshalling_stream_response: %s", err.Error()))
 			return
 		}
 
-		common.SysLog(fmt.Sprintf("stream event error: %v %v", errorData.Code, errorData.Message))
+		common.SysLog(common.LogText("stream event error: %v %v", errorData.Code, errorData.Message))
 	}
 }
 

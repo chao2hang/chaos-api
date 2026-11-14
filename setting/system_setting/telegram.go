@@ -3,7 +3,7 @@ package system_setting
 import (
 	"strings"
 
-	"github.com/chaos-api/chaos-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/config"
 )
 
 type TelegramSettings struct {

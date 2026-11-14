@@ -3,11 +3,11 @@ package service
 import (
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/setting"
-	"github.com/chaos-api/chaos-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,9 +32,10 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 				}
 			}
 		}
-		// 如果userGroup不在UserUsableGroups中，返回UserUsableGroups + userGroup
+		// 如果userGroup不在UserUsableGroups中，返回UserUsableGroups + userGroup。
+		// 描述是英文源文本，由 web 控制台翻译；管理员配置的描述原样显示。
 		if _, ok := groupsCopy[userGroup]; !ok {
-			groupsCopy[userGroup] = "用户分组"
+			groupsCopy[userGroup] = "User group"
 		}
 	}
 	return groupsCopy

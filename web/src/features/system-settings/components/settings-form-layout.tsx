@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { ComponentProps, ReactNode } from 'react'
 
@@ -36,6 +37,7 @@ type SettingsSwitchRowProps = ComponentProps<'div'>
 type SettingsControlGroupProps = ComponentProps<'div'>
 type SettingsControlChildrenProps = ComponentProps<'div'>
 type SettingsSwitchFieldProps = SettingsSwitchRowProps & {
+  controlId?: string
   checked: boolean
   onCheckedChange: (checked: boolean) => void
   label: ReactNode
@@ -106,6 +108,7 @@ export function SettingsSwitchRow({
 }
 
 export function SettingsSwitchField({
+  controlId,
   checked,
   onCheckedChange,
   label,
@@ -117,12 +120,23 @@ export function SettingsSwitchField({
   return (
     <SettingsSwitchRow className={className} {...props}>
       <SettingsSwitchContent>
-        <Label className='text-sm font-medium'>{label}</Label>
+        <Label htmlFor={controlId} className='text-sm font-medium'>
+          {label}
+        </Label>
         {description ? (
-          <p className='text-muted-foreground text-xs'>{description}</p>
+          <p
+            id={controlId ? `${controlId}-description` : undefined}
+            className='text-muted-foreground text-xs'
+          >
+            {description}
+          </p>
         ) : null}
       </SettingsSwitchContent>
       <Switch
+        id={controlId}
+        aria-describedby={
+          controlId && description ? `${controlId}-description` : undefined
+        }
         checked={checked}
         onCheckedChange={onCheckedChange}
         disabled={disabled}

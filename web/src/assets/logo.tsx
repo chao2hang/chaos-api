@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { type SVGProps } from 'react'
 
@@ -22,24 +23,21 @@ import { cn } from '@/lib/utils'
 export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      id='chaos-logo'
+      id='newapi-logo'
       viewBox='0 0 24 24'
       xmlns='http://www.w3.org/2000/svg'
       height='24'
       width='24'
-      fill='currentColor'
-      role='img'
-      aria-label='CHAOS_API'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
       className={cn('size-6', className)}
       {...props}
     >
-      <title>Chaos</title>
-      {/* Modular "C" on a strict 4-unit grid + detached terminal cursor,
-          offset slightly right on purpose: order with a fracture. */}
-      <rect x='4' y='4' width='16' height='4' />
-      <rect x='4' y='16' width='16' height='4' />
-      <rect x='4' y='4' width='4' height='16' />
-      <rect x='13' y='10' width='4' height='4' />
+      <title>New API</title>
+      <path d='M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3' />
     </svg>
   )
 }

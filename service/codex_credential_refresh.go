@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/model"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 )
 
 type CodexCredentialRefreshOptions struct {
@@ -94,6 +94,7 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 	if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error; err != nil {
 		return nil, nil, err
 	}
+	model.BumpSyncTopic(model.SyncTopicChannels)
 
 	if opts.ResetCaches {
 		model.InitChannelCache()

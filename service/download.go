@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
 // WorkerRequest Worker请求的数据结构
@@ -51,7 +51,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 
 func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {
 	if system_setting.EnableWorker() {
-		common.SysLog(fmt.Sprintf("downloading file from worker: %s, reason: %s", originUrl, strings.Join(reason, ", ")))
+		common.SysLog(common.LogText("downloading file from worker: %s, reason: %s", originUrl, strings.Join(reason, ", ")))
 		req := &WorkerRequest{
 			URL: originUrl,
 			Key: system_setting.WorkerValidKey,
@@ -63,7 +63,7 @@ func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response,
 			return nil, fmt.Errorf("request reject: %v", err)
 		}
 
-		common.SysLog(fmt.Sprintf("downloading from origin: %s, reason: %s", common.MaskSensitiveInfo(originUrl), strings.Join(reason, ", ")))
+		common.SysLog(common.LogText("downloading from origin: %s, reason: %s", common.MaskSensitiveInfo(originUrl), strings.Join(reason, ", ")))
 		return GetSSRFProtectedHTTPClient().Get(originUrl)
 	}
 }

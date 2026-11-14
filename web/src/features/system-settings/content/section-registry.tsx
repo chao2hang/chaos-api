@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,11 +14,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { ContentSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
 import { ApiInfoSection } from './api-info-section'
+import { ChatSettingsSection } from './chat-settings-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
@@ -92,6 +94,13 @@ const CONTENT_SECTIONS = [
     ),
   },
   {
+    id: 'chat',
+    titleKey: 'Chat Presets',
+    build: (settings: ContentSettings) => (
+      <ChatSettingsSection defaultValue={settings.Chats} />
+    ),
+  },
+  {
     id: 'drawing',
     titleKey: 'Drawing',
     build: (settings: ContentSettings) => (
@@ -117,7 +126,7 @@ const contentRegistry = createSectionRegistry<
 >({
   sections: CONTENT_SECTIONS,
   defaultSection: 'dashboard',
-  basePath: '/admin/system-settings/content',
+  basePath: '/system-settings/content',
   urlStyle: 'path',
 })
 

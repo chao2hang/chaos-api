@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -42,6 +43,8 @@ import {
 } from '@/components/ui/tooltip'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { getCheckinStatus, performCheckin } from '../api'
@@ -88,7 +91,7 @@ export function CheckinCalendarCard({
       if (res.success && res.data) {
         return res.data
       }
-      throw new Error(res.message || t('Failed to fetch checkin status'))
+      throw createServerError(res, t('Failed to fetch checkin status'))
     },
     enabled: checkinEnabled,
     staleTime: 30000,
@@ -160,10 +163,10 @@ export function CheckinCalendarCard({
           if (token && shouldTriggerTurnstile(res.message)) {
             setTurnstileWidgetKey((v) => v + 1)
           }
-          toast.error(res.message || t('Check-in failed'))
+          handleServerError(res, t('Check-in failed'))
         }
-      } catch {
-        toast.error(t('Check-in failed'))
+      } catch (error) {
+        handleServerError(error, t('Check-in failed'))
       } finally {
         setCheckinLoading(false)
       }

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
 import { CheckIcon, CopyIcon } from 'lucide-react'
@@ -28,6 +29,9 @@ import { Label } from '@/components/ui/label'
 import { useCountdown } from '@/hooks/use-countdown'
 import { api } from '@/lib/api'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { handleServerError } from '@/lib/handle-server-error'
+import { AuthOperationError } from '@/lib/secure-verification'
+import { createServerError } from '@/lib/server-error-message'
 
 import { AuthLayout } from '../auth-layout'
 
@@ -81,9 +85,11 @@ export function ResetPasswordConfirm({
         } else {
           toast.success(t('Password reset: {{password}}', { password }))
         }
+      } else {
+        handleServerError(createServerError(res.data, t('Request failed')))
       }
-    } catch {
-      // Errors handled by global interceptor
+    } catch (error) {
+      handleServerError(AuthOperationError.from(error))
     } finally {
       setLoading(false)
     }
@@ -178,13 +184,15 @@ export function ResetPasswordConfirm({
               newPassword ? false : loading || isActive || !isValidResetLink
             }
           >
-            {newPassword
-              ? t('auth.resetPasswordConfirm.backToLogin')
-              : isActive
-                ? t('auth.resetPasswordConfirm.retry', {
-                    seconds: secondsLeft,
-                  })
-                : t('auth.resetPasswordConfirm.confirm')}
+            {newPassword && t('auth.resetPasswordConfirm.backToLogin')}
+            {!newPassword &&
+              isActive &&
+              t('auth.resetPasswordConfirm.retry', {
+                seconds: secondsLeft,
+              })}
+            {!newPassword &&
+              !isActive &&
+              t('auth.resetPasswordConfirm.confirm')}
           </Button>
 
           {!newPassword && (

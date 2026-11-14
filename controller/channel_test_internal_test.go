@@ -9,15 +9,15 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/pkg/billingexpr"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/service"
-	"github.com/chaos-api/chaos-api/setting/operation_setting"
-	"github.com/chaos-api/chaos-api/types"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -513,7 +513,7 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 
 	require.Equal(t, http.StatusConflict, recorder.Code)
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
-	require.Contains(t, recorder.Body.String(), "已有通道测试任务正在运行或等待中")
+	require.Contains(t, recorder.Body.String(), "A channel test task is already running or queued")
 }
 
 func TestBuildChannelProbeRequestUsesProviderSpecificURLAndAuth(t *testing.T) {

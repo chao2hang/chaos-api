@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,21 +14,16 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
+import { Combobox } from '@/components/ui/combobox'
 import { useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+
 
 import { SettingsControlGroup } from '../../../components/settings-form-layout'
 import { OAUTH_PRESETS, type CustomOAuthFormValues } from '../types'
@@ -113,27 +108,14 @@ export function PresetSelector(props: PresetSelectorProps) {
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
         <div className='space-y-1.5'>
           <Label>{t('Preset Template')}</Label>
-          <Select
-            items={OAUTH_PRESETS.map((preset) => ({
-              value: preset.key,
-              label: preset.name,
-            }))}
-            value={selectedPreset}
-            onValueChange={(v) => v !== null && handlePresetChange(v)}
-          >
-            <SelectTrigger className='w-full'>
-              <SelectValue placeholder={t('Select a preset...')} />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                {OAUTH_PRESETS.map((preset) => (
-                  <SelectItem key={preset.key} value={preset.key}>
-                    {preset.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <Combobox
+ options={OAUTH_PRESETS.map((preset) => ({ value: preset.key, label: preset.name }))}
+ value={selectedPreset}
+ onValueChange={(value) => { if (value !== null) handlePresetChange(value) }}
+ aria-label={t('Select preset')}
+ placeholder={t('Select preset')}
+ className='w-full'
+/>
         </div>
         <div className='space-y-1.5'>
           <Label>{t('Base URL')}</Label>

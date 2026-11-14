@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { redirect } from '@tanstack/react-router'
 import * as z from 'zod'
@@ -46,7 +47,7 @@ export type SettingsRouteConfigOptions<
   defaultSection: TSectionId
   /** Settings component to render */
   component: TComponent
-  /** Route path for redirect (e.g., '/admin/system-settings/site') */
+  /** Route path for redirect (e.g., '/system-settings/site') */
   routePath: string
   /** Whether to redirect to default section if no section is provided (default: false) */
   redirectToDefault?: boolean
@@ -66,7 +67,7 @@ export type SettingsRouteConfigOptions<
  *     sectionIds: SITE_SECTION_IDS,
  *     defaultSection: SITE_DEFAULT_SECTION,
  *     component: SiteSettings,
- *     routePath: '/admin/system-settings/site',
+ *     routePath: '/system-settings/site',
  *     redirectToDefault: true,
  *   })
  * )

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,17 +14,22 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import axios, { type AxiosRequestConfig } from 'axios'
 import { t } from 'i18next'
-import { toast } from 'sonner'
 
 import {
   applyAuthRotation,
   clearAuthentication,
+  getFreshAuthHeaders,
   refreshAuthentication,
 } from '@/lib/auth-session'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
+import { handleServerError } from '@/lib/handle-server-error'
+import {
+  getServerErrorMessage,
+  safeServerErrorMessage,
+} from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
 declare module 'axios' {
@@ -35,43 +40,18 @@ declare module 'axios' {
     skipAuthRefresh?: boolean
     authRetry?: boolean
     acceptAuthRotation?: boolean
-    /**
-     * Retry once when the backend is unreachable or a reverse proxy answers
-     * 502/503/504 — the window right after a server restart. Intended for
-     * idempotent writes (e.g. channel updates) so edits are not silently lost.
-     */
-    retryOnServiceUnavailable?: boolean
-    retriedServiceUnavailable?: boolean
+    singleUseAuthorization?: boolean
   }
 }
 
 export type ApiRequestConfig = AxiosRequestConfig
 
-const SERVICE_UNAVAILABLE_STATUSES = new Set([502, 503, 504])
-const SERVICE_UNAVAILABLE_RETRY_DELAY_MS = 1200
-
-/**
- * Detect the "backend down" window of issue #12: the process is restarting,
- * so the reverse proxy resets the connection (no response at all) or answers
- * 502/503/504 with its own error page.
- */
-function isServiceUnavailableError(error: unknown): boolean {
-  const axiosError = error as { code?: string; response?: { status?: number } }
-  if (axiosError?.code === 'ERR_CANCELED') {
-    return false
-  }
-  const status = axiosError?.response?.status
-  if (status !== undefined) {
-    return SERVICE_UNAVAILABLE_STATUSES.has(status)
-  }
-  return true
-}
-
 export const api = axios.create({
   baseURL: '',
   withCredentials: true,
   headers: {
-    'Cache-Control': 'no-store',
+    // no-store forbids storage; no-cache also revalidates any older cached response.
+    'Cache-Control': 'no-cache, no-store',
   },
 })
 
@@ -109,37 +89,12 @@ api.interceptors.response.use(
       applyAuthRotation(response.data.data)
     }
 
-    if (
-      !response.config.skipBusinessError &&
-      typeof response.data?.success === 'boolean' &&
-      !response.data.success
-    ) {
-      const messageKey = getServerErrorMessageKey(response.data)
-      toast.error(
-        messageKey
-          ? t(messageKey)
-          : response.data.message || t('Request failed')
-      )
-    }
     return response
   },
   async (error) => {
     const config = error?.config as ApiRequestConfig | undefined
     const skipErrorHandler = config?.skipErrorHandler
     const status = error?.response?.status
-
-    if (
-      config?.retryOnServiceUnavailable &&
-      !config.retriedServiceUnavailable &&
-      status !== 401 &&
-      isServiceUnavailableError(error)
-    ) {
-      config.retriedServiceUnavailable = true
-      await new Promise((resolve) =>
-        setTimeout(resolve, SERVICE_UNAVAILABLE_RETRY_DELAY_MS)
-      )
-      return api.request(config)
-    }
 
     if (status === 401) {
       if (config && !config.skipAuthRefresh && !config.authRetry) {
@@ -157,38 +112,52 @@ api.interceptors.response.use(
         }
 
         if (outcome.kind === 'anonymous' || outcome.kind === 'out_of_sync') {
-          if (!skipErrorHandler) toast.error(t('Session expired!'))
+          if (!skipErrorHandler) {
+            handleServerError({
+              message: t('Session expired!'),
+              [safeServerErrorMessage]: true,
+              cause: error,
+            })
+          }
           redirectToSignIn()
         }
       } else if (config?.authRetry) {
         clearAuthentication(false)
-        if (!skipErrorHandler) toast.error(t('Session expired!'))
+        if (!skipErrorHandler) {
+          handleServerError({
+            message: t('Session expired!'),
+            [safeServerErrorMessage]: true,
+            cause: error,
+          })
+        }
         redirectToSignIn()
       } else if (!skipErrorHandler) {
-        toast.error(t('Session expired!'))
-      }
-    } else if (!skipErrorHandler) {
-      if (isServiceUnavailableError(error)) {
-        toast.error(
-          t(
-            'Service is restarting or temporarily unavailable. Please try again later.'
-          )
-        )
-      } else {
-        const messageKey = getServerErrorMessageKey(error)
-        const message = messageKey
-          ? t(messageKey)
-          : error?.response?.data?.message ||
-            error?.message ||
-            t('Request failed')
-        toast.error(message)
+        handleServerError({
+          message: t('Session expired!'),
+          [safeServerErrorMessage]: true,
+          cause: error,
+        })
       }
     }
+    if (axios.isAxiosError(error)) error.message = getServerErrorMessage(error)
     throw error
   }
 )
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  if (config.singleUseAuthorization || config.headers.has('X-Security-Proof')) {
+    // Refresh before spending a proof/flow, never by replaying its request.
+    config.skipAuthRefresh = true
+    try {
+      const headers = await getFreshAuthHeaders()
+      for (const [name, value] of Object.entries(headers)) {
+        config.headers.set(name, value)
+      }
+    } catch (error) {
+      throw axios.AxiosError.from(error, undefined, config)
+    }
+    return config
+  }
   const accessToken = useAuthStore.getState().auth.accessToken
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`

@@ -6,14 +6,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relay/channel"
-	"github.com/chaos-api/chaos-api/relay/channel/openai"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 
-	"github.com/chaos-api/chaos-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/constant"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -49,6 +49,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	if info.RelayMode == constant.RelayModeResponses {
+		info.VendorToolUsage = xaiResponsesToolUsage
+	}
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {

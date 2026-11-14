@@ -7,17 +7,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/relay/channel"
-	"github.com/chaos-api/chaos-api/relay/channel/claude"
-	"github.com/chaos-api/chaos-api/relay/channel/gemini"
-	"github.com/chaos-api/chaos-api/relay/channel/openai"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
-	"github.com/chaos-api/chaos-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
+	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -117,6 +117,13 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return geminiAdaptor.ConvertImageRequest(c, info, request)
 }
 
+// OutboundImageCount reads the image count of the Imagen body
+// ConvertImageRequest builds.
+func (a *Adaptor) OutboundImageCount(body []byte) (*uint, error) {
+	geminiAdaptor := gemini.Adaptor{}
+	return geminiAdaptor.OutboundImageCount(body)
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	if strings.HasPrefix(info.UpstreamModelName, "claude") {
 		a.RequestMode = RequestModeClaude
@@ -131,6 +138,10 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
+	googleAPIVersion := DefaultAPIVersion
+	if info.ChannelOtherSettings.VertexAPIVersion != "" {
+		googleAPIVersion = info.ChannelOtherSettings.VertexAPIVersion
+	}
 	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
 		adc := &Credentials{}
 		if err := common.Unmarshal([]byte(info.ApiKey), adc); err != nil {
@@ -139,7 +150,7 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		a.AccountCredentials = *adc
 
 		if a.RequestMode == RequestModeGemini {
-			return BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
+			return BuildGoogleModelURL(info.ChannelBaseUrl, googleAPIVersion, adc.ProjectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeClaude {
 			return BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeOpenSource {
@@ -152,17 +163,20 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		} else {
 			keyPrefix = "?"
 		}
+		// An API key carries no project. Without a configured project ID the URL
+		// keeps the express-mode form, which has no region in its path.
+		projectID := strings.TrimSpace(info.ChannelOtherSettings.VertexProjectID)
 		if a.RequestMode == RequestModeGemini {
 			return fmt.Sprintf(
 				"%s%skey=%s",
-				BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, "", region, modelName, suffix),
+				BuildGoogleModelURL(info.ChannelBaseUrl, googleAPIVersion, projectID, region, modelName, suffix),
 				keyPrefix,
 				info.ApiKey,
 			), nil
 		} else if a.RequestMode == RequestModeClaude {
 			return fmt.Sprintf(
 				"%s%skey=%s",
-				BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, "", region, modelName, suffix),
+				BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, projectID, region, modelName, suffix),
 				keyPrefix,
 				info.ApiKey,
 			), nil

@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -94,12 +95,13 @@ func TestOaiStreamHandler_BaseResp2056Returns429(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeMiniMax,
+			UpstreamModelName: "abab6.5s-chat",
+		},
 		RelayMode:       relayconstant.RelayModeChatCompletions,
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "abab6.5s-chat",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "abab6.5s-chat",
-		},
 	}
 
 	ssePayload := "data: {\"base_resp\":{\"status_code\":2056,\"status_msg\":\"已达到 Token Plan 用量上限\"}}\n\n"
@@ -124,12 +126,13 @@ func TestOaiStreamHandler_BaseResp1008Returns429(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeMiniMax,
+			UpstreamModelName: "abab6.5s-chat",
+		},
 		RelayMode:       relayconstant.RelayModeChatCompletions,
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "abab6.5s-chat",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "abab6.5s-chat",
-		},
 	}
 
 	ssePayload := "data: {\"base_resp\":{\"status_code\":1008,\"status_msg\":\"insufficient balance\"}}\n\n"

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
+	"github.com/QuantumNous/new-api/common"
 
 	"gorm.io/gorm"
 )
@@ -375,8 +375,13 @@ func DeleteModelMetadata(ids []int, removeFromChannels, removePricing bool) (Mod
 	if err != nil {
 		return ModelDeleteResult{}, err
 	}
+	if removePricing {
+		// The other path bumps in metadataTransaction.
+		BumpSyncTopic(SyncTopicModels)
+	}
 	if result.UpdatedChannels > 0 {
 		InitChannelCache()
+		BumpSyncTopic(SyncTopicChannels)
 	}
 	RefreshPricing()
 	return result, nil

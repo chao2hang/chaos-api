@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
@@ -28,6 +29,11 @@ import type { HomePageContentResponse } from './types'
  * Returns Markdown/HTML content or iframe URL
  */
 export async function getHomePageContent(): Promise<HomePageContentResponse> {
-  const res = await api.get('/api/home_page_content')
+  // See getNotice in @/lib/api: the global `Cache-Control: no-store` is dropped
+  // so the browser can hold an ETag and revalidate, letting the server answer
+  // 304. Server-side `no-cache` keeps admin edits immediate.
+  const res = await api.get('/api/home_page_content', {
+    headers: { 'Cache-Control': null },
+  })
   return res.data
 }

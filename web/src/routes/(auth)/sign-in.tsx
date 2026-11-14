@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,12 +14,14 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
 import { SignIn } from '@/features/auth/sign-in'
+import { resolveAuthentication } from '@/lib/auth-session'
 import { useAuthStore } from '@/stores/auth-store'
 
 const searchSchema = z.object({
@@ -30,6 +32,10 @@ export const Route = createFileRoute('/(auth)/sign-in')({
   component: SignIn,
   validateSearch: searchSchema,
   beforeLoad: async ({ search }) => {
+    // 根 guard 可能因为没有会话提示而跳过了 refresh。此处必须回源确认，
+    // 否则持有有效 Refresh Cookie 的用户会被要求重新输入密码。
+    await resolveAuthentication()
+
     const { auth } = useAuthStore.getState()
 
     // 如果已经有用户信息，说明已登录

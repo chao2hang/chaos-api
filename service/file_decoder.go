@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/logger"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,13 +23,13 @@ import (
 func GetFileTypeFromUrl(c *gin.Context, url string, reason ...string) (string, error) {
 	response, err := DoDownloadRequest(url, []string{"get_mime_type", strings.Join(reason, ", ")}...)
 	if err != nil {
-		common.SysLog(fmt.Sprintf("fail to get file type from url: %s, error: %s", url, err.Error()))
+		common.SysLog(common.LogText("fail to get file type from url: %s, error: %s", url, err.Error()))
 		return "", err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
-		logger.LogError(c, fmt.Sprintf("failed to download file from %s, status code: %d", url, response.StatusCode))
+		logger.LogError(c, common.LogText("failed to download file from %s, status code: %d", url, response.StatusCode))
 		return "", fmt.Errorf("failed to download file, status code: %d", response.StatusCode)
 	}
 

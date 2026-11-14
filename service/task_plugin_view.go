@@ -1,9 +1,9 @@
 package service
 
 import (
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/dto"
-	"github.com/chaos-api/chaos-api/model"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 )
 
 // BuildTaskPluginView converts a persisted task into the deliberately narrow

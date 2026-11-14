@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/convdiag"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/samber/lo"
 )
 
@@ -38,35 +39,6 @@ func normalizeChatImageURLToString(v any) any {
 	}
 }
 
-// assistantFunctionCallItems converts an assistant message's tool calls into
-// Responses `function_call` input items. Returns nil for non-assistant roles
-// or when there is nothing convertible.
-func assistantFunctionCallItems(role string, msg dto.Message) []map[string]any {
-	if role != "assistant" {
-		return nil
-	}
-	items := make([]map[string]any, 0)
-	for _, tc := range msg.ParseToolCalls() {
-		if strings.TrimSpace(tc.ID) == "" {
-			continue
-		}
-		if tc.Type != "" && tc.Type != "function" {
-			continue
-		}
-		name := strings.TrimSpace(tc.Function.Name)
-		if name == "" {
-			continue
-		}
-		items = append(items, map[string]any{
-			"type":      "function_call",
-			"call_id":   tc.ID,
-			"name":      name,
-			"arguments": tc.Function.Arguments,
-		})
-	}
-	return items
-}
-
 func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) json.RawMessage {
 	if reqFormat == nil || strings.TrimSpace(reqFormat.Type) == "" {
 		return nil
@@ -77,7 +49,9 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 	}
 
 	if reqFormat.Type == "json_schema" && len(reqFormat.JsonSchema) > 0 {
-		var chatSchema map[string]any
+		// Members stay raw JSON: the model fills the schema properties in
+		// their order, and a decoded map would sort them.
+		var chatSchema map[string]json.RawMessage
 		if err := kitutil.Unmarshal(reqFormat.JsonSchema, &chatSchema); err == nil {
 			for key, value := range chatSchema {
 				if key == "type" {
@@ -86,7 +60,8 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 				format[key] = value
 			}
 
-			if nested, ok := format["json_schema"].(map[string]any); ok {
+			var nested map[string]json.RawMessage
+			if err := kitutil.Unmarshal(chatSchema["json_schema"], &nested); err == nil && nested != nil {
 				for key, value := range nested {
 					if _, exists := format[key]; !exists {
 						format[key] = value
@@ -189,28 +164,56 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		}
 
 		if msg.Content == nil {
-			// Assistant turns that only carry tool calls must not produce an
-			// empty message item: the Responses API rejects empty content there.
-			if toolCallItems := assistantFunctionCallItems(role, msg); len(toolCallItems) > 0 {
-				inputItems = append(inputItems, toolCallItems...)
-				continue
-			}
 			item["content"] = ""
 			inputItems = append(inputItems, item)
-			inputItems = append(inputItems, assistantFunctionCallItems(role, msg)...)
+
+			if role == "assistant" {
+				for _, tc := range msg.ParseToolCalls() {
+					if strings.TrimSpace(tc.ID) == "" {
+						continue
+					}
+					if tc.Type != "" && tc.Type != "function" {
+						continue
+					}
+					name := strings.TrimSpace(tc.Function.Name)
+					if name == "" {
+						continue
+					}
+					inputItems = append(inputItems, map[string]any{
+						"type":      "function_call",
+						"call_id":   tc.ID,
+						"name":      name,
+						"arguments": tc.Function.Arguments,
+					})
+				}
+			}
 			continue
 		}
 
 		if msg.IsStringContent() {
-			if toolCallItems := assistantFunctionCallItems(role, msg); len(toolCallItems) > 0 &&
-				strings.TrimSpace(msg.StringContent()) == "" {
-				// Empty assistant text plus tool calls: emit only the calls.
-				inputItems = append(inputItems, toolCallItems...)
-				continue
-			}
 			item["content"] = msg.StringContent()
 			inputItems = append(inputItems, item)
-			inputItems = append(inputItems, assistantFunctionCallItems(role, msg)...)
+
+			if role == "assistant" {
+				for _, tc := range msg.ParseToolCalls() {
+					if strings.TrimSpace(tc.ID) == "" {
+						continue
+					}
+					if tc.Type != "" && tc.Type != "function" {
+						continue
+					}
+					name := strings.TrimSpace(tc.Function.Name)
+					if name == "" {
+						continue
+					}
+					inputItems = append(inputItems, map[string]any{
+						"type":      "function_call",
+						"call_id":   tc.ID,
+						"name":      name,
+						"arguments": tc.Function.Arguments,
+					})
+				}
+			}
 			continue
 		}
 
@@ -228,9 +231,14 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 					"text": part.Text,
 				})
 			case dto.ContentTypeImageURL:
+				var sourceDetail string
+				if img := part.GetImageMedia(); img != nil {
+					sourceDetail = img.Detail
+				}
 				contentParts = append(contentParts, map[string]any{
 					"type":      "input_image",
 					"image_url": normalizeChatImageURLToString(part.ImageUrl),
+					"detail":    relaymedia.ResponsesImageDetail(sourceDetail),
 				})
 			case dto.ContentTypeInputAudio:
 				contentParts = append(contentParts, map[string]any{
@@ -263,16 +271,29 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 				})
 			}
 		}
-		if toolCallItems := assistantFunctionCallItems(role, msg); len(toolCallItems) > 0 &&
-			len(contentParts) == 0 {
-			// Multimodal assistant turn reduced to tool calls only.
-			inputItems = append(inputItems, toolCallItems...)
-			continue
-		}
-
 		item["content"] = contentParts
 		inputItems = append(inputItems, item)
-		inputItems = append(inputItems, assistantFunctionCallItems(role, msg)...)
+
+		if role == "assistant" {
+			for _, tc := range msg.ParseToolCalls() {
+				if strings.TrimSpace(tc.ID) == "" {
+					continue
+				}
+				if tc.Type != "" && tc.Type != "function" {
+					continue
+				}
+				name := strings.TrimSpace(tc.Function.Name)
+				if name == "" {
+					continue
+				}
+				inputItems = append(inputItems, map[string]any{
+					"type":      "function_call",
+					"call_id":   tc.ID,
+					"name":      name,
+					"arguments": tc.Function.Arguments,
+				})
+			}
+		}
 	}
 
 	inputRaw, err := kitutil.Marshal(inputItems)
@@ -292,18 +313,12 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		for _, tool := range req.Tools {
 			switch tool.Type {
 			case "function":
-				fn := map[string]any{
+				tools = append(tools, map[string]any{
 					"type":        "function",
 					"name":        tool.Function.Name,
 					"description": tool.Function.Description,
 					"parameters":  tool.Function.Parameters,
-				}
-				// Chat completions nests `strict` inside `function`; the
-				// Responses API expects it at the tool's top level.
-				if tool.Function.Strict != nil {
-					fn["strict"] = *tool.Function.Strict
-				}
-				tools = append(tools, fn)
+				})
 			default:
 				// Best-effort: keep original tool shape for unknown types.
 				var m map[string]any
@@ -408,13 +423,11 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		PresencePenalty:   presencePenaltyRaw,
 		User:              req.User,
 		ParallelToolCalls: parallelToolCallsRaw,
-		// Chat completions is a stateless bridge: default `store` to false so
-		// upstream does not persist conversations unless the client opted in.
-		Store:          storeOrDefault(req.Store),
-		Metadata:       req.Metadata,
-		PromptCacheKey: promptCacheKeyRaw,
-		EnableThinking: req.EnableThinking,
-		ThinkingBudget: req.ThinkingBudget,
+		Store:             req.Store,
+		Metadata:          req.Metadata,
+		PromptCacheKey:    promptCacheKeyRaw,
+		EnableThinking:    req.EnableThinking,
+		ThinkingBudget:    req.ThinkingBudget,
 	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
@@ -430,14 +443,4 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 	}
 
 	return out, nil
-}
-
-// storeOrDefault keeps an explicit client `store` choice, falling back to
-// false for the stateless chat-completions bridge.
-func storeOrDefault(store json.RawMessage) json.RawMessage {
-	trimmed := strings.TrimSpace(string(store))
-	if trimmed != "" && trimmed != "null" {
-		return store
-	}
-	return json.RawMessage("false")
 }

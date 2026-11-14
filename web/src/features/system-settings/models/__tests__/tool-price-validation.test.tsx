@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -57,6 +58,41 @@ describe('tool price validation', () => {
 
     expect(priceInput).toHaveAttribute('aria-invalid', 'false')
     expect(saveButton).toBeEnabled()
+
+    fireEvent.change(priceInput, { target: { value: '0.04' } })
+
+    expect(priceInput).toHaveValue(0.04)
+    expect(priceInput).toBeValid()
+    expect(saveButton).toBeEnabled()
+
+    fireEvent.change(priceInput, { target: { value: '0.0001' } })
+    expect(priceInput).toBeValid()
+
+    fireEvent.change(priceInput, { target: { value: '0.00001' } })
+    expect((priceInput as HTMLInputElement).validity.stepMismatch).toBe(true)
+
+    fireEvent.change(priceInput, { target: { value: '-0.04' } })
+
+    expect(priceInput).toHaveAttribute('aria-invalid', 'true')
+    expect(saveButton).toBeDisabled()
+
+    queryClient.clear()
+  })
+
+  test('shows the DeepSeek Search and Fetch prices for a config saved before they existed', () => {
+    const queryClient = new QueryClient()
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ToolPriceSettings defaultValue='{"web_search":10}' />
+      </QueryClientProvider>
+    )
+
+    for (const key of ['deepseek_search', 'deepseek_fetch']) {
+      expect(
+        screen.getByRole('spinbutton', { name: `Price ($/1K calls): ${key}` })
+      ).toHaveValue(0.75)
+    }
 
     queryClient.clear()
   })

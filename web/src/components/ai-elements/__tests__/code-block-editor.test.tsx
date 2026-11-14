@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, test } from 'vitest'
@@ -39,6 +40,25 @@ function editorTree(value: string) {
 }
 
 describe('CodeBlockEditor', () => {
+  test('does not add a second vertical inset to the line-number gutter for multiline source', () => {
+    const { getByRole } = render(
+      <CodeBlockEditor
+        ariaLabel='Plugin source'
+        autoFocus={false}
+        language='javascript'
+        onChange={() => undefined}
+        value={'2\n1\n1'}
+      />
+    )
+
+    const editor = getByRole('textbox', { name: 'Plugin source' })
+    const gutters = editor.querySelector('.cm-gutters')
+
+    // CodeMirror already offsets each gutter line by the content padding.
+    // Extra vertical padding here shifts every number below its source line.
+    expect(gutters).toHaveStyle({ paddingTop: '0px', paddingBottom: '0px' })
+  })
+
   test('keeps the same editor instance when value and onKeyDown change on rerender', () => {
     const { rerender } = render(editorTree('h'))
 

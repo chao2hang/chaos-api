@@ -1,7 +1,7 @@
 package ratio_setting
 
 import (
-	"github.com/chaos-api/chaos-api/types"
+	"github.com/QuantumNous/new-api/types"
 )
 
 const (

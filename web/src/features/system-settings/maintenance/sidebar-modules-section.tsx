@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
@@ -64,6 +65,10 @@ export function SidebarModulesSection({
   const updateOption = useUpdateOption()
 
   const sectionMeta: Record<string, { title: string; description: string }> = {
+    chat: {
+      title: t('Chat area'),
+      description: t('Playground experiments and live conversations.'),
+    },
     console: {
       title: t('Console area'),
       description: t('Dashboards, tokens, and usage analytics.'),
@@ -82,6 +87,16 @@ export function SidebarModulesSection({
     string,
     Record<string, { title: string; description: string }>
   > = {
+    chat: {
+      playground: {
+        title: t('Playground'),
+        description: t('Experiment with prompts and models in real time.'),
+      },
+      chat: {
+        title: t('Chat'),
+        description: t('Access previous conversations and start new ones.'),
+      },
+    },
     console: {
       detail: {
         title: t('Dashboard'),
@@ -94,6 +109,10 @@ export function SidebarModulesSection({
       log: {
         title: t('Usage logs'),
         description: t('Detailed request logs for investigations.'),
+      },
+      audit: {
+        title: t('Audit Logs'),
+        description: t('Login, security and access records'),
       },
       midjourney: {
         title: t('Drawing logs'),
@@ -112,6 +131,10 @@ export function SidebarModulesSection({
       personal: {
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
+      },
+      security: {
+        title: t('Security & Access'),
+        description: t('Manage your security settings and account access'),
       },
     },
     admin: {

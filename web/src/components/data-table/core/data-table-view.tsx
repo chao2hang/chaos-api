@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row, Table as TanstackTable } from '@tanstack/react-table'
 import * as React from 'react'
@@ -144,12 +145,9 @@ function SplitHeaderTableView<TData>({
           props.bodyContainerClassName
         )}
       >
-        <table
-          data-slot='table'
-          className={cn(
-            'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-sm [&_th_*]:text-sm',
-            props.tableClassName
-          )}
+        <Table
+          withContainer={false}
+          className={props.tableClassName}
           style={tableSizing.style}
         >
           {tableSizing.colgroup}
@@ -161,7 +159,7 @@ function SplitHeaderTableView<TData>({
             getColumnClassName={getColumnClassName}
           />
           {renderTableBody(props, rows, colSpan, getColumnClassName)}
-        </table>
+        </Table>
       </div>
     </div>
   )

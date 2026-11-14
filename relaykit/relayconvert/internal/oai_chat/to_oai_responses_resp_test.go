@@ -3,9 +3,9 @@ package oaichat
 import (
 	"testing"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,6 +89,16 @@ func TestChatCompletionsResponseToResponsesDropsEmptyNameToolCalls(t *testing.T)
 	require.NotNil(t, convertedUsage.InputTokensDetails)
 	assert.Equal(t, 7, convertedUsage.InputTokensDetails.CachedTokens)
 	assert.Equal(t, usage.BillingUsage, convertedUsage.BillingUsage)
+}
+
+func TestUsageFromChatUsagePreservesCacheCreationInputTokensAlone(t *testing.T) {
+	usage := dto.Usage{PromptTokens: 12, TotalTokens: 12}
+	usage.PromptTokensDetails.CacheCreationInputTokens = 9
+
+	converted := UsageFromChatUsage(&usage)
+
+	require.NotNil(t, converted.InputTokensDetails)
+	assert.Equal(t, 9, converted.InputTokensDetails.CacheCreationInputTokens)
 }
 
 func TestChatCompletionsResponseToResponsesEmitsReasoningSummaryBeforeText(t *testing.T) {
@@ -240,6 +250,12 @@ func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *t
 		responsesEventOutputItemDone,
 		responsesEventCompleted,
 	}, types)
+
+	// The Responses schema requires summary on every reasoning item, including
+	// the one announced before any summary text exists.
+	itemAdded, err := kitutil.Marshal(events[1].Payload)
+	require.NoError(t, err)
+	assert.Contains(t, string(itemAdded), `"summary":[]`)
 
 	partAdded := events[2].Payload
 	assert.Equal(t, "resp_1_reasoning_0", partAdded.ItemID)

@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -43,8 +44,19 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { getPaymentErrorTranslation } from '@/features/wallet/lib/payment'
+import { handleServerError } from '@/lib/handle-server-error'
 import { cn } from '@/lib/utils'
 
 import { confirmPaymentCompliance } from '../api'
@@ -101,6 +113,9 @@ const paymentSchema = z.object({
   }, 'Provide a valid callback URL starting with http:// or https://'),
   EpayId: z.string(),
   EpayKey: z.string(),
+  EpaySignType: z.string(),
+  EpayMerchantPrivateKey: z.string(),
+  EpayPlatformPublicKey: z.string(),
   Price: z.coerce.number().min(0),
   MinTopUp: z.coerce.number().min(0),
   CustomCallbackAddress: z
@@ -338,11 +353,11 @@ export function PaymentSettingsSection({
         setShowComplianceDialog(false)
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
       } else {
-        toast.error(data.message || t('Failed to confirm compliance'))
+        handleServerError(data, t('Failed to confirm compliance'))
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || t('Failed to confirm compliance'))
+      handleServerError(error, t('Failed to confirm compliance'))
     },
   })
 
@@ -420,6 +435,9 @@ export function PaymentSettingsSection({
       PayAddress: removeTrailingSlash(values.PayAddress),
       EpayId: values.EpayId.trim(),
       EpayKey: values.EpayKey.trim(),
+      EpaySignType: values.EpaySignType,
+      EpayMerchantPrivateKey: values.EpayMerchantPrivateKey.trim(),
+      EpayPlatformPublicKey: values.EpayPlatformPublicKey.trim(),
       Price: values.Price,
       MinTopUp: values.MinTopUp,
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
@@ -462,6 +480,9 @@ export function PaymentSettingsSection({
       PayAddress: removeTrailingSlash(initialRef.current.PayAddress),
       EpayId: initialRef.current.EpayId.trim(),
       EpayKey: initialRef.current.EpayKey.trim(),
+      EpaySignType: initialRef.current.EpaySignType,
+      EpayMerchantPrivateKey: initialRef.current.EpayMerchantPrivateKey.trim(),
+      EpayPlatformPublicKey: initialRef.current.EpayPlatformPublicKey.trim(),
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
       CustomCallbackAddress: removeTrailingSlash(
@@ -517,6 +538,31 @@ export function PaymentSettingsSection({
 
     if (sanitized.EpayKey && sanitized.EpayKey !== initial.EpayKey) {
       updates.push({ key: 'EpayKey', value: sanitized.EpayKey })
+    }
+
+    // Keys go first: the server only accepts RSA once both saved keys work.
+    if (
+      sanitized.EpayMerchantPrivateKey &&
+      sanitized.EpayMerchantPrivateKey !== initial.EpayMerchantPrivateKey
+    ) {
+      updates.push({
+        key: 'payment_setting.epay_merchant_private_key',
+        value: sanitized.EpayMerchantPrivateKey,
+      })
+    }
+
+    if (sanitized.EpayPlatformPublicKey !== initial.EpayPlatformPublicKey) {
+      updates.push({
+        key: 'payment_setting.epay_platform_public_key',
+        value: sanitized.EpayPlatformPublicKey,
+      })
+    }
+
+    if (sanitized.EpaySignType !== initial.EpaySignType) {
+      updates.push({
+        key: 'payment_setting.epay_sign_type',
+        value: sanitized.EpaySignType,
+      })
     }
 
     if (sanitized.Price !== initial.Price) {
@@ -756,14 +802,17 @@ export function PaymentSettingsSection({
         return
       }
 
-      const reason = typeof body?.data === 'string' ? body.data : undefined
-      toast.error(
-        reason
+      const reason =
+        getPaymentErrorTranslation(body) ??
+        (typeof body?.data === 'string' ? body.data : undefined)
+      handleServerError(body, undefined, {
+        title: reason
           ? `${t('Waffo Pancake save failed')}: ${reason}`
-          : t('Waffo Pancake save failed')
-      )
+          : t('Waffo Pancake save failed'),
+      })
     } catch (error) {
-      toast.error(
+      handleServerError(
+        error,
         `${t('Waffo Pancake save failed')}: ${
           error instanceof Error ? error.message : String(error)
         }`
@@ -805,7 +854,7 @@ export function PaymentSettingsSection({
             <div className='space-y-3'>
               <p>
                 {t(
-                  'Payment, redemption codes, and subscription plans are locked until the root administrator confirms the compliance terms.'
+                  'Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.'
                 )}
               </p>
               <ol className='list-decimal space-y-1 pl-5'>
@@ -847,7 +896,7 @@ export function PaymentSettingsSection({
         onOpenChange={setShowComplianceDialog}
         title={t('Confirm compliance terms')}
         description={t(
-          'This confirmation unlocks payment, redemption code, and subscription plan features. Please read the statements carefully.'
+          'This confirmation unlocks payment, redemption code, subscription plan, and invitation reward features. Please read the statements carefully.'
         )}
         items={complianceStatements}
         requiredText={complianceRequiredText}
@@ -1202,7 +1251,7 @@ export function PaymentSettingsSection({
                   />
                 </div>
 
-                <div className='grid gap-6 md:grid-cols-2'>
+                <div className='grid gap-6 md:grid-cols-2 md:items-start'>
                   <FormField
                     control={form.control}
                     name='EpayId'
@@ -1226,29 +1275,116 @@ export function PaymentSettingsSection({
 
                   <FormField
                     control={form.control}
-                    name='EpayKey'
+                    name='EpaySignType'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Epay secret key')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type='password'
-                            placeholder={t('Enter new key to update')}
-                            autoComplete='new-password'
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                        </FormControl>
+                        <FormLabel>{t('Signature type')}</FormLabel>
+                        <Select
+                          items={[
+                            { value: 'MD5', label: 'MD5' },
+                            { value: 'RSA', label: 'RSA' },
+                          ]}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className='w-full'>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='MD5'>MD5</SelectItem>
+                              <SelectItem value='RSA'>RSA</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
                         <FormDescription>
-                          {t('Leave blank unless rotating the secret')}
+                          {t(
+                            'Use the same signature type as in your Epay merchant console'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                {currentFormValues.EpaySignType === 'RSA' ? (
+                  <div className='grid gap-6 md:grid-cols-2 md:items-start'>
+                    <FormField
+                      control={form.control}
+                      name='EpayMerchantPrivateKey'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Merchant private key')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              rows={4}
+                              placeholder='MIIEvQIBADANBgkqhkiG9w0BAQEFAASC...'
+                              autoComplete='off'
+                              spellCheck={false}
+                              className='font-mono text-xs break-all'
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t('Leave blank to keep the existing key')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='EpayPlatformPublicKey'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Platform public key')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              rows={4}
+                              placeholder='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...'
+                              autoComplete='off'
+                              spellCheck={false}
+                              className='font-mono text-xs break-all'
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ) : (
+                  <div className='grid gap-6 md:grid-cols-2'>
+                    <FormField
+                      control={form.control}
+                      name='EpayKey'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Epay secret key')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type='password'
+                              placeholder={t('Enter new key to update')}
+                              autoComplete='new-password'
+                              {...field}
+                              onChange={(event) =>
+                                field.onChange(event.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t('Leave blank unless rotating the secret')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             </TabsContent>
 

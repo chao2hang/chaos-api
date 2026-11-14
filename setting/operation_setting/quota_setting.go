@@ -5,7 +5,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/chaos-api/chaos-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/config"
 )
 
 type QuotaSetting struct {

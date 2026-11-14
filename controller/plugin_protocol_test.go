@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/dto"
-	"github.com/chaos-api/chaos-api/model"
-	pluginruntime "github.com/chaos-api/chaos-api/pkg/jsplugin"
-	"github.com/chaos-api/chaos-api/relay"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relay"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -1731,6 +1731,7 @@ func TestServeTaskPluginImageProtocolWaitsForAsynchronousTask(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			pinned := imageProtocolTestEndpoint(t)
 			c, recorder := newImageProtocolTestContext("")
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://private.example.com")
 			deps := pluginProtocolTestDeps()
 			deps.imagePollInterval = time.Millisecond
 			deps.submissionTimeout = 50 * time.Millisecond
@@ -1744,7 +1745,7 @@ func TestServeTaskPluginImageProtocolWaitsForAsynchronousTask(t *testing.T) {
 					return nil
 				}
 				task.Status = tc.terminal
-				task.FailReason = "DataInspectionFailed"
+				task.FailReason = "DataInspectionFailed: see https://private.example.com/jobs/1"
 				task.SetData(map[string]any{"images": []string{"https://cdn.example/polled.png"}})
 				return nil
 			}
@@ -1763,6 +1764,7 @@ func TestServeTaskPluginImageProtocolWaitsForAsynchronousTask(t *testing.T) {
 			errorBody := response["error"].(map[string]any)
 			assert.Equal(t, tc.wantCode, errorBody["code"])
 			assert.Contains(t, errorBody["message"], tc.wantMessage)
+			assert.NotContains(t, errorBody["message"], "private.example.com")
 		})
 	}
 }

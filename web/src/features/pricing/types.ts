@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 // ----------------------------------------------------------------------------
 // Pricing Types
@@ -31,7 +32,9 @@ export type BillingUsageUnit = 'second' | 'count' | 'token' | 'credit'
 export type BillingUsageFieldSchema = {
   type?: 'number' | 'boolean'
   unit?: BillingUsageUnit
+  unitLabel?: string | Record<string, string>
   enum?: string[]
+  enumLabels?: Record<string, string | Record<string, string>>
   description?: string | Record<string, string>
 }
 
@@ -42,7 +45,20 @@ export type BillingUsageExample = {
   facts: Record<string, string | number>
 }
 
+export type BillingPluginVariant = {
+  plugin_key: string
+  plugin_name: string
+  icon?: string
+  billing_expr: string
+  billing_mode?: 'ratio' | 'tiered_expr'
+  billing_usage_schema: BillingUsageSchema
+  billing_usage_examples?: BillingUsageExample[]
+}
+
 export type PricingModel = {
+  billing_plugin_variants?: BillingPluginVariant[]
+  // Requests outside the plugin variants still pay the model-level price.
+  ordinary_pricing?: boolean
   id: number
   model_name: string
   description?: string

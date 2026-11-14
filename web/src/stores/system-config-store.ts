@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -73,13 +74,11 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     (set) => ({
       config: {
         systemName: DEFAULT_SYSTEM_NAME,
-        // Empty means "no logo configured" — the UI hides the logo
-        // entirely until the backend reports one.
-        logo: '',
+        logo: DEFAULT_LOGO,
         currency: { ...DEFAULT_CURRENCY_CONFIG },
       },
       loading: true,
-      loadedLogoUrl: '',
+      loadedLogoUrl: DEFAULT_LOGO,
       setConfig: (newConfig) =>
         set((state) => ({
           config: {
@@ -96,25 +95,6 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     }),
     {
       name: 'system-config-storage',
-      // v1: logo no longer falls back to the bundled default; clear a
-      // previously persisted default so an unconfigured logo stays hidden.
-      version: 1,
-      migrate: (persisted) => {
-        const state = (persisted ?? {}) as {
-          config?: Partial<SystemConfig>
-          loadedLogoUrl?: string
-        }
-        return {
-          ...state,
-          config: {
-            ...state.config,
-            logo:
-              state.config?.logo === DEFAULT_LOGO ? '' : state.config?.logo,
-          },
-          loadedLogoUrl:
-            state.loadedLogoUrl === DEFAULT_LOGO ? '' : state.loadedLogoUrl,
-        }
-      },
       partialize: (state) => ({
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,

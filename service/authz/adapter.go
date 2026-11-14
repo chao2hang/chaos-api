@@ -5,8 +5,8 @@ import (
 
 	casbinmodel "github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/model"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -44,7 +44,7 @@ func (a *gormAdapter) LoadPolicy(m casbinmodel.Model) error {
 			// the stored rule for review and deny this permission in memory.
 			// Skipping a per-user rule would expose the admin role baseline.
 			effect = EffectDeny
-			common.SysLog(fmt.Sprintf("authorization policy %d has an unsupported legacy scope; loaded as deny; review the stored policy before granting access", rule.Id))
+			common.SysLog(common.LogText("authorization policy %d has an unsupported legacy scope; loaded as deny; review the stored policy before granting access", rule.Id))
 		}
 		if err := persist.LoadPolicyArray([]string{rule.Ptype, rule.V0, rule.V1, rule.V2, effect}, m); err != nil {
 			return err

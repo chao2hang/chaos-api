@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,12 +14,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  PageContainer,
-  PageContent,
-  PageHeader,
-} from '@chaos_team/chaos-ui/ui'
 import {
   Children,
   isValidElement,
@@ -28,8 +24,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { cn } from '@/lib/utils'
-
+import { Main } from './main'
 import { PageFooterProvider } from './page-footer'
 
 type SlotProps = { children?: ReactNode }
@@ -57,15 +52,9 @@ SectionPageLayoutBreadcrumb.displayName = 'SectionPageLayout.Breadcrumb'
 export type SectionPageLayoutProps = {
   children: ReactNode
   fixedContent?: boolean
+  stackActionsOnMobile?: boolean
 }
 
-/**
- * Page scaffold for console routes, built on chaos-ui's
- * `PageContainer` / `PageHeader` / `PageContent`.
- *
- * The slot API (`.Title`, `.Actions`, `.Content`, `.Breadcrumb`) is
- * unchanged so existing call sites keep working.
- */
 export function SectionPageLayout(props: SectionPageLayoutProps) {
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(
     null
@@ -79,9 +68,8 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
   Children.forEach(props.children, (node) => {
     if (!isValidElement(node)) return
     const child = node as ReactElement<SlotProps>
-    if (child.type === SectionPageLayoutTitle) {
-      title = child.props.children
-    } else if (child.type === SectionPageLayoutActions) {
+    if (child.type === SectionPageLayoutTitle) title = child.props.children
+    else if (child.type === SectionPageLayoutActions) {
       actions = child.props.children
     } else if (child.type === SectionPageLayoutContent) {
       content = child.props.children
@@ -92,37 +80,46 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
 
   return (
     <PageFooterProvider container={footerContainer}>
-      <PageContainer
-        size='full'
-        padding='none'
-        center={false}
-        className='flex min-h-0 flex-1 flex-col'
-      >
-        <PageHeader
-          // chaos-ui types `title` as string, but it renders any ReactNode;
-          // call sites pass `t('...')` strings or small inline elements.
-          title={(title ?? '') as unknown as string}
-          breadcrumb={breadcrumb ?? undefined}
-          actions={actions ?? undefined}
-          size='sm'
-          className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'
-        />
-
-        <PageContent
-          density='compact'
-          className={cn(
-            'min-h-0 flex-1 px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4',
-            props.fixedContent ? 'overflow-hidden' : 'overflow-auto'
+      <Main>
+        <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'>
+          {breadcrumb != null && (
+            <div className='mb-2 sm:mb-3'>{breadcrumb}</div>
           )}
+          <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4'>
+            <div
+              className={
+                props.stackActionsOnMobile
+                  ? 'min-w-0 flex-1 max-sm:basis-full'
+                  : 'min-w-0 flex-1'
+              }
+            >
+              <h2 className='truncate text-base font-bold tracking-tight sm:text-lg'>
+                {title}
+              </h2>
+            </div>
+            {actions != null && (
+              <div className='flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-x-4'>
+                {actions}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div
+          className={
+            props.fixedContent
+              ? 'min-h-0 flex-1 overflow-hidden px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
+              : 'min-h-0 flex-1 overflow-auto px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
+          }
         >
           {content}
-        </PageContent>
+        </div>
 
         <div
           ref={setFooterContainer}
           className='bg-background shrink-0 border-t px-3 py-2.5 empty:hidden sm:px-4 sm:py-3'
         />
-      </PageContainer>
+      </Main>
     </PageFooterProvider>
   )
 }

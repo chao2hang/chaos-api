@@ -3,9 +3,9 @@ package geminichat
 import (
 	"fmt"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	oaichat "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/oai_chat"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	oaichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_chat"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
 // GeminiHostedStreamBridge accumulates grounding metadata until the provider

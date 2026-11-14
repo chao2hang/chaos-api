@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/setting/config"
-	"github.com/chaos-api/chaos-api/types"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/types"
 )
 
 var defaultGroupRatio = map[string]float64{
@@ -79,7 +79,7 @@ func UpdateGroupRatioByJSONString(jsonStr string) error {
 func GetGroupRatio(name string) float64 {
 	ratio, ok := groupRatioMap.Get(name)
 	if !ok {
-		common.SysLog("group ratio not found: " + name)
+		common.SysLog(common.LogText("group ratio not found: %s", name))
 		return 1
 	}
 	return ratio

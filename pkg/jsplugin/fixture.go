@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
+	"github.com/QuantumNous/new-api/common"
 )
 
 // Fixture describes deterministic calls into a plugin. Arguments and expected

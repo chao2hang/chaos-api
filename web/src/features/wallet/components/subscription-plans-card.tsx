@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -56,6 +57,8 @@ import type {
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import { formatQuota } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import type { PaymentMethod, TopupInfo } from '../types'
@@ -125,18 +128,19 @@ export function SubscriptionPlansCard({
 
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await getPublicPlans()
+      const res = requireServerSuccess(await getPublicPlans())
       if (res.success) {
         setPlans(res.data || [])
       }
-    } catch {
+    } catch (error) {
+      handleServerError(error)
       setPlans([])
     }
   }, [])
 
   const fetchSelfSubscription = useCallback(async () => {
     try {
-      const res = await getSelfSubscriptionFull()
+      const res = requireServerSuccess(await getSelfSubscriptionFull())
       if (res.success && res.data) {
         setBillingPreference(
           res.data.billing_preference || 'subscription_first'
@@ -144,8 +148,8 @@ export function SubscriptionPlansCard({
         setActiveSubscriptions(res.data.subscriptions || [])
         setAllSubscriptions(res.data.all_subscriptions || [])
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      handleServerError(error)
     }
   }, [])
 
@@ -177,11 +181,11 @@ export function SubscriptionPlansCard({
         const normalized = res.data?.billing_preference || pref
         setBillingPreference(normalized)
       } else {
-        toast.error(res.message || t('Update failed'))
+        handleServerError(res, t('Update failed'))
         setBillingPreference(previous)
       }
-    } catch {
-      toast.error(t('Request failed'))
+    } catch (error) {
+      handleServerError(error, t('Request failed'))
       setBillingPreference(previous)
     }
   }

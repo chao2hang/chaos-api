@@ -7,24 +7,26 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/pkg/jsplugin"
-	"github.com/chaos-api/chaos-api/relay/channel/advancedcustom"
-	"github.com/chaos-api/chaos-api/relay/channel/gemini"
-	"github.com/chaos-api/chaos-api/relay/channel/ollama"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/MoeForge/moego/regexp"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
+	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/providerplugin"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -334,6 +336,24 @@ func sanitizeAdvancedCustomRequestError(err error, key string, requestURL string
 }
 
 func getFetchModelsResponseBody(method string, requestURL string, channel *model.Channel, headers http.Header) ([]byte, error) {
+	response, err := sendFetchModelsRequest(method, requestURL, channel, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	return readFetchModelsResponse(response)
+}
+
+func readFetchModelsResponse(response *http.Response) ([]byte, error) {
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status code: %d", response.StatusCode)
+	}
+	return io.ReadAll(response.Body)
+}
+
+// sendFetchModelsRequest sends a model list request through the channel's
+// proxy and TLS setting. The caller closes the response body.
+func sendFetchModelsRequest(method string, requestURL string, channel *model.Channel, headers http.Header) (*http.Response, error) {
 	request, err := http.NewRequest(method, requestURL, nil)
 	if err != nil {
 		return nil, err
@@ -346,61 +366,12 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 			request.Host = headers.Get(name)
 		}
 	}
-	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+	setting := channel.GetSetting()
+	client, err := service.GetHttpClientWithProxySettings(setting.Proxy, setting)
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code: %d", response.StatusCode)
-	}
-	return io.ReadAll(response.Body)
-}
-
-// buildOpenAICompatibleModelListURL returns the upstream model list endpoint
-// of the OpenAI-compatible channel types. It is shared by the upstream model
-// list feature and the channel credential probe so both address the same
-// endpoint.
-func buildOpenAICompatibleModelListURL(channelType int, baseURL string) string {
-	switch channelType {
-	case constant.ChannelTypeAli:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		}
-		return fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
-	case constant.ChannelTypeMiniMax:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		}
-		return fmt.Sprintf("%s/v1/models", baseURL)
-	case constant.ChannelTypeZhipu_v4:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		}
-		return fmt.Sprintf("%s/api/paas/v4/models", baseURL)
-	case constant.ChannelTypeVolcEngine:
-		// 火山方舟 OpenAI 兼容 API 根路径是 /api/v3（chat/embeddings 均为
-		// {base}/api/v3/...，见 relay/channel/volcengine 的 GetRequestURL），
-		// 不存在 /v1/models 端点。原拼接会导致「获取模型列表」固定 404 失败。
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			return fmt.Sprintf("%s/models", strings.TrimSuffix(plan.OpenAIBaseURL, "/"))
-		}
-		if strings.HasSuffix(baseURL, "/api/v3") {
-			return fmt.Sprintf("%s/models", strings.TrimSuffix(baseURL, "/"))
-		}
-		return fmt.Sprintf("%s/api/v3/models", strings.TrimSuffix(baseURL, "/"))
-	case constant.ChannelTypeMoonshot:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		}
-		return fmt.Sprintf("%s/v1/models", baseURL)
-	default:
-		return fmt.Sprintf("%s/v1/models", baseURL)
-	}
+	return client.Do(request)
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
@@ -408,6 +379,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)
 		if !ok {
 			return nil, fmt.Errorf("task plugin %q is not registered", channel.GetSetting().TaskPluginKey)
+		}
+		if _, ok := plugin.Meta.ModelListRoute(); ok {
+			return fetchProviderPluginUpstreamModelIDs(channel, plugin)
 		}
 		return normalizeModelNames(plugin.Meta.Models), nil
 	}
@@ -430,10 +404,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeGemini {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
-			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+			return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
 		}
 		key = strings.TrimSpace(key)
-		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
+		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting())
 		if err != nil {
 			return nil, err
 		}
@@ -448,10 +422,11 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return service.FetchCodexChannelModels(channel)
 	}
 
-	url := buildOpenAICompatibleModelListURL(channel.Type, baseURL)
+	requestURL := buildOpenAICompatibleModelListURL(channel.Type, baseURL)
+
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
-		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
 	}
 	key = strings.TrimSpace(key)
 
@@ -460,9 +435,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return nil, sanitizeFetchModelsError(err, key)
 	}
 
-	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
+	body, err := getFetchModelsResponseBody(http.MethodGet, requestURL, channel, headers)
 	if err != nil {
-		return nil, sanitizeAdvancedCustomRequestError(err, key, url)
+		return nil, sanitizeAdvancedCustomRequestError(err, key, requestURL)
 	}
 
 	var result OpenAIModelsResponse
@@ -478,33 +453,12 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	return normalizeModelNames(ids), nil
 }
 
-func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
-	key, _, apiErr := channel.GetNextEnabledKey()
-	if apiErr != nil {
-		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
-	}
-	key = strings.TrimSpace(key)
-
-	url, headers, err := buildAdvancedCustomModelListRequest(channel, baseURL, key)
-	if err != nil {
-		return nil, sanitizeFetchModelsError(err, key)
-	}
-
-	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
-	if err != nil {
-		return nil, sanitizeFetchModelsError(err, key)
-	}
-	return parseOpenAIModelIDs(body)
-}
-
-// buildAdvancedCustomModelListRequest builds the read-only model list request
-// of an advanced custom channel. It is shared by the upstream model list
-// feature and the channel credential probe.
-func buildAdvancedCustomModelListRequest(channel *model.Channel, baseURL string, key string) (string, http.Header, error) {
+func buildAdvancedCustomModelListRequest(channel *model.Channel, baseURL, key string) (string, http.Header, error) {
 	info := &relaycommon.RelayInfo{
 		RelayFormat:    types.RelayFormatOpenAI,
 		RelayMode:      relayconstant.RelayModeUnknown,
 		RequestURLPath: dto.AdvancedCustomModelListPath,
+		IsChannelTest:  true,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType:          channel.Type,
 			ChannelBaseUrl:       baseURL,
@@ -512,16 +466,118 @@ func buildAdvancedCustomModelListRequest(channel *model.Channel, baseURL string,
 			ChannelOtherSettings: channel.GetOtherSettings(),
 		},
 	}
-
-	adaptor := &advancedcustom.Adaptor{}
-	url, headers, err := adaptor.BuildModelListRequest(info)
+	requestURL, headers, err := (&advancedcustom.Adaptor{}).BuildModelListRequest(info)
 	if err != nil {
-		return "", nil, err
+		return "", nil, sanitizeFetchModelsError(err, key)
 	}
 	if err := applyFetchModelsHeaderOverrides(channel, key, headers); err != nil {
-		return "", nil, err
+		return "", nil, sanitizeFetchModelsError(err, key)
 	}
-	return url, headers, nil
+	return requestURL, headers, nil
+}
+
+func buildOpenAICompatibleModelListURL(channelType int, baseURL string) string {
+	switch channelType {
+	case constant.ChannelTypeAli:
+		return fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
+	case constant.ChannelTypeZhipu_v4:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		}
+		return fmt.Sprintf("%s/api/paas/v4/models", baseURL)
+	case constant.ChannelTypeVolcEngine:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
+		}
+		return fmt.Sprintf("%s/api/v3/models", baseURL)
+	case constant.ChannelTypeMoonshot:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		}
+	}
+	return fmt.Sprintf("%s/v1/models", baseURL)
+}
+
+func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
+	key, _, apiErr := channel.GetNextEnabledKey()
+	if apiErr != nil {
+		return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
+	}
+	key = strings.TrimSpace(key)
+	requestURL, headers, err := buildAdvancedCustomModelListRequest(channel, baseURL, key)
+	if err != nil {
+		return nil, err
+	}
+	body, err := getFetchModelsResponseBody(http.MethodGet, requestURL, channel, headers)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	return parseOpenAIModelIDs(body)
+}
+
+// fetchProviderPluginUpstreamModelIDs lists the models of a channel through
+// its plugin's /v1/models relay route, as on an Advanced Custom channel. A
+// route with the plugin converter answers in the vendor's format and
+// convertResponse turns the reply into an OpenAI model list, chaining more
+// pages when the vendor pages it.
+func fetchProviderPluginUpstreamModelIDs(channel *model.Channel, plugin *jsplugin.LoadedPlugin) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	key, err := service.PluginModelListKey(ctx, channel, plugin)
+	if err != nil {
+		return nil, err
+	}
+	settings := channel.GetOtherSettings()
+	settings.AdvancedCustom = plugin.Meta.ChannelRelayConfig(plugin.ChannelConfigFor(settings.PluginConfig))
+	info := &relaycommon.RelayInfo{
+		RelayFormat:    types.RelayFormatOpenAI,
+		RelayMode:      relayconstant.RelayModeUnknown,
+		RequestURLPath: dto.AdvancedCustomModelListPath,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:          channel.Type,
+			ChannelId:            channel.Id,
+			ChannelIsMultiKey:    channel.ChannelInfo.IsMultiKey,
+			ChannelMultiKeyIndex: pluginKeyIndex(channel, key),
+			ChannelBaseUrl:       channel.GetBaseURL(),
+			ApiKey:               key,
+			ChannelSetting:       channel.GetSetting(),
+			ChannelOtherSettings: settings,
+		},
+	}
+	body, err := providerplugin.FetchModelList(ctx, plugin, info, providerplugin.ManagementClient{
+		Override: func(headers http.Header, apiKey string) error {
+			return applyFetchModelsHeaderOverrides(channel, apiKey, headers)
+		},
+		Send: func(request *http.Request) (*http.Response, error) {
+			return sendChannelRequest(channel, request)
+		},
+	})
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	return parseOpenAIModelIDs(body)
+}
+
+// pluginKeyIndex is the index of the key line key among the channel's keys,
+// 0 when it is not one of them.
+func pluginKeyIndex(channel *model.Channel, key string) int {
+	for index, line := range channel.GetKeys() {
+		if line == key {
+			return index
+		}
+	}
+	return 0
+}
+
+// sendChannelRequest sends a channel management request through the
+// channel's proxy and TLS setting. The caller closes the response body.
+func sendChannelRequest(channel *model.Channel, request *http.Request) (*http.Response, error) {
+	setting := channel.GetSetting()
+	client, err := service.GetHttpClientWithProxySettings(setting.Proxy, setting)
+	if err != nil {
+		return nil, err
+	}
+	return client.Do(request)
 }
 
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
@@ -577,7 +633,9 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		return false, autoAdded, err
 	}
 	if modelsChanged {
-		if err = channel.UpdateAbilities(nil); err != nil {
+		err = channel.UpdateAbilities(nil)
+		model.BumpSyncTopic(model.SyncTopicChannels)
+		if err != nil {
 			return true, autoAdded, err
 		}
 	}
@@ -589,7 +647,7 @@ func refreshChannelRuntimeCache() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					common.SysLog(fmt.Sprintf("InitChannelCache panic: %v", r))
+					common.SysLog(common.LogText("InitChannelCache panic: %v", r))
 				}
 			}()
 			model.InitChannelCache()
@@ -619,6 +677,7 @@ func shouldSendUpstreamModelUpdateNotification(now int64, changedChannels int, f
 }
 
 func buildUpstreamModelUpdateTaskNotificationContent(
+	lang string,
 	checkedChannels int,
 	changedChannels int,
 	detectedAddModels int,
@@ -631,50 +690,62 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 ) string {
 	var builder strings.Builder
 	failedChannels := len(failedChannelIDs)
-	builder.WriteString(fmt.Sprintf(
-		"上游模型巡检摘要：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。",
-		checkedChannels,
-		changedChannels,
-		detectedAddModels,
-		detectedRemoveModels,
-		autoAddedModels,
-		failedChannels,
-	))
+	builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateSummary, map[string]any{
+		"Checked":   checkedChannels,
+		"Changed":   changedChannels,
+		"Added":     detectedAddModels,
+		"Removed":   detectedRemoveModels,
+		"AutoAdded": autoAddedModels,
+		"Failed":    failedChannels,
+	}))
 
 	if len(channelSummaries) > 0 {
 		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n变更渠道明细（展示 %d/%d）：", displayCount, len(channelSummaries)))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateChangedChannels, map[string]any{
+			"Shown": displayCount,
+			"Total": len(channelSummaries),
+		}))
 		for _, summary := range channelSummaries[:displayCount] {
 			builder.WriteString(fmt.Sprintf("\n- %s (+%d / -%d)", summary.ChannelName, summary.AddCount, summary.RemoveCount))
 		}
 		if len(channelSummaries) > displayCount {
-			builder.WriteString(fmt.Sprintf("\n- 其余 %d 个渠道已省略", len(channelSummaries)-displayCount))
+			builder.WriteString("\n- ")
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreChannels, map[string]any{
+				"Count": len(channelSummaries) - displayCount,
+			}))
 		}
 	}
 
 	normalizedAddModelSamples := normalizeModelNames(addModelSamples)
 	if len(normalizedAddModelSamples) > 0 {
 		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n新增模型示例（展示 %d/%d）：%s",
-			displayCount,
-			len(normalizedAddModelSamples),
-			strings.Join(normalizedAddModelSamples[:displayCount], ", "),
-		))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateAddedModels, map[string]any{
+			"Shown":  displayCount,
+			"Total":  len(normalizedAddModelSamples),
+			"Models": strings.Join(normalizedAddModelSamples[:displayCount], ", "),
+		}))
 		if len(normalizedAddModelSamples) > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedAddModelSamples)-displayCount))
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{
+				"Count": len(normalizedAddModelSamples) - displayCount,
+			}))
 		}
 	}
 
 	normalizedRemoveModelSamples := normalizeModelNames(removeModelSamples)
 	if len(normalizedRemoveModelSamples) > 0 {
 		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n删除模型示例（展示 %d/%d）：%s",
-			displayCount,
-			len(normalizedRemoveModelSamples),
-			strings.Join(normalizedRemoveModelSamples[:displayCount], ", "),
-		))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateRemovedModels, map[string]any{
+			"Shown":  displayCount,
+			"Total":  len(normalizedRemoveModelSamples),
+			"Models": strings.Join(normalizedRemoveModelSamples[:displayCount], ", "),
+		}))
 		if len(normalizedRemoveModelSamples) > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedRemoveModelSamples)-displayCount))
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{
+				"Count": len(normalizedRemoveModelSamples) - displayCount,
+			}))
 		}
 	}
 
@@ -683,14 +754,16 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
 			return fmt.Sprintf("%d", channelID)
 		})
-		builder.WriteString(fmt.Sprintf(
-			"\n\n失败渠道 ID（展示 %d/%d）：%s",
-			displayCount,
-			failedChannels,
-			strings.Join(displayIDs, ", "),
-		))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateFailedChannels, map[string]any{
+			"Shown": displayCount,
+			"Total": failedChannels,
+			"Ids":   strings.Join(displayIDs, ", "),
+		}))
 		if failedChannels > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", failedChannels-displayCount))
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{
+				"Count": failedChannels - displayCount,
+			}))
 		}
 	}
 	return builder.String()
@@ -751,7 +824,7 @@ scanLoop:
 		}
 		err := query.Find(&channels).Error
 		if err != nil {
-			common.SysLog(fmt.Sprintf("upstream model update task query failed: %v", err))
+			common.SysLog(common.LogText("upstream model update task query failed: %v", err))
 			break
 		}
 		if len(channels) == 0 {
@@ -782,7 +855,7 @@ scanLoop:
 			if err != nil {
 				failedChannels++
 				failedChannelIDs = append(failedChannelIDs, channel.Id)
-				common.SysLog(fmt.Sprintf("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
+				common.SysLog(common.LogText("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
 				continue
 			}
 			currentAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
@@ -842,7 +915,7 @@ scanLoop:
 	}
 
 	if checkedChannels > 0 || common.DebugEnabled {
-		common.SysLog(fmt.Sprintf(
+		common.SysLog(common.LogText(
 			"upstream model update task done: checked_channels=%d changed_channels=%d detected_add_models=%d detected_remove_models=%d failed_channels=%d auto_added_models=%d",
 			checkedChannels,
 			changedChannels,
@@ -855,27 +928,28 @@ scanLoop:
 	if changedChannels > 0 || failedChannels > 0 {
 		now := common.GetTimestamp()
 		if !shouldSendUpstreamModelUpdateNotification(now, changedChannels, failedChannels) {
-			common.SysLog(fmt.Sprintf(
+			common.SysLog(common.LogText(
 				"upstream model update notification skipped in 24h window: changed_channels=%d failed_channels=%d",
 				changedChannels,
 				failedChannels,
 			))
 			return summary
 		}
-		service.NotifyUpstreamModelUpdateWatchers(
-			"上游模型巡检通知",
-			buildUpstreamModelUpdateTaskNotificationContent(
-				checkedChannels,
-				changedChannels,
-				detectedAddModels,
-				detectedRemoveModels,
-				autoAddedModels,
-				failedChannelIDs,
-				channelSummaries,
-				addModelSamples,
-				removeModelSamples,
-			),
-		)
+		service.NotifyUpstreamModelUpdateWatchers(func(lang string) (string, string) {
+			return i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateNotifySubject),
+				buildUpstreamModelUpdateTaskNotificationContent(
+					lang,
+					checkedChannels,
+					changedChannels,
+					detectedAddModels,
+					detectedRemoveModels,
+					autoAddedModels,
+					failedChannelIDs,
+					channelSummaries,
+					addModelSamples,
+					removeModelSamples,
+				)
+		})
 	}
 	return summary
 }
@@ -1023,7 +1097,9 @@ func applyChannelUpstreamModelUpdates(
 	}
 
 	if modelsChanged {
-		if err := channel.UpdateAbilities(nil); err != nil {
+		err := channel.UpdateAbilities(nil)
+		model.BumpSyncTopic(model.SyncTopicChannels)
+		if err != nil {
 			return addModels, removeModels, remainingModels, remainingRemoveModels, true, err
 		}
 	}
@@ -1144,15 +1220,12 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 		return
 	}
 	if !created {
-		c.JSON(http.StatusConflict, gin.H{
-			"success": false,
-			"message": "已有模型更新任务正在运行或等待中，不能启动本次手动任务",
-			"data": gin.H{
-				"task_id": task.TaskID,
-				"status":  task.Status,
-				"type":    task.Type,
-			},
-		})
+		msg := common.NewMessage("A model update task is already running or queued. Cannot start this manual task")
+		common.ApiErrorStatus(c, http.StatusConflict, msg, gin.H{"data": gin.H{
+			"task_id": task.TaskID,
+			"status":  task.Status,
+			"type":    task.Type,
+		}})
 		return
 	}
 

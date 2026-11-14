@@ -1,19 +1,27 @@
 package model
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
+	"strings"
+	"sync/atomic"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/glebarez/sqlite"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+// channelsRevision is the id of the newest channels sync task, 0 without one.
+func channelsRevision(t *testing.T) int64 {
+	t.Helper()
+	revisions, err := GetLatestSyncRevisions()
+	require.NoError(t, err)
+	return revisions[SyncTopicChannels]
+}
 
 func setupChannelStatusTest(t *testing.T) {
 	t.Helper()
@@ -26,6 +34,25 @@ func setupChannelStatusTest(t *testing.T) {
 	t.Cleanup(func() {
 		common.MemoryCacheEnabled = memoryCacheEnabled
 	})
+}
+
+func TestCountChannelsGroupByStatus(t *testing.T) {
+	setupChannelStatusTest(t)
+	for _, status := range []int{
+		common.ChannelStatusEnabled,
+		common.ChannelStatusManuallyDisabled,
+		common.ChannelStatusManuallyDisabled,
+		common.ChannelStatusAutoDisabled,
+	} {
+		channel := Channel{Name: fmt.Sprintf("status-count-%d", status), Key: "test-key", Status: status, Models: "test-model", Group: "default"}
+		require.NoError(t, DB.Create(&channel).Error)
+	}
+
+	counts, err := CountChannelsGroupByStatus()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), counts[common.ChannelStatusEnabled])
+	assert.Equal(t, int64(2), counts[common.ChannelStatusManuallyDisabled])
+	assert.Equal(t, int64(1), counts[common.ChannelStatusAutoDisabled])
 }
 
 func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
@@ -56,386 +83,239 @@ func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex)
 }
 
-func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.T) {
-	setupChannelStatusTest(t)
-
-	channel := Channel{
-		Name:        "single-key-status",
-		Key:         "original-key",
-		Status:      common.ChannelStatusEnabled,
-		Models:      "original-model",
-		Group:       "default",
-		UsedQuota:   100,
-		ChannelInfo: ChannelInfo{},
-	}
-	require.NoError(t, DB.Create(&channel).Error)
-
-	stale, err := GetChannelById(channel.Id, true)
-	require.NoError(t, err)
-
-	concurrentChannelInfo := ChannelInfo{
-		IsMultiKey:           true,
-		MultiKeySize:         2,
-		MultiKeyMode:         constant.MultiKeyModePolling,
-		MultiKeyPollingIndex: 1,
-	}
-	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(map[string]any{
-		"key":          "rotated-key",
-		"used_quota":   gorm.Expr("used_quota + ?", 250),
-		"models":       "concurrent-model",
-		"channel_info": concurrentChannelInfo,
-	}).Error)
-
-	stale.Status = common.ChannelStatusManuallyDisabled
-	stale.SetOtherInfo(map[string]any{
-		"status_reason": "manual operation",
-		"status_time":   int64(1234),
-	})
-	require.NoError(t, stale.saveStatusState())
-
-	var stored Channel
-	require.NoError(t, DB.First(&stored, channel.Id).Error)
-	assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
-	assert.Equal(t, "rotated-key", stored.Key)
-	assert.Equal(t, int64(350), stored.UsedQuota)
-	assert.Equal(t, "concurrent-model", stored.Models)
-	assert.Equal(t, concurrentChannelInfo, stored.ChannelInfo)
-
-	otherInfo := stored.GetOtherInfo()
-	assert.Equal(t, "manual operation", otherInfo["status_reason"])
-	assert.Equal(t, float64(1234), otherInfo["status_time"])
-}
-
-func TestCountChannelsGroupByStatusCoversAllChannels(t *testing.T) {
-	setupChannelStatusTest(t)
-
-	channels := []Channel{
-		{Name: "enabled-1", Key: "key-1", Status: common.ChannelStatusEnabled, Models: "gpt-4", Group: "default"},
-		{Name: "enabled-2", Key: "key-2", Status: common.ChannelStatusEnabled, Models: "gpt-4", Group: "default"},
-		{Name: "manual-disabled", Key: "key-3", Status: common.ChannelStatusManuallyDisabled, Models: "gpt-4", Group: "default"},
-		{Name: "auto-disabled", Key: "key-4", Status: common.ChannelStatusAutoDisabled, Models: "gpt-4", Group: "default"},
-	}
-	for i := range channels {
-		require.NoError(t, DB.Create(&channels[i]).Error)
-	}
-
-	counts, err := CountChannelsGroupByStatus()
-	require.NoError(t, err)
-	assert.Equal(t, int64(2), counts[common.ChannelStatusEnabled])
-	assert.Equal(t, int64(1), counts[common.ChannelStatusManuallyDisabled])
-	assert.Equal(t, int64(1), counts[common.ChannelStatusAutoDisabled])
-}
-
-var abilityDialectDSNs = map[string]string{
-	"mysql":    "TEST_MYSQL_DSN",
-	"postgres": "TEST_POSTGRES_DSN",
-}
-
-// setupAbilityDialectDB swaps the global DB with an isolated per-dialect
-// database mirroring the pattern in channel_search_test.go. No table prefix is
-// used so raw-table queries such as GetEnabledModels hit the same names as in
-// production; tables are dropped before and after to stay isolated. mysql and
-// postgres dialects are skipped when their DSN env is not configured.
-func setupAbilityDialectDB(t *testing.T, dialect string) *gorm.DB {
+// writeAfterNextChannelRead stands for another node: right after the next
+// read of the channel, before the writer under test writes, it stores the
+// columns write returns for the channel it reads.
+func writeAfterNextChannelRead(t *testing.T, channelID int, write func(stored *Channel) map[string]any) {
 	t.Helper()
-
-	var driver gorm.Dialector
-	switch dialect {
-	case "sqlite":
-		driver = sqlite.Open(filepath.Join(t.TempDir(), "ability_heal.db"))
-	default:
-		dsn := os.Getenv(abilityDialectDSNs[dialect])
-		if dsn == "" {
-			t.Skipf("%s is not configured", abilityDialectDSNs[dialect])
+	var done atomic.Bool
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register("test:other_node_write", func(tx *gorm.DB) {
+		if !strings.HasSuffix(tx.Statement.Table, "channels") || !done.CompareAndSwap(false, true) {
+			return
 		}
-		if dialect == "mysql" {
-			driver = mysql.Open(dsn)
-		} else {
-			driver = postgres.Open(dsn)
-		}
-	}
-
-	db, err := gorm.Open(driver, &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	require.NoError(t, db.Migrator().DropTable(&Ability{}, &Channel{}))
-	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
-
-	previousDB, previousType := DB, common.MainDatabaseType()
-	DB = db
-	common.SetMainDatabaseType(common.DatabaseType(dialect))
-	initCol()
-	memoryCacheEnabled := common.MemoryCacheEnabled
-	common.MemoryCacheEnabled = false
-	t.Cleanup(func() {
-		common.MemoryCacheEnabled = memoryCacheEnabled
-		require.NoError(t, db.Migrator().DropTable(&Ability{}))
-		require.NoError(t, db.Migrator().DropTable(&Channel{}))
-		DB = previousDB
-		common.SetMainDatabaseType(previousType)
-		initCol()
-		require.NoError(t, sqlDB.Close())
-	})
-	return db
+		var stored Channel
+		require.NoError(t, DB.First(&stored, "id = ?", channelID).Error)
+		require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channelID).Updates(write(&stored)).Error)
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove("test:other_node_write") })
 }
 
-// TestChannelEnableRebuildsAbilitiesAcrossDialects protects the enable-time
-// ability heal and the AddAbilities upsert on real database dialects, where
-// the ON CONFLICT / ON DUPLICATE KEY rendering differs.
-func TestChannelEnableRebuildsAbilitiesAcrossDialects(t *testing.T) {
-	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
-		t.Run(dialect, func(t *testing.T) {
-			setupAbilityDialectDB(t, dialect)
+// A writer of other_info writes back only while no other writer, on any node,
+// changed it since the read; otherwise it reads again, so both changes are
+// kept. It writes its own columns only, so a stale read never puts back the
+// key, counters, models or channel_info another writer stored.
+func TestChannelOtherInfoWritesKeepConcurrentChanges(t *testing.T) {
+	useScheduledChannelDatabase(t)
+	common.MemoryCacheEnabled = false
 
-			channel := Channel{
-				Name:     "heal-dialect",
-				Type:     1,
-				Key:      "sk-heal",
-				Status:   common.ChannelStatusManuallyDisabled,
-				Models:   "healed-model",
-				Group:    "default,vip",
-				Priority: common.GetPointer[int64](3),
-				Weight:   common.GetPointer[uint](5),
-				Tag:      common.GetPointer("heal-tag"),
+	t.Run("a status change and a balance query of another node", func(t *testing.T) {
+		channel := Channel{Name: "status-race", Key: "original-key", Status: common.ChannelStatusEnabled, Models: "original-model", Group: "default", UsedQuota: 100}
+		require.NoError(t, channel.Insert())
+		concurrentInfo := ChannelInfo{MultiKeyMode: constant.MultiKeyModePolling, MultiKeyPollingIndex: 1}
+		writeAfterNextChannelRead(t, channel.Id, func(stored *Channel) map[string]any {
+			info := stored.GetOtherInfo()
+			info[channelBalanceDetailKey] = map[string]any{"amount": 7, "currency": "USD"}
+			stored.SetOtherInfo(info)
+			return map[string]any{
+				"other_info":   stored.OtherInfo,
+				"key":          "rotated-key",
+				"used_quota":   gorm.Expr("used_quota + ?", 250),
+				"models":       "concurrent-model",
+				"channel_info": concurrentInfo,
 			}
-			require.NoError(t, DB.Create(&channel).Error)
+		})
 
-			// Enabling a zero-abilities channel rebuilds its rows.
-			require.True(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusEnabled, ""))
-			abilities := []Ability{}
-			require.NoError(t, DB.Where("channel_id = ?", channel.Id).Find(&abilities).Error)
-			require.Len(t, abilities, 2)
-			for _, ability := range abilities {
-				assert.True(t, ability.Enabled)
-				assert.Equal(t, int64(3), *ability.Priority)
-				assert.Equal(t, uint(5), ability.Weight)
-				assert.Equal(t, "heal-tag", *ability.Tag)
-			}
-			assert.Contains(t, GetEnabledModels(), "healed-model")
+		require.True(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "manual operation"))
 
-			// Re-adding abilities refreshes stale rows instead of skipping them.
-			require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("priority", 6).Error)
-			stored, err := GetChannelById(channel.Id, true)
+		var stored Channel
+		require.NoError(t, DB.First(&stored, channel.Id).Error)
+		assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
+		assert.Equal(t, "manual operation", stored.GetOtherInfo()["status_reason"])
+		detail := stored.GetBalanceDetail()
+		require.NotNil(t, detail, stored.OtherInfo)
+		require.NotNil(t, detail.Amount)
+		assert.Equal(t, 7.0, *detail.Amount)
+		assert.Equal(t, "rotated-key", stored.Key)
+		assert.Equal(t, int64(350), stored.UsedQuota)
+		assert.Equal(t, "concurrent-model", stored.Models)
+		assert.Equal(t, concurrentInfo, stored.ChannelInfo)
+	})
+
+	t.Run("a balance query and a status change of another node", func(t *testing.T) {
+		channel := Channel{Name: "balance-race", Key: "key", Status: common.ChannelStatusEnabled, Models: "balance-model", Group: "default"}
+		require.NoError(t, channel.Insert())
+		// A channel stored before other_info was written has it NULL.
+		require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("other_info", gorm.Expr("NULL")).Error)
+		writeAfterNextChannelRead(t, channel.Id, func(stored *Channel) map[string]any {
+			info := stored.GetOtherInfo()
+			info["status_reason"] = "other node"
+			stored.SetOtherInfo(info)
+			return map[string]any{"other_info": stored.OtherInfo, "status": common.ChannelStatusManuallyDisabled}
+		})
+		amount := 3.5
+		detail, err := UpdateChannelBalanceDetail(channel.Id, func(*ChannelBalanceDetail) (*ChannelBalanceDetail, *float64) {
+			return &ChannelBalanceDetail{BalanceResult: jsplugin.BalanceResult{Amount: &amount, Currency: "USD"}}, &amount
+		})
+		require.NoError(t, err)
+		require.NotNil(t, detail)
+
+		var stored Channel
+		require.NoError(t, DB.First(&stored, channel.Id).Error)
+		assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
+		assert.Equal(t, "other node", stored.GetOtherInfo()["status_reason"])
+		assert.Equal(t, 3.5, stored.Balance)
+		assert.NotZero(t, stored.BalanceUpdatedTime)
+		require.NotNil(t, stored.GetBalanceDetail())
+		assert.Equal(t, 3.5, *stored.GetBalanceDetail().Amount)
+
+		// Storing the same failure twice writes the same values again, which
+		// MySQL reports as no changed row.
+		for range 2 {
+			_, err = UpdateChannelBalanceDetail(channel.Id, func(stored *ChannelBalanceDetail) (*ChannelBalanceDetail, *float64) {
+				stored.Error = "upstream failed"
+				return stored, nil
+			})
 			require.NoError(t, err)
-			require.NoError(t, stored.AddAbilities(nil))
-			refreshed := []Ability{}
-			require.NoError(t, DB.Where("channel_id = ?", channel.Id).Find(&refreshed).Error)
-			require.Len(t, refreshed, 2)
-			for _, ability := range refreshed {
-				assert.Equal(t, int64(6), *ability.Priority)
+		}
+		require.NoError(t, DB.First(&stored, channel.Id).Error)
+		assert.Equal(t, "upstream failed", stored.GetBalanceDetail().Error)
+		assert.Equal(t, "other node", stored.GetOtherInfo()["status_reason"])
+	})
+}
+
+func TestAutoDisableKeepsManualDisable(t *testing.T) {
+	for _, cacheEnabled := range []bool{false, true} {
+		for _, tc := range []struct {
+			name          string
+			multiKey      bool
+			initialStatus int
+			wantChanged   bool
+			wantStatus    int
+		}{
+			{name: "single key manual disable is kept", initialStatus: common.ChannelStatusManuallyDisabled, wantStatus: common.ChannelStatusManuallyDisabled},
+			{name: "multi key manual disable is kept", multiKey: true, initialStatus: common.ChannelStatusManuallyDisabled, wantStatus: common.ChannelStatusManuallyDisabled},
+			{name: "single key enabled is auto disabled", initialStatus: common.ChannelStatusEnabled, wantChanged: true, wantStatus: common.ChannelStatusAutoDisabled},
+			{name: "multi key enabled is auto disabled", multiKey: true, initialStatus: common.ChannelStatusEnabled, wantChanged: true, wantStatus: common.ChannelStatusAutoDisabled},
+		} {
+			t.Run(fmt.Sprintf("cache=%t/%s", cacheEnabled, tc.name), func(t *testing.T) {
+				setupChannelStatusTest(t)
+				common.MemoryCacheEnabled = cacheEnabled
+
+				channel := Channel{Name: t.Name(), Key: "key-a", Status: tc.initialStatus, Models: "test-model", Group: "default"}
+				usingKey := "key-a"
+				if tc.multiKey {
+					// key-b already failed, so a failure on key-a disables every key.
+					channel.Key = "key-a\nkey-b"
+					channel.ChannelInfo = ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyStatusList: map[int]int{1: common.ChannelStatusAutoDisabled}}
+				}
+				channel.SetOtherInfo(map[string]any{"status_reason": "manual operation", "status_time": int64(1234)})
+				require.NoError(t, channel.Insert())
+				InitChannelCache()
+
+				changed := UpdateChannelStatus(channel.Id, usingKey, common.ChannelStatusAutoDisabled, "provider rejected key")
+				assert.Equal(t, tc.wantChanged, changed)
+
+				stored, err := GetChannelById(channel.Id, true)
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantStatus, stored.Status)
+				if !tc.wantChanged {
+					assert.Equal(t, "manual operation", stored.GetOtherInfo()["status_reason"])
+					assert.Equal(t, float64(1234), stored.GetOtherInfo()["status_time"])
+					assert.Equal(t, channel.ChannelInfo.MultiKeyStatusList, stored.ChannelInfo.MultiKeyStatusList)
+				}
+				var abilities []Ability
+				require.NoError(t, DB.Where("channel_id = ?", channel.Id).Find(&abilities).Error)
+				require.NotEmpty(t, abilities)
+				for _, ability := range abilities {
+					assert.False(t, ability.Enabled)
+				}
+				if cacheEnabled {
+					cached, err := CacheGetChannel(channel.Id)
+					require.NoError(t, err)
+					assert.Equal(t, tc.wantStatus, cached.Status)
+					assert.Equal(t, stored.ChannelInfo.MultiKeyStatusList, cached.ChannelInfo.MultiKeyStatusList)
+				}
+			})
+		}
+	}
+}
+
+// A status set by hand reaches every node at once through the channels topic.
+// An automatic change, made for the key a request or a channel test used, is
+// left to the periodic channel sync and bumps nothing.
+func TestUpdateChannelStatusBumpsChannelsOnlyForChangesByHand(t *testing.T) {
+	for _, cacheEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cache=%t", cacheEnabled), func(t *testing.T) {
+			setupChannelStatusTest(t)
+			common.MemoryCacheEnabled = cacheEnabled
+			revision := func() int64 { return channelsRevision(t) }
+			single := Channel{Name: "status-single", Key: "key-a", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default"}
+			multi := Channel{Name: "status-multi", Key: "key-a\nkey-b", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default",
+				ChannelInfo: ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling}}
+			require.NoError(t, single.Insert())
+			require.NoError(t, multi.Insert())
+			InitChannelCache()
+
+			for _, step := range []struct {
+				name     string
+				id       int
+				usingKey string
+				status   int
+				bump     bool
+			}{
+				{name: "a request disables a key", id: multi.Id, usingKey: "key-a", status: common.ChannelStatusAutoDisabled},
+				{name: "a request disables a single-key channel", id: single.Id, usingKey: "key-a", status: common.ChannelStatusAutoDisabled},
+				{name: "a test re-enables the channel", id: single.Id, usingKey: "key-a", status: common.ChannelStatusEnabled},
+				{name: "an admin disables a channel", id: single.Id, status: common.ChannelStatusManuallyDisabled, bump: true},
+				{name: "an admin disables it again", id: single.Id, status: common.ChannelStatusManuallyDisabled},
+				{name: "an admin enables a channel", id: single.Id, status: common.ChannelStatusEnabled, bump: true},
+				{name: "an admin disables a multi-key channel", id: multi.Id, status: common.ChannelStatusManuallyDisabled, bump: true},
+			} {
+				before := revision()
+				changed := UpdateChannelStatus(step.id, step.usingKey, step.status, step.name)
+				assert.Equal(t, step.bump || step.usingKey != "", changed, step.name)
+				assert.Equal(t, step.bump, before != revision(), step.name)
 			}
 		})
 	}
 }
 
-func TestUpdateChannelStatus_StatusReasonPopulation(t *testing.T) {
+// The master runs a plugin's scheduled hook when a key is disabled
+// automatically, so a follower's automatic disable of such a key bumps the
+// channels topic; the master's own, or one for a plugin without the hook,
+// does not.
+func TestAutoDisableOfAScheduledPluginKeyBumpsChannelsOnFollowers(t *testing.T) {
 	setupChannelStatusTest(t)
-
-	channel := Channel{
-		Name:        "reason-test-channel",
-		Key:         "sk-test-key",
-		Status:      common.ChannelStatusEnabled,
-		Models:      "gpt-4",
-		Group:       "default",
-		ChannelInfo: ChannelInfo{},
+	master := common.IsMasterNode
+	t.Cleanup(func() { common.IsMasterNode = master })
+	for key, hooks := range map[string]string{
+		"status-scheduled": `export function scheduled() { return {next: 3600}; }`,
+		"status-plain":     "",
+	} {
+		_, err := jsplugin.DefaultRegistry.Register(`export const meta = {apiVersion: 1, key: "`+key+`", name: "Status", version: "1.0.0", author: {name: "Test"}, relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}]};`+hooks, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
 	}
-	require.NoError(t, DB.Create(&channel).Error)
+	revision := func() int64 { return channelsRevision(t) }
 
-	// 1. Disable with reason
-	changed := UpdateChannelStatus(channel.Id, "", common.ChannelStatusAutoDisabled, "status_code=429, Quota exceeded")
-	require.True(t, changed)
+	for _, tc := range []struct {
+		plugin string
+		master bool
+		bump   bool
+	}{
+		{plugin: "status-scheduled", bump: true},
+		{plugin: "status-scheduled", master: true},
+		{plugin: "status-plain"},
+	} {
+		t.Run(fmt.Sprintf("%s/master=%t", tc.plugin, tc.master), func(t *testing.T) {
+			common.IsMasterNode = tc.master
+			channel := Channel{Type: constant.ChannelTypeTaskPlugin, Name: t.Name(), Key: "key-a", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default"}
+			channel.SetSetting(dto.ChannelSettings{TaskPluginKey: tc.plugin})
+			require.NoError(t, channel.Insert())
 
-	var stored Channel
-	require.NoError(t, DB.First(&stored, channel.Id).Error)
-	assert.Equal(t, common.ChannelStatusAutoDisabled, stored.Status)
-	assert.Equal(t, "status_code=429, Quota exceeded", stored.StatusReason)
-
-	// 2. Re-enable clears reason
-	changed = UpdateChannelStatus(channel.Id, "", common.ChannelStatusEnabled, "")
-	require.True(t, changed)
-
-	require.NoError(t, DB.First(&stored, channel.Id).Error)
-	assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
-	assert.Empty(t, stored.StatusReason)
-}
-
-func TestUpdateChannelStatusRebuildsMissingAbilitiesOnEnable(t *testing.T) {
-	setupChannelStatusTest(t)
-
-	// Simulate a legacy channel whose ability rows were lost: enabled with
-	// non-empty models but zero abilities, so its models are invisible to
-	// the ability-based model listing.
-	channel := Channel{
-		Name:        "zero-abilities",
-		Key:         "sk-heal",
-		Status:      common.ChannelStatusEnabled,
-		Models:      "codestral,gpt-4o",
-		Group:       "default",
-		ChannelInfo: ChannelInfo{},
+			before := revision()
+			require.True(t, UpdateChannelStatus(channel.Id, "key-a", common.ChannelStatusAutoDisabled, "quota"))
+			assert.Equal(t, tc.bump, before != revision())
+		})
 	}
-	require.NoError(t, DB.Create(&channel).Error)
-
-	var before int64
-	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", channel.Id).Count(&before).Error)
-	require.Zero(t, before)
-	assert.NotContains(t, GetEnabledModels(), "codestral")
-
-	// Disabling a zero-abilities channel must not invent rows.
-	require.True(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "manual operation"))
-	var disabledCount int64
-	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", channel.Id).Count(&disabledCount).Error)
-	assert.Zero(t, disabledCount)
-
-	// Re-enabling rebuilds the rows and makes the models visible again.
-	require.True(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusEnabled, ""))
-	abilities := []Ability{}
-	require.NoError(t, DB.Where("channel_id = ?", channel.Id).Order("model").Find(&abilities).Error)
-	require.Len(t, abilities, 2)
-	for _, ability := range abilities {
-		assert.True(t, ability.Enabled)
-		assert.Equal(t, "default", ability.Group)
-	}
-	assert.Contains(t, GetEnabledModels(), "codestral")
-	assert.Contains(t, GetEnabledModels(), "gpt-4o")
-
-	// A repeated enable (no status change) keeps the rows stable.
-	require.False(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusEnabled, ""))
-	var afterCount int64
-	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", channel.Id).Count(&afterCount).Error)
-	assert.Equal(t, int64(2), afterCount)
-}
-
-func TestEnableChannelByTagRebuildsMissingAbilities(t *testing.T) {
-	setupChannelStatusTest(t)
-
-	broken := Channel{
-		Name:   "tag-broken",
-		Key:    "k1",
-		Status: common.ChannelStatusManuallyDisabled,
-		Models: "m-broken",
-		Group:  "default",
-		Tag:    common.GetPointer("grp"),
-	}
-	intact := Channel{
-		Name:   "tag-intact",
-		Key:    "k2",
-		Status: common.ChannelStatusManuallyDisabled,
-		Models: "m-intact",
-		Group:  "default",
-		Tag:    common.GetPointer("grp"),
-	}
-	require.NoError(t, DB.Create(&broken).Error)
-	require.NoError(t, DB.Create(&intact).Error)
-	require.NoError(t, intact.AddAbilities(nil))
-	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", intact.Id).Update("enabled", false).Error)
-
-	require.NoError(t, EnableChannelByTag("grp"))
-
-	// The intact channel keeps one row per (group, model), now enabled.
-	var intactAbilities []Ability
-	require.NoError(t, DB.Where("channel_id = ?", intact.Id).Find(&intactAbilities).Error)
-	require.Len(t, intactAbilities, 1)
-	assert.True(t, intactAbilities[0].Enabled)
-
-	// The broken channel gets its missing rows back.
-	var brokenAbilities []Ability
-	require.NoError(t, DB.Where("channel_id = ?", broken.Id).Find(&brokenAbilities).Error)
-	require.Len(t, brokenAbilities, 1)
-	assert.True(t, brokenAbilities[0].Enabled)
-	assert.Contains(t, GetEnabledModels(), "m-broken")
-}
-
-func TestAddAbilitiesUpsertsStaleRows(t *testing.T) {
-	setupChannelStatusTest(t)
-
-	channel := Channel{
-		Name:     "upsert-refresh",
-		Key:      "k3",
-		Status:   common.ChannelStatusEnabled,
-		Models:   "m1,m2",
-		Group:    "default,vip",
-		Priority: common.GetPointer[int64](7),
-		Weight:   common.GetPointer[uint](10),
-		Tag:      common.GetPointer("old-tag"),
-	}
-	require.NoError(t, DB.Create(&channel).Error)
-	require.NoError(t, channel.AddAbilities(nil))
-
-	// The channel changes later; re-adding its abilities must refresh the
-	// stale rows instead of silently keeping the old values.
-	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(map[string]any{
-		"priority": 9,
-		"weight":   20,
-		"tag":      "new-tag",
-		"status":   common.ChannelStatusManuallyDisabled,
-	}).Error)
-
-	updated, err := GetChannelById(channel.Id, true)
-	require.NoError(t, err)
-	require.NoError(t, updated.AddAbilities(nil))
-
-	var abilities []Ability
-	require.NoError(t, DB.Where("channel_id = ?", channel.Id).Find(&abilities).Error)
-	require.Len(t, abilities, 4)
-	for _, ability := range abilities {
-		assert.False(t, ability.Enabled)
-		assert.Equal(t, int64(9), *ability.Priority)
-		assert.Equal(t, uint(20), ability.Weight)
-		assert.Equal(t, "new-tag", *ability.Tag)
-	}
-}
-
-func TestChannelModelMappingExposesAliasesInAbilitiesAndRouting(t *testing.T) {
-	setupChannelStatusTest(t)
-
-	mapping := `{"deepseek-v4-flash":"deepseek-ai/DeepSeek-V4-Flash","custom-chat":"gpt-4o"}`
-	channel := Channel{
-		Name:         "mapping-test",
-		Key:          "k-map",
-		Status:       common.ChannelStatusEnabled,
-		Models:       "deepseek-ai/DeepSeek-V4-Flash,gpt-4o,unmapped-model",
-		Group:        "default",
-		ModelMapping: &mapping,
-	}
-	require.NoError(t, DB.Create(&channel).Error)
-	require.NoError(t, channel.AddAbilities(nil))
-
-	// 1. Check abilities table: targets (deepseek-ai/DeepSeek-V4-Flash, gpt-4o) are replaced by aliases
-	var abilities []Ability
-	require.NoError(t, DB.Where("channel_id = ?", channel.Id).Find(&abilities).Error)
-	abilityModels := make([]string, 0, len(abilities))
-	for _, a := range abilities {
-		abilityModels = append(abilityModels, a.Model)
-	}
-	assert.Contains(t, abilityModels, "deepseek-v4-flash")
-	assert.Contains(t, abilityModels, "custom-chat")
-	assert.Contains(t, abilityModels, "unmapped-model")
-	assert.NotContains(t, abilityModels, "deepseek-ai/DeepSeek-V4-Flash")
-	assert.NotContains(t, abilityModels, "gpt-4o")
-
-	// 2. Check GetGroupEnabledModels: only aliases and unmapped models are exposed
-	groupModels := GetGroupEnabledModels("default")
-	assert.Contains(t, groupModels, "deepseek-v4-flash")
-	assert.Contains(t, groupModels, "custom-chat")
-	assert.Contains(t, groupModels, "unmapped-model")
-	assert.NotContains(t, groupModels, "deepseek-ai/DeepSeek-V4-Flash")
-	assert.NotContains(t, groupModels, "gpt-4o")
-
-	// 3. Check memory routing cache: mapping alias keys can route to the channel
-	common.MemoryCacheEnabled = true
-	InitChannelCache()
-	defer func() {
-		common.MemoryCacheEnabled = false
-	}()
-
-	routedChannel, err := GetRandomSatisfiedChannel("default", "deepseek-v4-flash", 0, nil)
-	require.NoError(t, err)
-	require.NotNil(t, routedChannel)
-	assert.Equal(t, channel.Id, routedChannel.Id)
-
-	routedChat, err := GetRandomSatisfiedChannel("default", "custom-chat", 0, nil)
-	require.NoError(t, err)
-	require.NotNil(t, routedChat)
-	assert.Equal(t, channel.Id, routedChat.Id)
 }

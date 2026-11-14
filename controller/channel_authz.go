@@ -1,6 +1,6 @@
 package controller
 
-import "github.com/chaos-api/chaos-api/model"
+import "github.com/QuantumNous/new-api/model"
 
 func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, requestData map[string]any) bool {
 	if _, ok := requestData["type"]; ok && channel.Type != origin.Type {
@@ -88,6 +88,7 @@ var channelReadOnlyFields = map[string]struct{}{
 	"balance":              {},
 	"balance_updated_time": {},
 	"used_quota":           {},
+	"balance_detail":       {},
 	"status_reason":        {},
 }
 
@@ -109,6 +110,12 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 	}
 	if _, ok := requestData["used_quota"]; ok {
 		channel.UsedQuota = 0
+	}
+	if _, ok := requestData["balance_detail"]; ok {
+		channel.BalanceDetail = nil
+	}
+	if _, ok := requestData["status_reason"]; ok {
+		channel.StatusReason = ""
 	}
 }
 

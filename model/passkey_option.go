@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -240,6 +240,7 @@ func UpdatePasskeyDomainOptions(values map[string]string, preview bool, confirma
 	if err != nil {
 		return change, err
 	}
+	BumpSyncTopic(SyncTopicOptions)
 	applyPasskeyDomainOptions(values)
 	for key, value := range values {
 		if !IsPasskeyDomainOption(key) {

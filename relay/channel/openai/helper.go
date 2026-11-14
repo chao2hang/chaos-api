@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/logger"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	relayconstant "github.com/chaos-api/chaos-api/relay/constant"
-	"github.com/chaos-api/chaos-api/relay/helper"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert"
-	"github.com/chaos-api/chaos-api/relaykit/types"
-	"github.com/chaos-api/chaos-api/service"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/samber/lo"
 
@@ -62,7 +62,7 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
 	var streamResponse dto.ChatCompletionsStreamResponse
 	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
-		logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
+		logger.LogError(c, common.LogText("failed to unmarshal stream response: %s", err.Error()))
 		return err
 	}
 
@@ -111,7 +111,7 @@ func sendGeminiStreamResults(c *gin.Context, results []relayconvert.ResponseResu
 		}
 		data, err := common.Marshal(geminiResponse)
 		if err != nil {
-			logger.LogError(c, "failed to marshal gemini response: "+err.Error())
+			logger.LogError(c, common.LogText("failed to marshal gemini response: %s", err.Error()))
 			return err
 		}
 		c.Render(-1, common.CustomEvent{Data: "data: " + string(data)})
@@ -167,11 +167,6 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	containStreamUsage *bool, info *relaycommon.RelayInfo,
 	shouldSendLastResp *bool) error {
 
-	if code, _, hasErr := extractBaseRespError(lastStreamData); hasErr && code != 0 {
-		*shouldSendLastResp = false
-		return nil
-	}
-
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &lastStreamResponse); err != nil {
 		return err
@@ -202,7 +197,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		if !hasFinishReason {
-			stopResponse := helper.GenerateStopResponse(responseId, createAt, model, "stop")
+			stopResponse := helper.GenerateStopResponse(responseId, createAt, model, types.FinishReasonStop)
 			if systemFingerprint != "" {
 				stopResponse.SetSystemFingerprint(systemFingerprint)
 			}
@@ -218,7 +213,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case types.RelayFormatClaude:
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
-			common.SysLog("error unmarshalling stream response: " + err.Error())
+			common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
 			return
 		}
 
@@ -226,12 +221,12 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 
 		result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
 		if err != nil {
-			common.SysLog("error converting Claude stream response: " + err.Error())
+			common.SysLog(common.LogText("error converting Claude stream response: %s", err.Error()))
 			return
 		}
 		claudeResponses, ok := result.Value.([]*dto.ClaudeResponse)
 		if !ok {
-			common.SysLog(fmt.Sprintf("expected Claude stream responses, got %T", result.Value))
+			common.SysLog(common.LogText("expected Claude stream responses, got %T", result.Value))
 			return
 		}
 		for _, resp := range claudeResponses {
@@ -242,73 +237,34 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case types.RelayFormatGemini:
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
-			common.SysLog("error unmarshalling stream response: " + err.Error())
+			common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
 			return
 		}
 
 		state, err := chatToGeminiStreamState(info, &streamResponse)
 		if err != nil {
-			common.SysLog("error creating Gemini stream state: " + err.Error())
+			common.SysLog(common.LogText("error creating Gemini stream state: %s", err.Error()))
 			return
 		}
 		state.SetUsage(usage)
 
 		results, err := service.ConvertStreamResponseChunk(c, info, state, &streamResponse)
 		if err != nil {
-			common.SysLog("error converting final Gemini stream response: " + err.Error())
+			common.SysLog(common.LogText("error converting final Gemini stream response: %s", err.Error()))
 			return
 		}
 		if err := sendGeminiStreamResults(c, results); err != nil {
-			common.SysLog("error sending final Gemini stream response: " + err.Error())
+			common.SysLog(common.LogText("error sending final Gemini stream response: %s", err.Error()))
 			return
 		}
 
 		results, err = service.FinalizeStreamResponse(c, info, state)
 		if err != nil {
-			common.SysLog("error finalizing Gemini stream response: " + err.Error())
+			common.SysLog(common.LogText("error finalizing Gemini stream response: %s", err.Error()))
 			return
 		}
 		if err := sendGeminiStreamResults(c, results); err != nil {
-			common.SysLog("error sending finalized Gemini stream response: " + err.Error())
+			common.SysLog(common.LogText("error sending finalized Gemini stream response: %s", err.Error()))
 		}
 	}
-}
-
-func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamResponse, data string) {
-	if data == "" {
-		return
-	}
-	_ = helper.ResponseChunkData(c, streamResponse, data)
-}
-
-func hasChoiceFinishReason(data string) bool {
-	if data == "" {
-		return false
-	}
-	var streamResponse dto.ChatCompletionsStreamResponse
-	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-		return false
-	}
-	for _, choice := range streamResponse.Choices {
-		if choice.FinishReason != nil && *choice.FinishReason != "" {
-			return true
-		}
-	}
-	return false
-}
-
-func extractBaseRespError(data string) (statusCode int64, statusMsg string, hasError bool) {
-	if data == "" {
-		return 0, "", false
-	}
-	var resp struct {
-		BaseResp *struct {
-			StatusCode int64  `json:"status_code"`
-			StatusMsg  string `json:"status_msg"`
-		} `json:"base_resp,omitempty"`
-	}
-	if err := common.UnmarshalJsonStr(data, &resp); err == nil && resp.BaseResp != nil && resp.BaseResp.StatusCode != 0 {
-		return resp.BaseResp.StatusCode, resp.BaseResp.StatusMsg, true
-	}
-	return 0, "", false
 }

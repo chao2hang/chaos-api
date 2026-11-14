@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,16 +14,17 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useParams } from '@tanstack/react-router'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 import type { SystemOption } from '../types'
-import { SettingsNavigation } from './settings-navigation'
 import { SettingsPageProvider } from './settings-page-context'
 
 type SettingsPageProps<
@@ -84,7 +85,6 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='flex h-full min-h-0 w-full flex-col gap-4'>
-            <SettingsNavigation />
             {props.children}
           </div>
         </SectionPageLayout.Content>
@@ -112,7 +112,7 @@ export function SettingsPage<
   resolveSettings,
 }: SettingsPageProps<TSettings, TSectionId, TExtraArgs>) {
   const { t } = useTranslation()
-  const { data, isLoading } = useSystemOptions()
+  const { data, isLoading, isError, refetch } = useSystemOptions()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const params = useParams({ from: routePath as any })
   const activeSection = (params?.section ?? defaultSection) as TSectionId
@@ -134,6 +134,17 @@ export function SettingsPage<
         <div className='text-muted-foreground flex min-h-40 items-center justify-center text-sm'>
           {t(loadingMessage)}
         </div>
+      </SettingsPageFrame>
+    )
+  }
+
+  if (isError && !data) {
+    return (
+      <SettingsPageFrame title={t(sectionMeta.titleKey)}>
+        <ErrorState
+          title={t('Failed to load settings')}
+          onRetry={() => void refetch()}
+        />
       </SettingsPageFrame>
     )
   }

@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/convmeta"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/convdiag"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/jsonutil"
-	relaymedia "github.com/chaos-api/chaos-api/relaykit/relayconvert/internal/media"
-	kitutil "github.com/chaos-api/chaos-api/relaykit/relayconvert/kitutil"
-	"github.com/chaos-api/chaos-api/relaykit/relayconvert/reasoning"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/jsonutil"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func GeminiGenerateContentRequestToOpenAIChat(ctx context.Context, geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
@@ -131,7 +131,8 @@ func GeminiGenerateContentRequestToOpenAIChat(ctx context.Context, geminiRequest
 
 		if len(toolCalls) > 0 {
 			message.SetToolCalls(toolCalls)
-		} else if len(mediaContents) == 1 && mediaContents[0].Type == "text" {
+		}
+		if len(mediaContents) == 1 && mediaContents[0].Type == "text" {
 			message.Content = mediaContents[0].Text
 		} else if len(mediaContents) > 0 {
 			message.SetMediaContent(mediaContents)

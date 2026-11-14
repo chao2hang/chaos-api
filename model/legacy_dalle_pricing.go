@@ -8,7 +8,7 @@ package model
 import (
 	"strings"
 
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 func legacyDallePricingRules(name string) []LegacyPricingRule {

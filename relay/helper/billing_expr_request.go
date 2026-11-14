@@ -4,25 +4,41 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/pkg/billingexpr"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 )
 
-func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (billingexpr.RequestInput, error) {
+// ResolveIncomingBillingExprRequestInput freezes the request context a billing
+// expression reads. Only expressions that call param() read the body; for the
+// others it is not loaded, so a disk-cached body never moves into memory and
+// the snapshot does not keep the whole request alive until settlement.
+func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo, readsBody bool) (billingexpr.RequestInput, error) {
 	if info != nil && info.BillingRequestInput != nil {
 		input := cloneRequestInput(*info.BillingRequestInput)
 		merged := cloneStringMap(info.RequestHeaders)
 		maps.Copy(merged, input.Headers)
 		input.Headers = merged
+		// A later expression, such as compact repricing, may read a body the
+		// first expression did not need.
+		if readsBody && input.Body == nil {
+			bodyBytes, err := readIncomingBillingExprBody(c)
+			if err != nil {
+				return billingexpr.RequestInput{}, err
+			}
+			input.Body = bodyBytes
+		}
 		return input, nil
 	}
 
 	input := billingexpr.RequestInput{}
 	if info != nil {
 		input.Headers = cloneStringMap(info.RequestHeaders)
+	}
+	if !readsBody {
+		return input, nil
 	}
 
 	bodyBytes, err := readIncomingBillingExprBody(c)

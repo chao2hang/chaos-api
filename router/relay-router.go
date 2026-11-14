@@ -3,11 +3,11 @@ package router
 import (
 	"strings"
 
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/controller"
-	"github.com/chaos-api/chaos-api/middleware"
-	"github.com/chaos-api/chaos-api/relay"
-	"github.com/chaos-api/chaos-api/relaykit/types"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -109,6 +109,14 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAlphaSearch)
 		})
 
+		// DeepSeek Search and Fetch API routes
+		httpRouter.POST("/tools/search", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatDeepSeekTools)
+		})
+		httpRouter.POST("/tools/fetch", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatDeepSeekTools)
+		})
+
 		// image related routes. /images/generations and /images/edits are
 		// host protocol endpoints (openai_image) registered by
 		// SetTaskPluginProtocolRouter; unclaimed models fall back to Relay.
@@ -155,7 +163,6 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.GET("/files", controller.RelayNotImplemented)
 		httpRouter.POST("/files", controller.RelayNotImplemented)
 		httpRouter.DELETE("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id", controller.RelayNotImplemented)
 		httpRouter.GET("/files/:id/content", controller.RelayNotImplemented)
 		httpRouter.POST("/fine-tunes", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes", controller.RelayNotImplemented)
@@ -184,6 +191,14 @@ func SetRelayRouter(router *gin.Engine) {
 		if strings.HasSuffix(c.Request.URL.Path, ":countTokens") {
 			controller.RelayNotFound(c)
 			c.Abort()
+		}
+	})
+	// Veo's :predictLongRunning goes to the plugin route that declares it (the
+	// google plugin's POST /v1beta/models/:model) before this group's auth,
+	// rate limit and channel selection; without one it stays with the relay.
+	relayGeminiRouter.Use(func(c *gin.Context) {
+		if strings.HasSuffix(c.Request.URL.Path, ":predictLongRunning") {
+			defaultPluginDispatcher.dispatch(c)
 		}
 	})
 	relayGeminiRouter.Use(middleware.RouteTag("relay"))

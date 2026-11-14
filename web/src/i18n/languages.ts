@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 export const INTERFACE_LANGUAGE_OPTIONS = [
   { code: 'zhCN', label: '简体中文' },
@@ -31,24 +32,17 @@ export type InterfaceLanguageCode =
 export function normalizeInterfaceLanguage(value?: string | null): string {
   if (!value) return 'en'
 
-  const normalized = value.trim().replaceAll('_', '-').toLowerCase()
+  let normalized = value.trim().replaceAll('_', '-').toLowerCase()
   if (
-    normalized === 'zhtw' ||
-    normalized === 'zh-tw' ||
-    normalized === 'zh-hk' ||
-    normalized === 'zh-mo' ||
-    normalized === 'zh-hant' ||
-    normalized.startsWith('zh-hant')
+    value === 'zh-TW' ||
+    value === 'zh-HK' ||
+    value === 'zh-MO' ||
+    value === 'zhTW'
   ) {
-    return 'zhTW'
+    normalized = 'zhTW'
   }
-  if (
-    normalized === 'zhcn' ||
-    normalized === 'zh-cn' ||
-    normalized === 'zh-hans' ||
-    normalized.startsWith('zh-hans')
-  ) {
-    return 'zhCN'
+  if (value === 'zh-CN' || value === 'zh-Hans' || value === 'zhCN') {
+    normalized = 'zhCN'
   }
 
   return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)

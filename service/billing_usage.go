@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 const (

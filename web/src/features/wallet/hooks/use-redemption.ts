@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
 import { useState, useCallback } from 'react'
@@ -21,6 +22,7 @@ import { toast } from 'sonner'
 
 import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { redeemTopupCode } from '../api'
 
@@ -52,10 +54,10 @@ export function useRedemption() {
         return true
       }
 
-      toast.error(response.message || i18next.t('Redemption failed'))
+      handleServerError(response, i18next.t('Redemption failed'))
       return false
     } catch (_error) {
-      toast.error(i18next.t('Redemption failed'))
+      handleServerError(_error, i18next.t('Redemption failed'))
       return false
     } finally {
       setRedeeming(false)

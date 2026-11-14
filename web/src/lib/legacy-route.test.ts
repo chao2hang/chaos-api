@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
@@ -25,19 +26,19 @@ describe('legacy frontend route migration', () => {
       '/login': '/sign-in',
       '/forbidden': '/403',
       '/console': '/dashboard',
-      '/console/models': '/admin/models',
-      '/console/deployment': '/admin/models',
-      '/console/subscription': '/admin/subscriptions',
-      '/console/channel': '/admin/channels',
+      '/console/models': '/models',
+      '/console/deployment': '/models/deployments',
+      '/console/subscription': '/subscriptions',
+      '/console/channel': '/channels',
       '/console/token': '/keys',
-      '/console/playground': '/dashboard',
-      '/console/redemption': '/admin/redemption-codes',
-      '/console/user': '/admin/users',
+      '/console/playground': '/playground',
+      '/console/redemption': '/redemption-codes',
+      '/console/user': '/users',
       '/console/personal': '/profile',
       '/console/log': '/usage-logs',
       '/console/midjourney': '/usage-logs/drawing',
       '/console/task': '/usage-logs/task',
-      '/console/chat/42': '/dashboard',
+      '/console/chat/42': '/chat/42',
     }
 
     for (const [source, target] of Object.entries(routes)) {
@@ -56,18 +57,18 @@ describe('legacy frontend route migration', () => {
 
   test('maps legacy settings tabs and retains unrelated parameters', () => {
     const settingsTabs = {
-      operation: '/admin/system-settings',
-      dashboard: '/admin/system-settings',
-      chats: '/admin/system-settings',
-      drawing: '/admin/system-settings',
-      payment: '/admin/system-settings',
-      ratio: '/admin/system-settings',
-      ratelimit: '/admin/system-settings',
-      models: '/admin/system-settings',
-      'model-deployment': '/admin/system-settings',
-      performance: '/admin/system-settings',
-      system: '/admin/system-settings',
-      other: '/admin/system-settings',
+      operation: '/system-settings/operations/behavior',
+      dashboard: '/system-settings/content/dashboard',
+      chats: '/system-settings/content/chat',
+      drawing: '/system-settings/content/drawing',
+      payment: '/system-settings/billing/payment',
+      ratio: '/system-settings/billing/model-pricing',
+      ratelimit: '/system-settings/security/rate-limit',
+      models: '/system-settings/models/global',
+      'model-deployment': '/system-settings/models/model-deployment',
+      performance: '/system-settings/operations/performance',
+      system: '/system-settings/site/system-info',
+      other: '/system-settings/site/system-info',
     }
 
     for (const [tab, target] of Object.entries(settingsTabs)) {
@@ -76,7 +77,7 @@ describe('legacy frontend route migration', () => {
       ).toBe(`${target}?tab=${tab}&from=bookmark#form`)
     }
     expect(resolveLegacyRoute('/console/setting?tab=unknown')).toBe(
-      '/admin/system-settings?tab=unknown'
+      '/system-settings?tab=unknown'
     )
   })
 

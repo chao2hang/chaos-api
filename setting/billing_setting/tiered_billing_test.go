@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/pkg/jsplugin"
-	relaycommon "github.com/chaos-api/chaos-api/relay/common"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +30,25 @@ func TestSmokeTestTaskExprValidatesDeclaredUsageVectors(t *testing.T) {
 			schema:        videoSchema,
 			expression:    `true ? tier("normal", u("seconds") * 0.4) : tier("fixed", fixed(0.01))`,
 			expectedError: "fixed pricing is not supported for task usage expressions",
+		},
+		{
+			// Tasks have no token counts: the expression would bill 0.
+			name:          "token counts are not task usage prices",
+			schema:        videoSchema,
+			expression:    `tier("base", u("seconds") * 0.4 + (len > 1000 ? c * 8 : 0))`,
+			expectedError: "task usage expressions cannot read chat request quantities",
+		},
+		{
+			// image_count is the chat request's image count: a task would read 1.
+			name:          "image count is not a task usage price",
+			schema:        map[string]jsplugin.UsageFieldSchema{"image_count": {Type: "number", Unit: "count"}},
+			expression:    `tier("images", image_count * 0.04)`,
+			expectedError: "task usage expressions cannot read chat request quantities",
+		},
+		{
+			name:       "task image counts come from usage facts",
+			schema:     map[string]jsplugin.UsageFieldSchema{"image_count": {Type: "number", Unit: "count"}},
+			expression: `tier("images", u("image_count") * 0.04)`,
 		},
 		{
 			name:       "declared numeric and enum facts",

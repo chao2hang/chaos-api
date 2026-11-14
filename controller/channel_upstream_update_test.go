@@ -8,10 +8,11 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/chaos-api/chaos-api/common"
-	"github.com/chaos-api/chaos-api/constant"
-	"github.com/chaos-api/chaos-api/model"
-	"github.com/chaos-api/chaos-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,40 +36,6 @@ func newAdvancedCustomModelListChannel(baseURL string, key string, upstreamPath 
 	}
 	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: config})
 	return channel
-}
-
-func TestBuildOpenAICompatibleModelListURL(t *testing.T) {
-	tests := []struct {
-		name        string
-		channelType int
-		baseURL     string
-		want        string
-	}{
-		{
-			name:        "default OpenAI compatible URL",
-			channelType: constant.ChannelTypeDeepSeek,
-			baseURL:     "https://api.example.test",
-			want:        "https://api.example.test/v1/models",
-		},
-		{
-			name:        "Ali URL",
-			channelType: constant.ChannelTypeAli,
-			baseURL:     "https://api.example.test",
-			want:        "https://api.example.test/compatible-mode/v1/models",
-		},
-		{
-			name:        "VolcEngine URL avoids duplicate API v3 suffix",
-			channelType: constant.ChannelTypeVolcEngine,
-			baseURL:     "https://api.example.test/api/v3",
-			want:        "https://api.example.test/api/v3/models",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.want, buildOpenAICompatibleModelListURL(test.channelType, test.baseURL))
-		})
-	}
 }
 
 func TestParseOpenAIModelIDsStrictResponseContract(t *testing.T) {
@@ -275,41 +242,6 @@ func TestFetchModelsAdvancedCustomCreatePreview(t *testing.T) {
 	require.Equal(t, "Bearer create-preview-key", <-receivedAuthorization)
 }
 
-func TestFetchModelsAdvancedCustomCreatePreviewDefaultConfig(t *testing.T) {
-	receivedAuthorization := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, dto.AdvancedCustomModelListPath, r.URL.Path)
-		receivedAuthorization <- r.Header.Get("Authorization")
-		_, _ = w.Write([]byte(`{"data":[{"id":"default-preview-model"}]}`))
-	}))
-	defer server.Close()
-
-	baseURL := server.URL
-	req := fetchModelsRequest{
-		BaseURL: &baseURL,
-		Type:    constant.ChannelTypeAdvancedCustom,
-		Key:     "default-preview-key",
-	}
-	body, err := common.Marshal(req)
-	require.NoError(t, err)
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
-	ctx.Request.Header.Set("Content-Type", "application/json")
-	FetchModels(ctx)
-
-	var response struct {
-		Success bool     `json:"success"`
-		Message string   `json:"message"`
-		Data    []string `json:"data"`
-	}
-	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-	require.True(t, response.Success, response.Message)
-	require.Equal(t, []string{"default-preview-model"}, response.Data)
-	require.Equal(t, "Bearer default-preview-key", <-receivedAuthorization)
-}
-
 func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	receivedHeaders := make(chan http.Header, 1)
@@ -334,9 +266,7 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 	savedChannel.SetSetting(dto.ChannelSettings{Proxy: "http://127.0.0.1:1"})
 	require.NoError(t, db.Create(savedChannel).Error)
 
-	loaded, err := model.GetChannelById(savedChannel.Id, true)
-	require.NoError(t, err)
-	preserved, err := buildAdvancedCustomModelPreviewChannel(loaded, fetchModelsRequest{ChannelID: savedChannel.Id})
+	preserved, err := buildAdvancedCustomModelPreviewChannel(fetchModelsRequest{ChannelID: savedChannel.Id})
 	require.NoError(t, err)
 	require.Equal(t, "http://127.0.0.1:1", preserved.GetBaseURL())
 	require.Equal(t, savedHeaderOverride, *preserved.HeaderOverride)
@@ -361,7 +291,7 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 		HeaderOverride: &explicitEmpty,
 		Proxy:          &explicitEmpty,
 	}
-	cleared, err := buildAdvancedCustomModelPreviewChannel(savedChannel, fetchModelsRequest{
+	cleared, err := buildAdvancedCustomModelPreviewChannel(fetchModelsRequest{
 		ChannelID:      savedChannel.Id,
 		BaseURL:        &explicitEmpty,
 		AdvancedCustom: &rawConfig,
@@ -398,150 +328,6 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 	headers := <-receivedHeaders
 	require.Equal(t, "Bearer enabled-saved-key", headers.Get("Authorization"))
 	require.Empty(t, headers.Get("X-Saved"))
-}
-
-func TestFetchModelsOrdinaryChannelWithChannelIDUsesSavedChannel(t *testing.T) {
-	db := setupModelListControllerTestDB(t)
-	receivedAuthorization := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAuthorization <- r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"GLM-5.3-Flash"},{"id":"qwen3.8-27b-fp8"}]}`))
-	}))
-	defer server.Close()
-
-	savedBaseURL := server.URL
-	savedChannel := &model.Channel{
-		Name:    "bai_nopay3",
-		Type:    constant.ChannelTypeOpenAI,
-		Key:     "saved-key",
-		BaseURL: &savedBaseURL,
-		Models:  "old-model",
-	}
-	require.NoError(t, db.Create(savedChannel).Error)
-
-	body, err := common.Marshal(fetchModelsRequest{
-		ChannelID: savedChannel.Id,
-		Type:      constant.ChannelTypeOpenAI,
-	})
-	require.NoError(t, err)
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
-	ctx.Request.Header.Set("Content-Type", "application/json")
-	FetchModels(ctx)
-
-	var response struct {
-		Success bool     `json:"success"`
-		Message string   `json:"message"`
-		Data    []string `json:"data"`
-	}
-	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-	require.True(t, response.Success, response.Message)
-	require.Equal(t, []string{"GLM-5.3-Flash", "qwen3.8-27b-fp8"}, response.Data)
-	require.Equal(t, "Bearer saved-key", <-receivedAuthorization)
-}
-
-func TestFetchModelsOrdinaryChannelUsesEnabledSavedMultiKey(t *testing.T) {
-	db := setupModelListControllerTestDB(t)
-	receivedAuthorization := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAuthorization <- r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"multi-key-model"}]}`))
-	}))
-	defer server.Close()
-
-	savedBaseURL := server.URL
-	savedChannel := &model.Channel{
-		Name:    "saved multi-key",
-		Type:    constant.ChannelTypeOpenAI,
-		Key:     "disabled-saved-key\nenabled-saved-key",
-		BaseURL: &savedBaseURL,
-		ChannelInfo: model.ChannelInfo{
-			IsMultiKey: true,
-			MultiKeyStatusList: map[int]int{
-				0: common.ChannelStatusManuallyDisabled,
-				1: common.ChannelStatusEnabled,
-			},
-		},
-	}
-	require.NoError(t, db.Create(savedChannel).Error)
-
-	body, err := common.Marshal(fetchModelsRequest{
-		ChannelID: savedChannel.Id,
-		Type:      constant.ChannelTypeOpenAI,
-	})
-	require.NoError(t, err)
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
-	ctx.Request.Header.Set("Content-Type", "application/json")
-	FetchModels(ctx)
-
-	var response struct {
-		Success bool     `json:"success"`
-		Message string   `json:"message"`
-		Data    []string `json:"data"`
-	}
-	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-	require.True(t, response.Success, response.Message)
-	require.Equal(t, []string{"multi-key-model"}, response.Data)
-	require.Equal(t, "Bearer enabled-saved-key", <-receivedAuthorization)
-}
-
-func TestFetchModelsOrdinaryChannelAppliesRequestOverrides(t *testing.T) {
-	db := setupModelListControllerTestDB(t)
-	receivedAuthorization := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAuthorization <- r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"override-model"}]}`))
-	}))
-	defer server.Close()
-
-	savedBaseURL := "http://127.0.0.1:1"
-	savedChannel := &model.Channel{
-		Name:    "saved ordinary",
-		Type:    constant.ChannelTypeOpenAI,
-		Key:     "disabled-saved-key\nenabled-saved-key",
-		BaseURL: &savedBaseURL,
-		ChannelInfo: model.ChannelInfo{
-			IsMultiKey: true,
-			MultiKeyStatusList: map[int]int{
-				0: common.ChannelStatusEnabled,
-				1: common.ChannelStatusEnabled,
-			},
-		},
-	}
-	require.NoError(t, db.Create(savedChannel).Error)
-
-	requestBaseURL := server.URL
-	body, err := common.Marshal(fetchModelsRequest{
-		ChannelID: savedChannel.Id,
-		Type:      constant.ChannelTypeOpenAI,
-		BaseURL:   &requestBaseURL,
-		Key:       "typed-key",
-	})
-	require.NoError(t, err)
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
-	ctx.Request.Header.Set("Content-Type", "application/json")
-	FetchModels(ctx)
-
-	var response struct {
-		Success bool     `json:"success"`
-		Message string   `json:"message"`
-		Data    []string `json:"data"`
-	}
-	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-	require.True(t, response.Success, response.Message)
-	require.Equal(t, []string{"override-model"}, response.Data)
-	require.Equal(t, "Bearer typed-key", <-receivedAuthorization)
 }
 
 func TestFailedAdvancedCustomDetectionDoesNotStageFullRemoval(t *testing.T) {
@@ -757,7 +543,9 @@ func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *
 		})
 	}
 
+	require.NoError(t, i18n.Init())
 	content := buildUpstreamModelUpdateTaskNotificationContent(
+		i18n.LangEn,
 		24,
 		12,
 		56,
@@ -776,10 +564,14 @@ func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *
 		},
 	)
 
-	require.Contains(t, content, "其余 4 个渠道已省略")
-	require.Contains(t, content, "其余 1 个已省略")
-	require.Contains(t, content, "失败渠道 ID（展示 10/12）")
-	require.Contains(t, content, "其余 2 个已省略")
+	require.Contains(t, content, i18n.Translate(i18n.LangEn, i18n.MsgChannelUpstreamUpdateMoreChannels, map[string]any{"Count": 4}))
+	require.Contains(t, content, i18n.Translate(i18n.LangEn, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{"Count": 1}))
+	require.Contains(t, content, i18n.Translate(i18n.LangEn, i18n.MsgChannelUpstreamUpdateFailedChannels, map[string]any{
+		"Shown": 10,
+		"Total": 12,
+		"Ids":   "1, 2, 3, 4, 5, 6, 7, 8, 9, 10",
+	}))
+	require.Contains(t, content, i18n.Translate(i18n.LangEn, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{"Count": 2}))
 }
 
 func TestShouldSendUpstreamModelUpdateNotification(t *testing.T) {
@@ -817,5 +609,5 @@ func TestDetectAllChannelUpstreamModelUpdatesRejectsExistingActiveTask(t *testin
 
 	require.Equal(t, http.StatusConflict, recorder.Code)
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
-	require.Contains(t, recorder.Body.String(), "已有模型更新任务正在运行或等待中")
+	require.Contains(t, recorder.Body.String(), "A model update task is already running or queued")
 }

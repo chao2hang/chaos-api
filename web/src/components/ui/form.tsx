@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 Chaos
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -14,6 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+For commercial licensing, please contact support@quantumnous.com
 */
 import { useRender } from '@base-ui/react/use-render'
 import * as React from 'react'
@@ -215,10 +216,21 @@ function FormLabel({
 
 function FormControl({
   children,
+  describedBy,
   ...props
-}: { children: React.ReactElement } & Record<string, unknown>) {
+}: {
+  children: React.ReactElement
+  describedBy?: string
+} & Record<string, unknown>) {
   const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
   const formContext = React.useContext(FormRootContext)
+  const ariaDescribedBy = [
+    formDescriptionId,
+    error ? formMessageId : undefined,
+    describedBy,
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return useRender({
     render: children,
@@ -226,9 +238,7 @@ function FormControl({
       'data-slot': 'form-control',
       'data-form-root': formContext?.id,
       id: formItemId,
-      'aria-describedby': !error
-        ? `${formDescriptionId}`
-        : `${formDescriptionId} ${formMessageId}`,
+      'aria-describedby': ariaDescribedBy,
       'aria-invalid': !!error,
       ...props,
     },
