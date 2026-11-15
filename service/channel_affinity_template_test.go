@@ -15,10 +15,37 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestChannelAffinityBindingSurvivesRedisInitializationAndRestart(t *testing.T) {
+	previousRedisEnabled, previousRedisClient := common.RedisEnabled, common.RDB
+	common.RedisEnabled = true
+	common.RDB = nil
+	t.Cleanup(func() { common.RedisEnabled, common.RDB = previousRedisEnabled, previousRedisClient })
+
+	server := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
+
+	// Construct the cache before Redis initialization, matching the startup
+	// ordering that previously captured a nil client forever.
+	firstCache := newChannelAffinityCache()
+	common.RDB = redisClient
+	const bindingKey = "codex cli trace:gpt-5:default:user:42:restart-test"
+	require.NoError(t, firstCache.SetWithTTL(bindingKey, 9528, time.Minute))
+	assert.True(t, server.Exists(firstCache.FullKey(bindingKey)))
+
+	// A newly constructed cache represents a process restart or another replica.
+	channelID, found, err := newChannelAffinityCache().Get(bindingKey)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 9528, channelID)
+}
 
 func buildChannelAffinityTemplateContextForTest(meta channelAffinityMeta) *gin.Context {
 	rec := httptest.NewRecorder()

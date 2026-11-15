@@ -27,7 +27,7 @@ distributor.no_available_channel: "No available channel for model {{.Model}} und
 distributor.no_available_channel_task_plugin: "No available channel for model {{.Model}} under group {{.Group}}: the model is claimed by a task plugin, which has no enabled channel serving it (distributor)"
 distributor.invalid_request_parse_model: "unable to parse model"
 distributor.encrypted_reasoning_affinity_required: "Requests containing encrypted Responses reasoning items require a stable session affinity key, such as prompt_cache_key."
-distributor.encrypted_reasoning_binding_missing: "No channel binding exists for this encrypted Responses reasoning session. Start a new conversation or reuse the prompt_cache_key from the request that created it."
+distributor.encrypted_reasoning_binding_missing: "No channel binding exists for this encrypted Responses reasoning session. The original channel cannot be recovered; start a new conversation."
 distributor.encrypted_reasoning_binding_unavailable: "The channel binding for this encrypted Responses reasoning session could not be resolved. Please retry later."
 quota.user_insufficient: "Insufficient user quota, remaining quota: {{.Remaining}}"
 quota.pre_consume_insufficient: "Not enough quota to pre-consume for this request: {{.Remaining}} remaining, {{.Required}} required"

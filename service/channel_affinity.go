@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/samber/hot"
 )
 
@@ -81,32 +82,36 @@ type ChannelAffinityCacheStats struct {
 	CacheAlgo     string         `json:"cache_algo"`
 }
 
+func newChannelAffinityCache() *cachex.HybridCache[int] {
+	setting := operation_setting.GetChannelAffinitySetting()
+	capacity := setting.MaxEntries
+	if capacity <= 0 {
+		capacity = 100_000
+	}
+	defaultTTLSeconds := setting.DefaultTTLSeconds
+	if defaultTTLSeconds <= 0 {
+		defaultTTLSeconds = 3600
+	}
+
+	return cachex.NewHybridCache[int](cachex.HybridCacheConfig[int]{
+		Namespace:     cachex.Namespace(channelAffinityCacheNamespace),
+		RedisProvider: func() *redis.Client { return common.RDB },
+		RedisEnabled: func() bool {
+			return common.RedisEnabled && common.RDB != nil
+		},
+		RedisCodec: cachex.IntCodec{},
+		Memory: func() *hot.HotCache[string, int] {
+			return hot.NewHotCache[string, int](hot.LRU, capacity).
+				WithTTL(time.Duration(defaultTTLSeconds) * time.Second).
+				WithJanitor().
+				Build()
+		},
+	})
+}
+
 func getChannelAffinityCache() *cachex.HybridCache[int] {
 	channelAffinityCacheOnce.Do(func() {
-		setting := operation_setting.GetChannelAffinitySetting()
-		capacity := setting.MaxEntries
-		if capacity <= 0 {
-			capacity = 100_000
-		}
-		defaultTTLSeconds := setting.DefaultTTLSeconds
-		if defaultTTLSeconds <= 0 {
-			defaultTTLSeconds = 3600
-		}
-
-		channelAffinityCache = cachex.NewHybridCache[int](cachex.HybridCacheConfig[int]{
-			Namespace: cachex.Namespace(channelAffinityCacheNamespace),
-			Redis:     common.RDB,
-			RedisEnabled: func() bool {
-				return common.RedisEnabled && common.RDB != nil
-			},
-			RedisCodec: cachex.IntCodec{},
-			Memory: func() *hot.HotCache[string, int] {
-				return hot.NewHotCache[string, int](hot.LRU, capacity).
-					WithTTL(time.Duration(defaultTTLSeconds) * time.Second).
-					WithJanitor().
-					Build()
-			},
-		})
+		channelAffinityCache = newChannelAffinityCache()
 	})
 	return channelAffinityCache
 }
@@ -1026,8 +1031,8 @@ func getChannelAffinityUsageCacheStatsCache() *cachex.HybridCache[ChannelAffinit
 		}
 
 		channelAffinityUsageCacheStatsCache = cachex.NewHybridCache[ChannelAffinityUsageCacheCounters](cachex.HybridCacheConfig[ChannelAffinityUsageCacheCounters]{
-			Namespace: cachex.Namespace(channelAffinityUsageCacheStatsNamespace),
-			Redis:     common.RDB,
+			Namespace:     cachex.Namespace(channelAffinityUsageCacheStatsNamespace),
+			RedisProvider: func() *redis.Client { return common.RDB },
 			RedisEnabled: func() bool {
 				return common.RedisEnabled && common.RDB != nil
 			},

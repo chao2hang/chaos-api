@@ -26,7 +26,14 @@ import { useTheme } from '@/context/theme-provider'
 import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import {
+  BlackHoleCanvas,
+  CTA,
+  Features,
+  Hero,
+  HowItWorks,
+  Stats,
+} from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -122,12 +129,19 @@ export function Home() {
 
   return (
     <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
+      <div className='relative isolate overflow-hidden'>
+        <div className='pointer-events-none absolute inset-0 -z-20'>
+          <BlackHoleCanvas theme={resolvedTheme} />
+        </div>
+        <main>
+          <Hero isAuthenticated={isAuthenticated} />
+          <Stats />
+          <Features />
+          <HowItWorks />
+          <CTA isAuthenticated={isAuthenticated} />
+        </main>
+        <Footer />
+      </div>
     </PublicLayout>
   )
 }
