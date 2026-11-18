@@ -288,6 +288,37 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	require.Equal(t, buildChannelAffinityKeyHint(affinityValue), meta.KeyHint)
 }
 
+func TestResponsesPromptCacheAffinityUsesLongRetention(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previousSetting := *setting
+	t.Cleanup(func() { *setting = previousSetting })
+	*setting = operation_setting.ChannelAffinitySetting{
+		Enabled:           true,
+		DefaultTTLSeconds: 60,
+		Rules: []operation_setting.ChannelAffinityRule{{
+			Name:       "responses-prompt-cache",
+			ModelRegex: []string{"^gpt-.*$"},
+			PathRegex:  []string{"^/v1/responses$"},
+			KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "gjson", Path: "prompt_cache_key"}},
+		}},
+	}
+
+	affinityValue := fmt.Sprintf("long-lived-thread-%d", time.Now().UnixNano())
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":%q}`, affinityValue)))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	t.Cleanup(func() { common.CleanupBodyStorage(ctx) })
+
+	channelID, matched, err := ResolvePreferredChannelByAffinity(ctx, "gpt-6-luna", "default")
+	require.NoError(t, err)
+	require.True(t, matched)
+	require.Zero(t, channelID, "the first request has not recorded a channel yet")
+
+	meta, ok := getChannelAffinityMeta(ctx)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, meta.TTLSeconds, 90*24*60*60)
+}
+
 func TestClearCurrentChannelAffinityCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

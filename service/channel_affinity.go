@@ -32,6 +32,9 @@ const (
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v2"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
+
+	channelAffinityFallbackTTLSeconds       = 3600
+	encryptedResponsesAffinityMinTTLSeconds = 90 * 24 * 60 * 60
 )
 
 var (
@@ -90,7 +93,7 @@ func newChannelAffinityCache() *cachex.HybridCache[int] {
 	}
 	defaultTTLSeconds := setting.DefaultTTLSeconds
 	if defaultTTLSeconds <= 0 {
-		defaultTTLSeconds = 3600
+		defaultTTLSeconds = channelAffinityFallbackTTLSeconds
 	}
 
 	return cachex.NewHybridCache[int](cachex.HybridCacheConfig[int]{
@@ -609,6 +612,9 @@ func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGr
 		if ttlSeconds <= 0 {
 			ttlSeconds = setting.DefaultTTLSeconds
 		}
+		if ttlSeconds <= 0 {
+			ttlSeconds = channelAffinityFallbackTTLSeconds
+		}
 		userID := 0
 		if c != nil {
 			userID = c.GetInt("id")
@@ -618,6 +624,12 @@ func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGr
 		state.SessionMode, state.SessionModeSource = EffectiveSessionMode(setting, rule)
 		if c != nil && c.GetBool(ginKeyEncryptedResponsesAffinityRequired) {
 			state.SessionMode, state.SessionModeSource = "strict", "encrypted_reasoning"
+		}
+		// Encrypted Responses reasoning can be resumed after long idle periods.
+		// Keep prompt_cache_key bindings long enough to survive the ordinary
+		// affinity TTL, while still refreshing the binding on later successful turns.
+		if path == "/v1/responses" && usedSource.Type == "gjson" && usedSource.Path == "prompt_cache_key" {
+			ttlSeconds = max(ttlSeconds, encryptedResponsesAffinityMinTTLSeconds)
 		}
 		state.RuleName = rule.Name
 		setChannelAffinityContext(c, channelAffinityMeta{
