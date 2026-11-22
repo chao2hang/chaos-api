@@ -137,3 +137,72 @@ func TestResponsesReasoningReplayRespectsMode(t *testing.T) {
 	_, ok := ReplayResponsesReasoning(9107, "m", ReasoningReplayModeResponses, body)
 	require.True(t, ok)
 }
+
+// Stateful thinking upstreams validate the opaque blob they issued; replay has
+// to hand back the item verbatim instead of a synthesized summary.
+func TestResponsesReasoningReplayKeepsOpaqueState(t *testing.T) {
+	input := json.RawMessage(`[{"type":"message","role":"user","content":"opaque-1"}]`)
+	output := []byte(`{"output":[` +
+		`{"type":"reasoning","id":"rs_abc","summary":[],"encrypted_content":"cipher-blob","content":[{"type":"reasoning_text","text":"think"}]},` +
+		`{"type":"message","role":"assistant","content":"done"}]}`)
+	require.True(t, CaptureResponsesReasoningRaw(9201, "deepseek-flash", input, output))
+
+	body := []byte(`{"input":[{"type":"message","role":"user","content":"opaque-1"},{"type":"message","role":"assistant","content":"done"},{"type":"message","role":"user","content":"next"}]}`)
+	patched, ok := ReplayResponsesReasoning(9201, "deepseek-flash", ReasoningReplayModeAll, body)
+	require.True(t, ok)
+
+	var payload struct {
+		Input []map[string]any `json:"input"`
+	}
+	require.NoError(t, json.Unmarshal(patched, &payload))
+	require.Len(t, payload.Input, 4)
+	item := payload.Input[1]
+	require.Equal(t, "reasoning", item["type"])
+	require.Equal(t, "rs_abc", item["id"])
+	require.Equal(t, "cipher-blob", item["encrypted_content"])
+}
+
+// Stream events wrap the object in "response"; capture must handle both shapes.
+func TestCaptureResponsesReasoningRawAcceptsStreamEvent(t *testing.T) {
+	input := json.RawMessage(`[{"type":"message","role":"user","content":"stream-1"}]`)
+	event := []byte(`{"type":"response.completed","response":{"output":[{"type":"reasoning","id":"rs_stream","encrypted_content":"blob-2","summary":[{"type":"summary_text","text":"s"}]}]}}`)
+	require.True(t, CaptureResponsesReasoningRaw(9202, "m", input, event))
+
+	body := []byte(`{"input":[{"type":"message","role":"user","content":"stream-1"},{"type":"message","role":"assistant","content":"a"}]}`)
+	patched, ok := ReplayResponsesReasoning(9202, "m", ReasoningReplayModeAll, body)
+	require.True(t, ok)
+	require.Contains(t, string(patched), "blob-2")
+}
+
+// Codex already echoes upstream reasoning items; injecting another copy breaks
+// the stateful chain.
+func TestResponsesReasoningReplaySkipsCodexClient(t *testing.T) {
+	input := json.RawMessage(`[{"type":"message","role":"user","content":"codex-1"}]`)
+	output := []byte(`{"output":[{"type":"reasoning","id":"rs_x","encrypted_content":"blob-x"}]}`)
+	require.True(t, CaptureResponsesReasoningRaw(9203, "m", input, output))
+
+	body := []byte(`{"input":[{"type":"message","role":"user","content":"codex-1"},{"type":"message","role":"assistant","content":"a"}]}`)
+	patched, ok := ReplayResponsesReasoningWithPolicy(9203, "m", ReasoningReplayModeAll, body, true)
+	require.False(t, ok)
+	require.Equal(t, body, patched)
+}
+
+// A client that already sent a reasoning item keeps the chain it built.
+func TestResponsesReasoningReplaySkipsExistingReasoningItem(t *testing.T) {
+	input := json.RawMessage(`[{"type":"message","role":"user","content":"keep-1"}]`)
+	output := []byte(`{"output":[{"type":"reasoning","id":"rs_k","encrypted_content":"blob-k"}]}`)
+	require.True(t, CaptureResponsesReasoningRaw(9204, "m", input, output))
+
+	body := []byte(`{"input":[{"type":"message","role":"user","content":"keep-1"},{"type":"reasoning","id":"rs_client","encrypted_content":"blob-c"},{"type":"message","role":"assistant","content":"a"}]}`)
+	patched, ok := ReplayResponsesReasoningWithPolicy(9204, "m", ReasoningReplayModeAll, body, false)
+	require.False(t, ok)
+	require.Equal(t, body, patched)
+}
+
+func TestIsCodexClient(t *testing.T) {
+	require.True(t, IsCodexClient("codex_cli_rs/0.48.0 (Linux 6.12; x86_64)"))
+	require.True(t, IsCodexClient("OpenAI-Codex/1.2"))
+	require.False(t, IsCodexClient("Hermes/2.1 (telegram)"))
+	require.False(t, IsCodexClient("curl/8.5.0"))
+	require.False(t, IsCodexClient(""))
+}

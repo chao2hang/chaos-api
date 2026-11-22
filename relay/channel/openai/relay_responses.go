@@ -39,6 +39,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", responsesResponse.CreatedAt)
 
 	captureResponsesReasoning(info, responsesResponse.Output)
+	captureResponsesReasoningRaw(info, responseBody)
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
@@ -98,6 +99,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if (streamResponse.Type == "response.completed" || streamResponse.Type == "response.done") &&
 			streamResponse.Response != nil && info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeCompleted) {
 			captureResponsesReasoning(info, streamResponse.Response.Output)
+			captureResponsesReasoningRaw(info, common.StringToByteSlice(data))
 			sr.Done()
 		}
 	})
@@ -122,6 +124,20 @@ func captureResponsesReasoning(info *relaycommon.RelayInfo, output []dto.Respons
 		return
 	}
 	service.CaptureResponsesReasoning(info.TokenId, info.OriginModelName, req.Input, raw)
+}
+
+// captureResponsesReasoningRaw stores the reasoning items exactly as the
+// upstream emitted them (id and encrypted_content included), which is what
+// stateful thinking upstreams validate on the next turn.
+func captureResponsesReasoningRaw(info *relaycommon.RelayInfo, payload []byte) {
+	if info == nil || len(payload) == 0 {
+		return
+	}
+	req, ok := info.Request.(*dto.OpenAIResponsesRequest)
+	if !ok || req == nil || len(req.Input) == 0 {
+		return
+	}
+	service.CaptureResponsesReasoningRaw(info.TokenId, info.OriginModelName, req.Input, payload)
 }
 
 func rewriteSGLangResponsesCreatedAt(info *relaycommon.RelayInfo, payload []byte, path string, createdAt dto.IntValue) []byte {
