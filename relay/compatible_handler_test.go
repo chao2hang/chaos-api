@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
@@ -187,6 +188,108 @@ func TestTextHelperAppliesReasoningContentSettingToOutboundChatRequests(t *testi
 			}
 			assert.Equal(t, tc.wantPluginMarker, actual.PluginMarker)
 			assert.Equal(t, tc.wantOverrideMarker, actual.OverrideMarker)
+		})
+	}
+}
+
+// TestTextHelperReplaysCachedReasoningForStatefulUpstream covers the codex2api
+// failure mode: the upstream rejects a continuation whose assistant message
+// dropped its thinking text, and the gateway re-attaches the cached text.
+func TestTextHelperReplaysCachedReasoningForStatefulUpstream(t *testing.T) {
+	previousGinMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(previousGinMode) })
+
+	globalSettings := model_setting.GetGlobalSettings()
+	previousPassThrough := globalSettings.PassThroughRequestEnabled
+	previousResponsesPolicy := globalSettings.ChatCompletionsToResponsesPolicy
+	globalSettings.PassThroughRequestEnabled = false
+	globalSettings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{}
+	t.Cleanup(func() {
+		globalSettings.PassThroughRequestEnabled = previousPassThrough
+		globalSettings.ChatCompletionsToResponsesPolicy = previousResponsesPolicy
+	})
+
+	history := &dto.GeneralOpenAIRequest{
+		Model: "deepseek-flash",
+		Messages: []dto.Message{
+			{Role: "user", Content: "summarize the plan"},
+			{Role: "assistant", Content: "the plan is ..."},
+		},
+	}
+	require.True(t, service.CaptureChatReasoning(9301, "deepseek-flash", history, "step 1, step 2"))
+
+	cases := []struct {
+		name       string
+		replayMode string
+		wantReason string
+	}{
+		{name: "default replays cached reasoning", replayMode: "", wantReason: "step 1, step 2"},
+		{name: "chat mode replays", replayMode: "chat", wantReason: "step 1, step 2"},
+		{name: "off keeps the request untouched", replayMode: "off"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			received := make(chan []byte, 1)
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, readErr := io.ReadAll(r.Body)
+				if readErr == nil {
+					received <- body
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = io.WriteString(w, `{"error":{"message":"fixture rejection","type":"invalid_request_error","code":"bad_request"}}`)
+			}))
+			t.Cleanup(upstream.Close)
+
+			body := `{"model":"deepseek-flash","messages":[{"role":"user","content":"summarize the plan"},{"role":"assistant","content":"the plan is ..."},{"role":"user","content":"and then?"}]}`
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "deepseek-flash")
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-test")
+			common.SetContextKey(c, constant.ContextKeyTokenId, 9301)
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: tc.replayMode})
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+
+			steps, records, apiErr := requestplugin.Ingress(c, types.RelayFormatOpenAI)
+			require.Nil(t, apiErr)
+			request, err := helper.GetAndValidateTextRequest(c, relayconstant.RelayModeChatCompletions)
+			require.NoError(t, err)
+			info := relaycommon.GenRelayInfoOpenAI(c, request)
+			info.SetRequestPluginIngress(steps, records)
+
+			apiErr = TextHelper(c, info)
+			require.NotNil(t, apiErr, "the fixture upstream rejects after recording the body")
+
+			var forwarded []byte
+			select {
+			case forwarded = <-received:
+			default:
+				t.Fatal("upstream did not receive the chat request")
+			}
+
+			var actual struct {
+				Messages []struct {
+					Role             string  `json:"role"`
+					ReasoningContent *string `json:"reasoning_content"`
+				} `json:"messages"`
+			}
+			require.NoError(t, common.Unmarshal(forwarded, &actual))
+			require.Len(t, actual.Messages, 3)
+			assistant := actual.Messages[1]
+			require.Equal(t, "assistant", assistant.Role)
+			if tc.wantReason == "" {
+				assert.Nil(t, assistant.ReasoningContent, "off mode must not inject reasoning")
+			} else {
+				require.NotNil(t, assistant.ReasoningContent)
+				assert.Equal(t, tc.wantReason, *assistant.ReasoningContent)
+			}
 		})
 	}
 }

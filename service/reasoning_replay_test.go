@@ -1,0 +1,139 @@
+package service
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/stretchr/testify/require"
+)
+
+func strPtr(s string) *string { return &s }
+
+func chatReq(user, assistant string) *dto.GeneralOpenAIRequest {
+	return &dto.GeneralOpenAIRequest{
+		Model: "deepseek-flash",
+		Messages: []dto.Message{
+			{Role: "system", Content: "be brief"},
+			{Role: "user", Content: user},
+			{Role: "assistant", Content: assistant},
+			{Role: "user", Content: "继续"},
+		},
+	}
+}
+
+func TestChatReasoningReplayRoundTrip(t *testing.T) {
+	req := chatReq("explain raft", "leader election works by ...")
+	require.True(t, CaptureChatReasoning(9101, "deepseek-flash", req, "step 1: compare terms; step 2: vote"))
+
+	// The client replays the same history without reasoning content.
+	next := chatReq("explain raft", "leader election works by ...")
+	require.True(t, ReplayChatReasoning(9101, "deepseek-flash", ReasoningReplayModeAll, next))
+
+	assistant := next.Messages[2]
+	require.NotNil(t, assistant.ReasoningContent)
+	require.Equal(t, "step 1: compare terms; step 2: vote", *assistant.ReasoningContent)
+	require.True(t, strings.TrimSpace(assistant.GetReasoningContent()) != "")
+}
+
+func TestChatReasoningReplayKeepsClientReasoning(t *testing.T) {
+	req := chatReq("conv-keep", "answer")
+	require.True(t, CaptureChatReasoning(9102, "m", req, "cached-thought"))
+
+	next := chatReq("conv-keep", "answer")
+	next.Messages[2].ReasoningContent = strPtr("client-thought")
+	require.False(t, ReplayChatReasoning(9102, "m", ReasoningReplayModeAll, next))
+	require.Equal(t, "client-thought", *next.Messages[2].ReasoningContent)
+}
+
+func TestChatReasoningReplayModeOffAndChatOnly(t *testing.T) {
+	req := chatReq("conv-mode", "answer")
+	require.True(t, CaptureChatReasoning(9103, "m", req, "thought"))
+
+	off := chatReq("conv-mode", "answer")
+	require.False(t, ReplayChatReasoning(9103, "m", ReasoningReplayModeOff, off))
+	require.Nil(t, off.Messages[2].ReasoningContent)
+
+	chatOnly := chatReq("conv-mode", "answer")
+	require.True(t, ReplayChatReasoning(9103, "m", ReasoningReplayModeChat, chatOnly))
+}
+
+func TestChatReasoningReplayIsolatesConversations(t *testing.T) {
+	require.True(t, CaptureChatReasoning(9104, "m", chatReq("conversation A", "a1"), "thought-A"))
+
+	other := chatReq("conversation B", "b1")
+	require.False(t, ReplayChatReasoning(9104, "m", ReasoningReplayModeAll, other))
+	require.Nil(t, other.Messages[2].ReasoningContent)
+
+	same := chatReq("conversation A", "a1")
+	require.True(t, ReplayChatReasoning(9104, "m", ReasoningReplayModeAll, same))
+}
+
+func TestChatReasoningReplaySkipsEmptyCache(t *testing.T) {
+	req := chatReq("never captured", "x")
+	require.False(t, ReplayChatReasoning(9105, "m", ReasoningReplayModeAll, req))
+	require.Nil(t, req.Messages[2].ReasoningContent)
+}
+
+func TestReasoningReplayModeNormalization(t *testing.T) {
+	cases := map[string]string{
+		"":          ReasoningReplayModeAll,
+		"auto":      ReasoningReplayModeAll,
+		"on":        ReasoningReplayModeAll,
+		" OFF ":     ReasoningReplayModeOff,
+		"chat":      ReasoningReplayModeChat,
+		"responses": ReasoningReplayModeResponses,
+		"all":       ReasoningReplayModeAll,
+		"bogus":     ReasoningReplayModeAll,
+	}
+	for raw, want := range cases {
+		require.Equal(t, want, NormalizeReasoningReplayMode(raw), raw)
+	}
+	require.True(t, ReasoningReplayAllows("chat", ReasoningReplayModeChat))
+	require.False(t, ReasoningReplayAllows("chat", ReasoningReplayModeResponses))
+	require.True(t, ReasoningReplayAllows("all", ReasoningReplayModeResponses))
+	require.False(t, ReasoningReplayAllows("off", ReasoningReplayModeChat))
+}
+
+func TestResponsesReasoningReplayInsertsReasoningItem(t *testing.T) {
+	input := json.RawMessage(`[{"type":"message","role":"user","content":"hello"}]`)
+	output := json.RawMessage(`[{"type":"reasoning","summary":[{"type":"summary_text","text":"considered options"}]},{"type":"message","role":"assistant","content":"hi"}]`)
+	require.True(t, CaptureResponsesReasoning(9106, "gpt-6-luna", input, output))
+
+	body := []byte(`{"model":"gpt-6-luna","input":[` +
+		`{"type":"message","role":"user","content":"hello"},` +
+		`{"type":"message","role":"assistant","content":"hi"},` +
+		`{"type":"message","role":"user","content":"again"}]}`)
+
+	patched, ok := ReplayResponsesReasoning(9106, "gpt-6-luna", ReasoningReplayModeAll, body)
+	require.True(t, ok)
+
+	var payload struct {
+		Input []map[string]any `json:"input"`
+	}
+	require.NoError(t, json.Unmarshal(patched, &payload))
+	require.Len(t, payload.Input, 4)
+	require.Equal(t, "reasoning", payload.Input[1]["type"])
+	summary, ok := payload.Input[1]["summary"].([]any)
+	require.True(t, ok)
+	require.Len(t, summary, 1)
+	require.Equal(t, "considered options", summary[0].(map[string]any)["text"])
+	require.Equal(t, "assistant", payload.Input[2]["role"])
+}
+
+func TestResponsesReasoningReplayRespectsMode(t *testing.T) {
+	input := json.RawMessage(`[{"type":"message","role":"user","content":"mode-check"}]`)
+	output := json.RawMessage(`[{"type":"reasoning","summary":[{"type":"summary_text","text":"t"}]}]`)
+	require.True(t, CaptureResponsesReasoning(9107, "m", input, output))
+
+	body := []byte(`{"input":[{"type":"message","role":"user","content":"mode-check"},{"type":"message","role":"assistant","content":"x"}]}`)
+	if _, ok := ReplayResponsesReasoning(9107, "m", ReasoningReplayModeChat, body); ok {
+		t.Fatal("chat-only mode must not touch a Responses body")
+	}
+	if _, ok := ReplayResponsesReasoning(9107, "m", ReasoningReplayModeOff, body); ok {
+		t.Fatal("off must not touch a Responses body")
+	}
+	_, ok := ReplayResponsesReasoning(9107, "m", ReasoningReplayModeResponses, body)
+	require.True(t, ok)
+}

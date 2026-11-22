@@ -48,6 +48,14 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return newConvertRequestFailedError(c, info, err)
 	}
 
+	// Upstreams that run thinking mode as a stateful protocol (codex2api and
+	// similar Codex relays) reject a continuation whose assistant message lost
+	// its reasoning text. Re-attach the cached text for this conversation.
+	if !info.ChannelOtherSettings.StripReasoningContent &&
+		service.ReplayChatReasoning(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, request) {
+		logger.LogDebug(c, "reasoning replay: attached cached reasoning to the last assistant message")
+	}
+
 	includeUsage := true
 	// 判断用户是否需要返回使用情况
 	if request.StreamOptions != nil {

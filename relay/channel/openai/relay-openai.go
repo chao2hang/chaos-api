@@ -116,6 +116,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var systemFingerprint string
 	var containStreamUsage bool
 	var responseTextBuilder strings.Builder
+	var reasoningTextBuilder strings.Builder
 	var toolCount int
 	var usage = &dto.Usage{}
 	var lastStreamData string
@@ -144,6 +145,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 			lastStreamData = data
 			hasFinishReason = observeStreamChoices(info, data, seenStreamToolCalls, &streamFunctionCallNames) || hasFinishReason
+			collectStreamReasoning(info, data, &reasoningTextBuilder)
 			if err := processTokenData(info, data, &responseTextBuilder, &toolCount); err != nil {
 				logger.LogError(c, common.LogText("error processing stream token data: %s", err.Error()))
 				sr.Error(err)
@@ -211,7 +213,48 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage, hasFinishReason)
 	}
 
+	captureChatReasoning(info, reasoningTextBuilder.String())
+
 	return usage, nil
+}
+
+// captureChatReasoningFromChoices stores the reasoning text of a non-stream
+// completion so the next turn can echo it back to stateful thinking upstreams.
+func captureChatReasoningFromChoices(info *relaycommon.RelayInfo, choices []dto.OpenAITextResponseChoice) {
+	if info == nil || len(choices) == 0 {
+		return
+	}
+	for i := len(choices) - 1; i >= 0; i-- {
+		if text := strings.TrimSpace(choices[i].Message.GetReasoningContent()); text != "" {
+			captureChatReasoning(info, text)
+			return
+		}
+	}
+}
+
+func captureChatReasoning(info *relaycommon.RelayInfo, reasoning string) {
+	if info == nil || strings.TrimSpace(reasoning) == "" {
+		return
+	}
+	req, ok := info.Request.(*dto.GeneralOpenAIRequest)
+	if !ok || req == nil {
+		return
+	}
+	service.CaptureChatReasoning(info.TokenId, info.OriginModelName, req, reasoning)
+}
+
+// collectStreamReasoning appends delta reasoning text from one SSE frame.
+func collectStreamReasoning(info *relaycommon.RelayInfo, data string, builder *strings.Builder) {
+	if info == nil || builder == nil || data == "" {
+		return
+	}
+	var frame dto.ChatCompletionsStreamResponse
+	if err := common.UnmarshalJsonStr(data, &frame); err != nil {
+		return
+	}
+	for _, choice := range frame.Choices {
+		builder.WriteString(choice.Delta.GetReasoningContent())
+	}
 }
 
 // observeStreamChoices collects billable function call names and records the
@@ -299,7 +342,6 @@ func miniMaxStreamAPIError(info *relaycommon.RelayInfo, data string) *types.NewA
 
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
-
 	var simpleResponse dto.OpenAITextResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -330,6 +372,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+
+	captureChatReasoningFromChoices(info, simpleResponse.Choices)
 
 	info.ObserveResponseModel(simpleResponse.Model)
 	for _, choice := range simpleResponse.Choices {

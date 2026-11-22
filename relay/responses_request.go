@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -74,6 +75,11 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 	jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
 	if err != nil {
 		return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	// Re-attach cached thinking text for clients that replay an assistant turn
+	// without its reasoning item (stateful thinking upstreams reject that).
+	if replayed, ok := service.ReplayResponsesReasoning(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, jsonData); ok {
+		jsonData = replayed
 	}
 	jsonData, apiErr := requestplugin.Outbound(c, info, jsonData)
 	if apiErr != nil {

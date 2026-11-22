@@ -38,6 +38,8 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	info.ObserveResponseModel(responsesResponse.Model)
 	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", responsesResponse.CreatedAt)
 
+	captureResponsesReasoning(info, responsesResponse.Output)
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
@@ -95,6 +97,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		if (streamResponse.Type == "response.completed" || streamResponse.Type == "response.done") &&
 			streamResponse.Response != nil && info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeCompleted) {
+			captureResponsesReasoning(info, streamResponse.Response.Output)
 			sr.Done()
 		}
 	})
@@ -102,6 +105,23 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	info.StreamStatus.RequireTerminal()
 	return accumulator.Finish(), nil
+}
+
+// captureResponsesReasoning stores the plaintext reasoning emitted by a
+// Responses API call so a later turn can echo it back as a reasoning item.
+func captureResponsesReasoning(info *relaycommon.RelayInfo, output []dto.ResponsesOutput) {
+	if info == nil || len(output) == 0 {
+		return
+	}
+	req, ok := info.Request.(*dto.OpenAIResponsesRequest)
+	if !ok || req == nil || len(req.Input) == 0 {
+		return
+	}
+	raw, err := common.Marshal(output)
+	if err != nil {
+		return
+	}
+	service.CaptureResponsesReasoning(info.TokenId, info.OriginModelName, req.Input, raw)
 }
 
 func rewriteSGLangResponsesCreatedAt(info *relaycommon.RelayInfo, payload []byte, path string, createdAt dto.IntValue) []byte {
