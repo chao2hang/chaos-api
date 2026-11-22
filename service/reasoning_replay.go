@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/go-redis/redis/v8"
@@ -37,6 +38,13 @@ const (
 	ReasoningReplayModeChat      = "chat"
 	ReasoningReplayModeResponses = "responses"
 	ReasoningReplayModeAll       = "all"
+	// ReasoningReplayModeAuto follows the channel capability: replay only where
+	// the upstream runs stateful thinking. It is the default.
+	ReasoningReplayModeAuto = "auto"
+	// ReasoningReplayModeForce keeps replay on for a channel outside the
+	// stateful set below; operators use it when a vendor speaks the round-trip
+	// protocol under a generic OpenAPI-compatible channel type.
+	ReasoningReplayModeForce = "force"
 )
 
 type reasoningReplayEntry struct {
@@ -92,16 +100,62 @@ func NormalizeReasoningReplayMode(raw string) string {
 		return ReasoningReplayModeChat
 	case ReasoningReplayModeResponses:
 		return ReasoningReplayModeResponses
-	case ReasoningReplayModeAll, "", "auto", "on", "true":
+	case ReasoningReplayModeForce:
+		return ReasoningReplayModeForce
+	case ReasoningReplayModeAll:
 		return ReasoningReplayModeAll
+	case ReasoningReplayModeAuto, "", "on", "true":
+		return ReasoningReplayModeAuto
 	default:
-		return ReasoningReplayModeAll
+		return ReasoningReplayModeAuto
 	}
+}
+
+// ChannelSupportsReasoningRoundTrip reports whether the channel speaks the
+// stateful thinking protocol: the upstream issues reasoning items that must be
+// echoed back on the next turn. Standard OpenAI-compatible upstreams (Groq,
+// OpenAI direct, DeepSeek direct) reject or ignore assistant reasoning content,
+// so replay must not touch them.
+func ChannelSupportsReasoningRoundTrip(channelType int) bool {
+	return channelType == constant.ChannelTypeCodex
+}
+
+// ReplayAllowedForChannel resolves the per-channel policy. An explicit mode
+// (all/chat/responses/force) is operator intent and wins; auto follows the
+// channel capability; off disables replay.
+func ReplayAllowedForChannel(channelType int, mode string) bool {
+	switch NormalizeReasoningReplayMode(mode) {
+	case ReasoningReplayModeOff:
+		return false
+	case ReasoningReplayModeAll, ReasoningReplayModeChat, ReasoningReplayModeResponses, ReasoningReplayModeForce:
+		return true
+	default: // auto
+		return ChannelSupportsReasoningRoundTrip(channelType)
+	}
+}
+
+// ShouldStripReasoningContent decides whether the outbound chat request must
+// drop assistant reasoning_content. Standard upstreams do not accept the field,
+// so stripping is the default outside the stateful set; an explicit channel
+// setting or a forced replay mode turns it off.
+func ShouldStripReasoningContent(channelType int, settings dto.ChannelOtherSettings) bool {
+	if settings.StripReasoningContent {
+		return true
+	}
+	if ChannelSupportsReasoningRoundTrip(channelType) {
+		return false
+	}
+	// A standard channel keeps the field only when the operator opted into
+	// round-trip replay for it; otherwise the upstream would reject the request.
+	return !ReplayAllowedForChannel(channelType, settings.ReasoningReplay)
 }
 
 // ReasoningReplayAllows reports whether the mode covers the given surface.
 func ReasoningReplayAllows(mode, surface string) bool {
 	mode = NormalizeReasoningReplayMode(mode)
+	if mode == ReasoningReplayModeForce || mode == ReasoningReplayModeAuto {
+		return true
+	}
 	switch surface {
 	case ReasoningReplayModeChat:
 		return mode == ReasoningReplayModeChat || mode == ReasoningReplayModeAll

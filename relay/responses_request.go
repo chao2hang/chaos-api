@@ -77,11 +77,14 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 		return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 	// Re-attach cached thinking state for clients that replay an assistant turn
-	// without its reasoning item (stateful thinking upstreams reject that).
-	// Codex sends the items itself; adding a second copy breaks the chain.
-	clientIsCodex := service.IsCodexClient(service.ClientUserAgent(info.RequestHeaders))
-	if replayed, ok := service.ReplayResponsesReasoningWithPolicy(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, jsonData, clientIsCodex); ok {
-		jsonData = replayed
+	// without its reasoning item — only on channels that speak the stateful
+	// protocol. Codex sends the items itself; adding a second copy breaks the
+	// chain.
+	if service.ReplayAllowedForChannel(info.ChannelType, info.ChannelOtherSettings.ReasoningReplay) {
+		clientIsCodex := service.IsCodexClient(service.ClientUserAgent(info.RequestHeaders))
+		if replayed, ok := service.ReplayResponsesReasoningWithPolicy(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, jsonData, clientIsCodex); ok {
+			jsonData = replayed
+		}
 	}
 	jsonData, apiErr := requestplugin.Outbound(c, info, jsonData)
 	if apiErr != nil {

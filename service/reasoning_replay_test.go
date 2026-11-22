@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/require"
 )
@@ -78,14 +79,14 @@ func TestChatReasoningReplaySkipsEmptyCache(t *testing.T) {
 
 func TestReasoningReplayModeNormalization(t *testing.T) {
 	cases := map[string]string{
-		"":          ReasoningReplayModeAll,
-		"auto":      ReasoningReplayModeAll,
-		"on":        ReasoningReplayModeAll,
+		"":          ReasoningReplayModeAuto,
+		"auto":      ReasoningReplayModeAuto,
+		"on":        ReasoningReplayModeAuto,
 		" OFF ":     ReasoningReplayModeOff,
 		"chat":      ReasoningReplayModeChat,
 		"responses": ReasoningReplayModeResponses,
 		"all":       ReasoningReplayModeAll,
-		"bogus":     ReasoningReplayModeAll,
+		"bogus":     ReasoningReplayModeAuto,
 	}
 	for raw, want := range cases {
 		require.Equal(t, want, NormalizeReasoningReplayMode(raw), raw)
@@ -205,4 +206,46 @@ func TestIsCodexClient(t *testing.T) {
 	require.False(t, IsCodexClient("Hermes/2.1 (telegram)"))
 	require.False(t, IsCodexClient("curl/8.5.0"))
 	require.False(t, IsCodexClient(""))
+}
+
+// Standard OpenAI-compatible upstreams (Groq, OpenAI direct, DeepSeek direct)
+// reject assistant reasoning_content, so replay must stay inside the stateful
+// set and everything else gets stripped.
+func TestReasoningPolicyIsPerChannel(t *testing.T) {
+	require.True(t, ChannelSupportsReasoningRoundTrip(constant.ChannelTypeCodex))
+	require.False(t, ChannelSupportsReasoningRoundTrip(constant.ChannelTypeOpenAI))
+	require.False(t, ChannelSupportsReasoningRoundTrip(constant.ChannelTypeDeepSeek))
+
+	require.True(t, ReplayAllowedForChannel(constant.ChannelTypeCodex, ReasoningReplayModeAll))
+	require.True(t, ReplayAllowedForChannel(constant.ChannelTypeCodex, ""))
+	require.False(t, ReplayAllowedForChannel(constant.ChannelTypeCodex, ReasoningReplayModeOff))
+	// auto is the default and follows capability; an explicit mode is opt-in.
+	require.False(t, ReplayAllowedForChannel(constant.ChannelTypeOpenAI, ""))
+	require.False(t, ReplayAllowedForChannel(constant.ChannelTypeDeepSeek, ReasoningReplayModeAuto))
+	require.True(t, ReplayAllowedForChannel(constant.ChannelTypeOpenAI, ReasoningReplayModeAll))
+	require.True(t, ReplayAllowedForChannel(constant.ChannelTypeOpenAI, ReasoningReplayModeForce))
+
+	stripOnGroq := ShouldStripReasoningContent(constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{})
+	require.True(t, stripOnGroq)
+	stripOnCodex := ShouldStripReasoningContent(constant.ChannelTypeCodex, dto.ChannelOtherSettings{})
+	require.False(t, stripOnCodex)
+	optedIn := ShouldStripReasoningContent(constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{ReasoningReplay: ReasoningReplayModeAll})
+	require.False(t, optedIn)
+	off := ShouldStripReasoningContent(constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{ReasoningReplay: ReasoningReplayModeOff})
+	require.True(t, off)
+	explicit := ShouldStripReasoningContent(constant.ChannelTypeCodex, dto.ChannelOtherSettings{StripReasoningContent: true})
+	require.True(t, explicit)
+}
+
+// A chat body that still carries reasoning_content must come out clean once the
+// standard-upstream path applies the stripper; the stripper itself is exercised
+// from the relay package where it lives.
+func TestReasoningPolicyMarksStandardChannelsForStripping(t *testing.T) {
+	body := []byte(`{"model":"qwen/qwen3.8-27b","messages":[` +
+		`{"role":"user","content":"hi"},` +
+		`{"role":"assistant","content":"hello","reasoning_content":"thought"},` +
+		`{"role":"user","content":"next"}]}`)
+	require.Contains(t, string(body), "reasoning_content")
+	require.True(t, ShouldStripReasoningContent(constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{}))
+	require.False(t, ShouldStripReasoningContent(constant.ChannelTypeCodex, dto.ChannelOtherSettings{}))
 }

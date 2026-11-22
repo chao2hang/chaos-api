@@ -71,6 +71,7 @@ func TestTextHelperAppliesReasoningContentSettingToOutboundChatRequests(t *testi
 		messages             string
 		strip                bool
 		passThrough          bool
+		replayMode           string
 		injectWithPlugin     bool
 		injectWithOverride   bool
 		wantReasoningContent string
@@ -90,14 +91,16 @@ func TestTextHelperAppliesReasoningContentSettingToOutboundChatRequests(t *testi
 			passThrough: true,
 		},
 		{
-			name:                 "normal chat request preserves assistant field when disabled",
+			name:                 "normal chat request preserves assistant field when replay is forced",
 			messages:             clientMessages,
+			replayMode:           "force",
 			wantReasoningContent: "client thought",
 		},
 		{
-			name:                 "pass-through chat request preserves assistant field when disabled",
+			name:                 "pass-through chat request preserves assistant field when replay is forced",
 			messages:             clientMessages,
 			passThrough:          true,
+			replayMode:           "force",
 			wantReasoningContent: "client thought",
 		},
 		{
@@ -144,7 +147,7 @@ func TestTextHelperAppliesReasoningContentSettingToOutboundChatRequests(t *testi
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
 			common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-test")
 			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passThrough})
-			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{StripReasoningContent: tc.strip})
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{StripReasoningContent: tc.strip, ReasoningReplay: tc.replayMode})
 			if tc.injectWithOverride {
 				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{
 					"operations": []any{
@@ -224,8 +227,8 @@ func TestTextHelperReplaysCachedReasoningForStatefulUpstream(t *testing.T) {
 		replayMode string
 		wantReason string
 	}{
-		{name: "default replays cached reasoning", replayMode: "", wantReason: "step 1, step 2"},
-		{name: "chat mode replays", replayMode: "chat", wantReason: "step 1, step 2"},
+		{name: "force replays cached reasoning on a standard channel", replayMode: "force", wantReason: "step 1, step 2"},
+		{name: "default leaves a standard channel untouched", replayMode: ""},
 		{name: "off keeps the request untouched", replayMode: "off"},
 	}
 
@@ -292,4 +295,63 @@ func TestTextHelperReplaysCachedReasoningForStatefulUpstream(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Groq (#843/#1100) and every other standard OpenAI-compatible upstream rejects
+// assistant reasoning_content outright, so the default policy strips it even
+// when the channel has no explicit strip_reasoning_content setting.
+func TestTextHelperStripsReasoningContentOnStandardUpstreams(t *testing.T) {
+	previousGinMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(previousGinMode) })
+
+	globalSettings := model_setting.GetGlobalSettings()
+	previousPassThrough := globalSettings.PassThroughRequestEnabled
+	globalSettings.PassThroughRequestEnabled = false
+	t.Cleanup(func() { globalSettings.PassThroughRequestEnabled = previousPassThrough })
+	require.NoError(t, i18n.Init())
+
+	received := make(chan []byte, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, readErr := io.ReadAll(r.Body)
+		if readErr == nil {
+			received <- body
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":{"message":"reasoning_content is not supported","type":"invalid_request_error","code":"bad_request"}}`)
+	}))
+	t.Cleanup(upstream.Close)
+
+	body := `{"model":"qwen/qwen3.8-27b","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"answer","reasoning_content":"client thought"},{"role":"user","content":"next"}]}`
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "qwen/qwen3.8-27b")
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+	common.SetContextKey(c, constant.ContextKeyChannelKey, "gsk-test")
+	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{})
+	t.Cleanup(func() { common.CleanupBodyStorage(c) })
+
+	steps, records, apiErr := requestplugin.Ingress(c, types.RelayFormatOpenAI)
+	require.Nil(t, apiErr)
+	request, err := helper.GetAndValidateTextRequest(c, relayconstant.RelayModeChatCompletions)
+	require.NoError(t, err)
+	info := relaycommon.GenRelayInfoOpenAI(c, request)
+	info.SetRequestPluginIngress(steps, records)
+
+	apiErr = TextHelper(c, info)
+	require.NotNil(t, apiErr, "the fixture rejects after recording the body")
+
+	var forwarded []byte
+	select {
+	case forwarded = <-received:
+	default:
+		t.Fatal("upstream did not receive the chat request")
+	}
+	require.NotContains(t, string(forwarded), "reasoning_content")
+	require.Contains(t, string(forwarded), `"content":"answer"`)
 }

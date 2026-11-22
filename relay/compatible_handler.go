@@ -50,8 +50,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	// Upstreams that run thinking mode as a stateful protocol (codex2api and
 	// similar Codex relays) reject a continuation whose assistant message lost
-	// its reasoning text. Re-attach the cached text for this conversation.
-	if !info.ChannelOtherSettings.StripReasoningContent &&
+	// its reasoning. Every other upstream rejects the field outright, so the
+	// decision is per channel: replay on stateful ones, strip elsewhere.
+	stripReasoning := service.ShouldStripReasoningContent(info.ChannelType, info.ChannelOtherSettings)
+	if !stripReasoning && service.ReplayAllowedForChannel(info.ChannelType, info.ChannelOtherSettings.ReasoningReplay) &&
 		service.ReplayChatReasoning(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, request) {
 		logger.LogDebug(c, "reasoning replay: attached cached reasoning to the last assistant message")
 	}
@@ -112,7 +114,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		outboundStorage := storage
-		if info.ChannelOtherSettings.StripReasoningContent {
+		if stripReasoning {
 			bodyBytes, bodyErr := storage.Bytes()
 			if bodyErr != nil {
 				return types.NewError(bodyErr, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
@@ -170,7 +172,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				return newAPIErrorFromParamOverride(err)
 			}
 		}
-		if info.ChannelOtherSettings.StripReasoningContent {
+		if stripReasoning {
 			jsonData, err = relaycommon.StripReasoningContentFromAssistantMessages(jsonData)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
