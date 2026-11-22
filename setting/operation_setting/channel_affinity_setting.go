@@ -125,6 +125,10 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			Name:       "codex cli trace",
 			ModelRegex: []string{"^gpt-.*$"},
 			PathRegex:  []string{"/v1/responses"},
+			// Codex CLI names itself in its User-Agent. Other Responses clients
+			// must not inherit Codex header passthrough or its strict retry
+			// mode; they bind through the session trace rule below instead.
+			UserAgentInclude: []string{"codex"},
 			KeySources: []ChannelAffinityKeySource{
 				{Type: "gjson", Path: "prompt_cache_key"},
 			},
@@ -134,7 +138,26 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			SkipRetryOnFailure:    true,
 			IncludeUsingGroup:     true,
 			IncludeRuleName:       true,
-			UserAgentInclude:      nil,
+		},
+		{
+			// Encrypted Responses reasoning items can only be decrypted by the
+			// upstream account that produced them. Clients such as VS Code's
+			// custom endpoint never send prompt_cache_key, so a token-and-model
+			// binding keeps each continuation on the account that answered the
+			// first turn; prompt_cache_key stays the preferred key when present.
+			Name:       "responses session trace",
+			ModelRegex: []string{"^gpt-.*$"},
+			PathRegex:  []string{"/v1/responses"},
+			KeySources: []ChannelAffinityKeySource{
+				{Type: "gjson", Path: "prompt_cache_key"},
+				{Type: "context_int", Key: "token_id"},
+			},
+			ValueRegex:         "",
+			TTLSeconds:         0,
+			SkipRetryOnFailure: false,
+			IncludeUsingGroup:  true,
+			IncludeModelName:   true,
+			IncludeRuleName:    true,
 		},
 		{
 			Name:       "claude cli trace",

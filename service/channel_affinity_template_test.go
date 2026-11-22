@@ -375,6 +375,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(rec)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":"%s"}`, affinityValue)))
 	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Request.Header.Set("User-Agent", "codex_cli_rs/0.61.0")
 
 	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5", "default")
 	require.True(t, found)
@@ -414,6 +415,22 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.False(t, exists)
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)
+
+	// A non-Codex Responses client keeps its own session trace rule instead of
+	// inheriting Codex header passthrough.
+	vscodeCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	vscodeCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":"%s"}`, affinityValue)))
+	vscodeCtx.Request.Header.Set("Content-Type", "application/json")
+	vscodeCtx.Request.Header.Set("User-Agent", "vscode/1.104.0")
+	t.Cleanup(func() { common.CleanupBodyStorage(vscodeCtx) })
+	_, matched, err := ResolvePreferredChannelByAffinity(vscodeCtx, "gpt-5", "default")
+	require.NoError(t, err)
+	require.True(t, matched)
+	vscodeMeta, ok := getChannelAffinityMeta(vscodeCtx)
+	require.True(t, ok)
+	require.NotEqual(t, "codex cli trace", vscodeMeta.RuleName)
+	_, applied = ApplyChannelAffinityOverrideTemplate(vscodeCtx, map[string]any{})
+	require.False(t, applied, "non-Codex clients must not inherit Codex header passthrough")
 }
 
 func TestMidjourneyPolicyAcceptance(t *testing.T) {

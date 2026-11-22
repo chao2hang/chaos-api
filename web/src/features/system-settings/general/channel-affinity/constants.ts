@@ -90,6 +90,9 @@ export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
     name: 'codex cli trace',
     model_regex: ['^gpt-.*$'],
     path_regex: ['/v1/responses'],
+    // Codex CLI identifies itself in its User-Agent; other Responses clients
+    // bind through the session trace template below without Codex headers.
+    user_agent_include: ['codex'],
     key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
     param_override_template: buildCodexPassHeadersTemplate(),
     value_regex: '',
@@ -97,6 +100,23 @@ export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
     skip_retry_on_failure: true,
     include_using_group: true,
     include_model_name: false,
+    include_rule_name: true,
+  },
+  responsesSession: {
+    name: 'responses session trace',
+    model_regex: ['^gpt-.*$'],
+    path_regex: ['/v1/responses'],
+    key_sources: [
+      { type: 'gjson', path: 'prompt_cache_key' },
+      // Clients that never send prompt_cache_key (for example VS Code's
+      // custom endpoint) stay on the account that answered their first turn.
+      { type: 'context_int', key: 'token_id' },
+    ],
+    value_regex: '',
+    ttl_seconds: 0,
+    skip_retry_on_failure: false,
+    include_using_group: true,
+    include_model_name: true,
     include_rule_name: true,
   },
   claudeCli: {

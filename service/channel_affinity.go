@@ -331,7 +331,7 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 			return ""
 		}
 		res := values[0]
-		if !res.Exists() {
+		if !res.Exists() || res.Type == ojson.Null {
 			return ""
 		}
 		switch res.Type {
@@ -342,6 +342,21 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 		}
 	default:
 		return ""
+	}
+}
+
+// isStableResponsesAffinitySource reports whether a matched key source names a
+// client identity that outlives one request, so an encrypted Responses
+// continuation can still find its originating channel after a long idle period.
+// A one-off request id or a custom header is not stable enough for that promise.
+func isStableResponsesAffinitySource(src operation_setting.ChannelAffinityKeySource) bool {
+	switch src.Type {
+	case "gjson":
+		return src.Path == "prompt_cache_key"
+	case "context_int":
+		return src.Key == "token_id"
+	default:
+		return false
 	}
 }
 
@@ -626,9 +641,10 @@ func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGr
 			state.SessionMode, state.SessionModeSource = "strict", "encrypted_reasoning"
 		}
 		// Encrypted Responses reasoning can be resumed after long idle periods.
-		// Keep prompt_cache_key bindings long enough to survive the ordinary
-		// affinity TTL, while still refreshing the binding on later successful turns.
-		if path == "/v1/responses" && usedSource.Type == "gjson" && usedSource.Path == "prompt_cache_key" {
+		// Keep bindings derived from a stable client identity long enough to
+		// survive the ordinary affinity TTL, while still refreshing the binding
+		// on later successful turns.
+		if path == "/v1/responses" && isStableResponsesAffinitySource(usedSource) {
 			ttlSeconds = max(ttlSeconds, encryptedResponsesAffinityMinTTLSeconds)
 		}
 		state.RuleName = rule.Name

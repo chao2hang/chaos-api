@@ -104,13 +104,8 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		if encryptedReasoningRequest {
-			hasAffinityKey, keyErr := hasStableResponsesPromptCacheKey(c)
-			if keyErr != nil {
+			if keyErr := validateResponsesPromptCacheKey(c); keyErr != nil {
 				abortWithOpenAiMessage(c, invalidRequestStatus(keyErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": keyErr.Error()}), types.ErrorCodeInvalidRequest)
-				return
-			}
-			if !hasAffinityKey {
-				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorEncryptedReasoningAffinityRequired), types.ErrorCodeInvalidRequest)
 				return
 			}
 			service.RequireEncryptedResponsesAffinity(c)
@@ -119,7 +114,13 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
 				return
 			}
-			if !keyMatched || channelID <= 0 {
+			if !keyMatched {
+				// No configured key source can name this session, so no channel
+				// binding can exist or be recorded for the encrypted item.
+				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorEncryptedReasoningAffinityRequired), types.ErrorCodeInvalidRequest)
+				return
+			}
+			if channelID <= 0 {
 				abortWithOpenAiMessage(c, http.StatusConflict, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingMissing), types.ErrorCodeInvalidRequest)
 				return
 			}
@@ -460,19 +461,29 @@ func getJSONStringValue(result ojson.Result, field string) (string, error) {
 	return result.String(), nil
 }
 
-func hasStableResponsesPromptCacheKey(c *gin.Context) (bool, error) {
+// validateResponsesPromptCacheKey rejects a prompt_cache_key that is present
+// but not a string. Affinity rules stringify scalar JSON values, so accepting a
+// number or boolean here would bind the session to a key the client cannot send
+// again. Absent, null, and blank keys fall through to the next configured key
+// source, which is what keeps clients without a session key on one channel.
+func validateResponsesPromptCacheKey(c *gin.Context) error {
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
-		return false, err
+		return err
 	}
 	values, err := common.ReadBodyJSONFields(storage, "prompt_cache_key")
 	if err != nil {
-		return false, err
+		return err
 	}
-	if len(values) == 0 || values[0].Type != ojson.String {
-		return false, nil
+	if len(values) == 0 {
+		return nil
 	}
-	return strings.TrimSpace(values[0].Str) != "", nil
+	switch values[0].Type {
+	case ojson.String, ojson.Null:
+		return nil
+	default:
+		return errors.New("field prompt_cache_key must be a string")
+	}
 }
 
 func hasEncryptedResponsesReasoningItem(c *gin.Context) (bool, error) {

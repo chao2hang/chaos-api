@@ -909,6 +909,7 @@ it('the empty state can fill templates without saving them to the server', async
     within(panel).getByRole('button', { name: 'Fill Templates' })
   )
   expect(screen.getByRole('table')).toHaveTextContent('codex cli trace')
+  expect(screen.getByRole('table')).toHaveTextContent('responses session trace')
   expect(screen.getByRole('table')).toHaveTextContent('claude cli trace')
   expect(screen.queryByText('No rules yet')).not.toBeInTheDocument()
   expect(api.patch).not.toHaveBeenCalled()

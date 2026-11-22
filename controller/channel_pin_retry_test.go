@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -252,9 +253,13 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 	affinity := operation_setting.GetChannelAffinitySetting()
 	previousAffinity := *affinity
 	var affinityContext *gin.Context
+	var fallbackAffinityContext *gin.Context
 	t.Cleanup(func() {
 		if affinityContext != nil {
 			service.ClearCurrentChannelAffinityCache(affinityContext)
+		}
+		if fallbackAffinityContext != nil {
+			service.ClearCurrentChannelAffinityCache(fallbackAffinityContext)
 		}
 		*affinity = previousAffinity
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(previousGroups))
@@ -304,6 +309,11 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 			userID = 2
 		}
 		c.Set("id", userID)
+		tokenID := 7001
+		if value := c.Request.Header.Get("X-Test-Token"); value != "" {
+			tokenID, _ = strconv.Atoi(value)
+		}
+		c.Set("token_id", tokenID)
 		if c.Request.Header.Get("X-Test-Pin") != "" {
 			service.GetChannelConstraints(c).AddPin(dto.ChannelPin{
 				ChannelId: 9102, Source: dto.PinSourceToken, Rank: dto.PinRankToken, RetryMode: dto.PinRetrySingleAttempt,
@@ -311,6 +321,9 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 		}
 	}, middleware.Distribute(), func(c *gin.Context) {
 		selectedChannels = append(selectedChannels, c.GetInt("channel_id"))
+		if c.Request.Header.Get("X-Test-Bind") != "" {
+			fallbackAffinityContext = c
+		}
 		if c.Request.Header.Get("X-Test-Encrypted") != "" {
 			upstreamError := types.NewOpenAIError(errors.New("upstream failure"), types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError)
 			encryptedRetryDecision = service.DecideRelayRetry(c, upstreamError, 1)
@@ -389,6 +402,67 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 	disabledBindingResponse := send(encryptedContinuation, "203.0.113.16:1234", true, false, "")
 	assert.Equal(t, http.StatusServiceUnavailable, disabledBindingResponse.Code)
 	assert.Len(t, selectedChannels, beforeRejectedRequests+1, "a disabled bound channel must not fall back to another account")
+
+	// Clients that never send prompt_cache_key (VS Code's custom endpoint, for
+	// example) fall back to a token-and-model binding so their encrypted
+	// continuations return to the account that answered the first turn.
+	*affinity = operation_setting.ChannelAffinitySetting{
+		Enabled:           true,
+		SwitchOnSuccess:   true,
+		MaxEntries:        100,
+		DefaultTTLSeconds: 60,
+		Rules: []operation_setting.ChannelAffinityRule{{
+			Name:       "responses-session-test",
+			ModelRegex: []string{"^" + modelName + "$"},
+			PathRegex:  []string{"^/v1/responses$"},
+			KeySources: []operation_setting.ChannelAffinityKeySource{
+				{Type: "gjson", Path: "prompt_cache_key"},
+				{Type: "context_int", Key: "token_id"},
+			},
+			IncludeModelName: true,
+		}},
+	}
+	sendWithToken := func(body string, tokenID int, encrypted, bind bool) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("X-Test-Token", strconv.Itoa(tokenID))
+		if encrypted {
+			request.Header.Set("X-Test-Encrypted", "true")
+		}
+		if bind {
+			request.Header.Set("X-Test-Bind", "true")
+		}
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	beforeFallback := len(selectedChannels)
+	fallbackFirst := sendWithToken(fmt.Sprintf(`{"model":%q,"input":"hello"}`, modelName), 7701, false, true)
+	require.Equal(t, http.StatusOK, fallbackFirst.Code, fallbackFirst.Body.String())
+	require.Len(t, selectedChannels, beforeFallback+1)
+	fallbackChannelID := selectedChannels[beforeFallback]
+
+	fallbackContinuation := fmt.Sprintf(`{"model":%q,"input":[{"type":"reasoning","id":"rs_fallback","encrypted_content":"opaque-ciphertext"}]}`, modelName)
+	fallbackSecond := sendWithToken(fallbackContinuation, 7701, true, false)
+	require.Equal(t, http.StatusOK, fallbackSecond.Code, fallbackSecond.Body.String())
+	require.Len(t, selectedChannels, beforeFallback+2)
+	assert.Equal(t, fallbackChannelID, selectedChannels[beforeFallback+1], "a continuation without prompt_cache_key must stay on the first-turn channel")
+	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "strict_session", Source: "encrypted_reasoning"}, encryptedRetryDecision)
+
+	fallbackOtherToken := sendWithToken(fallbackContinuation, 7702, true, false)
+	assert.Equal(t, http.StatusConflict, fallbackOtherToken.Code, "another token must not inherit the session's channel binding")
+	assert.Len(t, selectedChannels, beforeFallback+2)
+
+	nullKey := sendWithToken(fmt.Sprintf(`{"model":%q,"prompt_cache_key":null,"input":[{"type":"reasoning","id":"rs_fallback_null","encrypted_content":"opaque-ciphertext"}]}`, modelName), 7701, true, false)
+	require.Equal(t, http.StatusOK, nullKey.Code, nullKey.Body.String())
+	require.Len(t, selectedChannels, beforeFallback+3)
+	assert.Equal(t, fallbackChannelID, selectedChannels[beforeFallback+2], "a null prompt_cache_key must fall back to the token source")
+
+	malformedKey := sendWithToken(fmt.Sprintf(`{"model":%q,"prompt_cache_key":123,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName), 7701, true, false)
+	assert.Equal(t, http.StatusBadRequest, malformedKey.Code)
+	assert.Contains(t, malformedKey.Body.String(), "prompt_cache_key")
+	assert.Len(t, selectedChannels, beforeFallback+3, "a malformed prompt_cache_key must stop before channel selection")
 }
 
 func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {
