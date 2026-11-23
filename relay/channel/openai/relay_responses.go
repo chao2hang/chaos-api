@@ -79,8 +79,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
-	var completedResponse *dto.OpenAIResponsesResponse
+	var upstreamResponseID string
 	var completedFrame []byte
+	var completedScope service.ReasoningReplayScope
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -95,13 +96,31 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
 		}
 		accumulator.Observe(&streamResponse, common.StringToByteSlice(data))
+		if streamResponse.Response != nil && streamResponse.Response.ID != "" {
+			upstreamResponseID = streamResponse.Response.ID
+		}
+		completed := false
+		// A client can retain a finished reasoning item even if it never sees
+		// the terminal event. Persist its provider-issued ID before exposing it.
+		switch streamResponse.Type {
+		case "response.output_item.done":
+			if item := streamResponse.Item; item != nil && item.Type == "reasoning" && item.ID != "" {
+				recordResponsesAffinity(c, info, upstreamResponseID, []dto.ResponsesOutput{*item})
+			}
+		case "response.completed", "response.done", "response.incomplete":
+			if response := streamResponse.Response; response != nil {
+				outcome := info.StreamStatus.ResponseOutcome()
+				completed = outcome == string(relaycommon.ResponseOutcomeCompleted)
+				if completed || outcome == string(relaycommon.ResponseOutcomeIncomplete) {
+					completedScope = recordResponsesAffinity(c, info, upstreamResponseID, response.Output)
+				}
+			}
+		}
 		if err := helper.ResponseChunkData(c, streamResponse, data); err != nil {
 			sr.Stop(err)
 			return
 		}
-		if (streamResponse.Type == "response.completed" || streamResponse.Type == "response.done") &&
-			streamResponse.Response != nil && info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeCompleted) {
-			completedResponse = streamResponse.Response
+		if completed {
 			completedFrame = append(completedFrame[:0], data...)
 			sr.Done()
 		}
@@ -109,9 +128,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	info.StreamStatus.RequireTerminal()
-	if completedResponse != nil && info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
-		scope := recordResponsesAffinity(c, info, completedResponse.ID, completedResponse.Output)
-		captureResponsesReasoningRaw(info, completedFrame, scope)
+	if len(completedFrame) > 0 && info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
+		captureResponsesReasoningRaw(info, completedFrame, completedScope)
 	}
 	return accumulator.Finish(), nil
 }

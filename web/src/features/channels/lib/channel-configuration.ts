@@ -25,6 +25,7 @@ import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
+  REASONING_REPLAY_TYPES,
 } from '../constants'
 import { CHANNEL_TYPE_ADVANCED_CUSTOM } from './advanced-custom'
 import { channelFormSchema, type ChannelFormValues } from './channel-form'
@@ -66,6 +67,7 @@ const CONFIGURATION_BLOCKS = {
     fields: [
       'force_format',
       'thinking_to_content',
+      'reasoning_replay',
       'pass_through_body_enabled',
       'responses_websocket_enabled',
       'ollama_openai_chat',
@@ -174,6 +176,10 @@ export function getChannelConfigurationState(
     requestProcessing: Boolean(
       (values.type === 1 && values.force_format) ||
       values.thinking_to_content ||
+      (relays &&
+        REASONING_REPLAY_TYPES.has(values.type) &&
+        values.reasoning_replay &&
+        values.reasoning_replay !== 'auto') ||
       (values.type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
         values.pass_through_body_enabled) ||
       ((supportsResponsesWebSocket(values.type) ||

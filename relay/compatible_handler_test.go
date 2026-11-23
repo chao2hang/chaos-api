@@ -356,9 +356,11 @@ func TestTextHelperReasoningSameModelChannelInstances(t *testing.T) {
 		{"official passthrough", 9501, 43, "https://api.deepseek.com", "", "client thought", "client thought", true},
 		{"groq", 9502, 1, "https://api.groq.com/openai", "", "client thought", "", false},
 		{"groq passthrough", 9502, 1, "https://api.groq.com/openai", "", "client thought", "", true},
-		{"codex2api opt in", 9503, 1, "https://relay.example", "chat", "", "cached thought", false},
-		{"codex2api passthrough", 9503, 1, "https://relay.example", "chat", "", "cached thought", true},
-		{"same model separate opt in channel", 9504, 1, "https://relay.example", "chat", "", "", false},
+		{"LiteLLM opt in replays missing reasoning", 9503, 1, "https://litellm.example", "chat", "", "cached thought", false},
+		{"LiteLLM passthrough replays missing reasoning", 9503, 1, "https://litellm.example", "chat", "", "cached thought", true},
+		{"LiteLLM preserves client reasoning", 9503, 1, "https://litellm.example", "chat", "client thought", "client thought", false},
+		{"LiteLLM DeepSeek channel type uses the same policy", 9503, 43, "https://litellm.example", "chat", "", "cached thought", false},
+		{"same model separate opt in channel", 9504, 1, "https://litellm.example", "chat", "", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			received := []byte(nil)
@@ -392,7 +394,7 @@ func TestTextHelperReasoningSameModelChannelInstances(t *testing.T) {
 			captureScope := service.ReasoningReplayScopeForChannel(info)
 			captureScope.RequestedGroup = "default"
 			captureScope.ChannelID = 9503
-			captureScope.Endpoint = "https://relay.example"
+			captureScope.Endpoint = "https://litellm.example"
 			thought := "cached thought"
 			require.True(t, service.CaptureChatReasoningTurn(9500, "shared-model", captureScope, &dto.GeneralOpenAIRequest{Messages: messages[:1]}, dto.Message{Role: "assistant", Content: "same answer", ReasoningContent: &thought}))
 			require.NotNil(t, TextHelper(c, info))

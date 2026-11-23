@@ -1268,6 +1268,31 @@ test('quick options and detailed settings share changes across tabs and save the
   })
 })
 
+test('saves explicit Chat reasoning replay for an individual upstream', async () => {
+  editingChannel.settings = '{}'
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const mode = screen.getByRole('combobox', { name: 'Reasoning replay' })
+  expect(mode).toHaveTextContent('Auto')
+  await user.click(mode)
+  await user.click(
+    await screen.findByRole('option', { name: 'OpenAI Chat Completions' })
+  )
+  expect(mode).toHaveTextContent('OpenAI Chat Completions')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+  const payload = put.mock.calls[0]?.[1] as { id: number; settings: string }
+  expect(payload.id).toBe(42)
+  expect(JSON.parse(payload.settings)).toMatchObject({
+    reasoning_replay: 'chat',
+  })
+})
+
 test.each([undefined, true])(
   'prompt cache stripping loads %s, toggles, saves, and reloads per-channel settings',
   async (initialValue) => {

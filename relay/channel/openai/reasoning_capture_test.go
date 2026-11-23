@@ -175,9 +175,38 @@ func TestOaiResponsesHandlerBindsIssuedReasoningIDToCredential(t *testing.T) {
 	require.Equal(t, sessionID, binding.SessionID)
 }
 
-func TestOaiResponsesStreamHandlerBindsCompletedReasoningID(t *testing.T) {
+func TestOaiResponsesStreamHandlerBindsIssuedReasoningIDs(t *testing.T) {
+	for _, tc := range []struct {
+		name, events string
+	}{
+		{
+			name:   "terminal includes reasoning item",
+			events: `data: {"type":"response.completed","response":{"id":"resp_stream_affinity","status":"completed","output":[{"type":"reasoning","id":"rs_stream_affinity","encrypted_content":"opaque-stream"}]}}` + "\n\n",
+		},
+		{
+			name: "terminal omits reasoning item",
+			events: `data: {"type":"response.created","response":{"id":"resp_stream_affinity","status":"in_progress"}}` + "\n\n" +
+				`data: {"type":"response.output_item.done","item":{"type":"reasoning","id":"rs_stream_affinity","encrypted_content":"opaque-stream"}}` + "\n\n" +
+				`data: {"type":"response.completed","response":{"id":"resp_stream_affinity","status":"completed","output":[]}}` + "\n\n",
+		},
+		{
+			name: "disconnect after finished item",
+			events: `data: {"type":"response.created","response":{"id":"resp_stream_affinity","status":"in_progress"}}` + "\n\n" +
+				`data: {"type":"response.output_item.done","item":{"type":"reasoning","id":"rs_stream_affinity","encrypted_content":"opaque-stream"}}` + "\n\n",
+		},
+		{
+			name:   "incomplete response includes reasoning item",
+			events: `data: {"type":"response.incomplete","response":{"id":"resp_stream_affinity","status":"incomplete","output":[{"type":"reasoning","id":"rs_stream_affinity","encrypted_content":"opaque-stream"}]}}` + "\n\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) { testOaiResponsesStreamBindsReasoningID(t, tc.events) })
+	}
+}
+
+func testOaiResponsesStreamBindsReasoningID(t *testing.T, event string) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
-	const model = "gpt-stream-affinity-test"
+	model := t.Name()
 	input := []byte(`[{"role":"user","content":"stream affinity"}]`)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-stream-affinity-test","input":[{"role":"user","content":"stream affinity"}]}`))
@@ -195,10 +224,6 @@ func TestOaiResponsesStreamHandlerBindsCompletedReasoningID(t *testing.T) {
 		},
 		Request: &dto.OpenAIResponsesRequest{Model: model, Input: input},
 	}
-	event := `data: {"type":"response.completed","response":{"id":"resp_stream_affinity","status":"completed","model":"gpt-stream-affinity-test","output":[` +
-		`{"type":"reasoning","id":"rs_stream_affinity","summary":[],"encrypted_content":"opaque-stream"},` +
-		`{"type":"message","role":"assistant","content":[{"type":"output_text","text":"answer"}]}],` +
-		`"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}` + "\n\ndata: [DONE]\n\n"
 	response := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(event))}
 	usage, apiErr := OaiResponsesStreamHandler(c, info, response)
 	require.Nil(t, apiErr)
@@ -211,7 +236,7 @@ func TestOaiResponsesStreamHandlerBindsCompletedReasoningID(t *testing.T) {
 	continuation.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-stream-affinity-test","input":[{"type":"reasoning","id":"rs_stream_affinity","encrypted_content":"opaque-stream"}]}`))
 	continuation.Set("id", 9421)
 	continuation.Set("token_id", 9422)
-	binding, matched, err := service.ResolveResponsesAffinityIDs(continuation, model, "default", "", []string{"rs_stream_affinity"})
+	binding, matched, err := service.ResolveResponsesAffinityIDs(continuation, model, "default", "resp_stream_affinity", []string{"rs_stream_affinity"})
 	require.NoError(t, err)
 	require.True(t, matched)
 	require.Equal(t, 9423, binding.ChannelID)

@@ -30,6 +30,7 @@ import {
   FIELD_PASSTHROUGH_TYPES,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
+  REASONING_REPLAY_TYPES,
 } from '../constants'
 import type { Channel } from '../types'
 import {
@@ -46,6 +47,15 @@ import { supportsResponsesWebSocket } from './responses-websocket'
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
+
+const reasoningReplayMode = z.enum([
+  'auto',
+  'off',
+  'chat',
+  'responses',
+  'all',
+  'force',
+])
 
 const SUPPORTED_PROXY_PROTOCOLS = new Set([
   'http:',
@@ -285,6 +295,7 @@ export const channelFormSchema = z
     azure_responses_version: z.string().optional(), // Azure specific
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
+    reasoning_replay: reasoningReplayMode.optional(),
     strip_reasoning_content: z.boolean().optional(), // OpenAI-compatible Chat Completions
     strip_prompt_cache_options: z.boolean().optional(), // Responses only
     disable_store: z.boolean().optional(), // OpenAI only
@@ -490,6 +501,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   azure_responses_version: '',
   // Field passthrough controls
   allow_service_tier: false,
+  reasoning_replay: 'auto',
   strip_reasoning_content: false,
   strip_prompt_cache_options: false,
   disable_store: false,
@@ -577,6 +589,7 @@ export function transformChannelToFormDefaults(
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
   let awsApiType: 'invoke_model' | 'mantle' = 'invoke_model'
   let allowServiceTier = false
+  let reasoningReplay: z.infer<typeof reasoningReplayMode> = 'auto'
   let stripReasoningContent = false
   let stripPromptCacheOptions = false
   let disableStore = false
@@ -605,6 +618,11 @@ export function transformChannelToFormDefaults(
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       awsApiType = parsed.aws_api_type || 'invoke_model'
       allowServiceTier = parsed.allow_service_tier === true
+      const mode = parsed.reasoning_replay
+      const result = reasoningReplayMode.safeParse(
+        typeof mode === 'string' ? mode.trim().toLowerCase() : undefined
+      )
+      if (result.success) reasoningReplay = result.data
       stripReasoningContent = parsed.strip_reasoning_content === true
       stripPromptCacheOptions = parsed.strip_prompt_cache_options === true
       disableStore = parsed.disable_store === true
@@ -673,6 +691,7 @@ export function transformChannelToFormDefaults(
     aws_key_type: awsKeyType,
     aws_api_type: awsApiType,
     allow_service_tier: allowServiceTier,
+    reasoning_replay: reasoningReplay,
     strip_reasoning_content: stripReasoningContent,
     strip_prompt_cache_options: stripPromptCacheOptions,
     disable_store: disableStore,
@@ -804,6 +823,10 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.allow_service_tier = formData.allow_service_tier === true
   } else if ('allow_service_tier' in settingsObj) {
     delete settingsObj.allow_service_tier
+  }
+
+  if (REASONING_REPLAY_TYPES.has(formData.type) && formData.reasoning_replay) {
+    settingsObj.reasoning_replay = formData.reasoning_replay
   }
 
   if (OPENAI_FIELD_PASSTHROUGH_TYPES.has(formData.type)) {

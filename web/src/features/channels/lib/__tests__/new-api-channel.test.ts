@@ -183,6 +183,39 @@ describe('OpenAI-compatible request settings', () => {
     )
   })
 
+  test.each([1, 43])(
+    'type %s preserves existing reasoning modes across edits',
+    (type) => {
+      const channel = channelSchema.parse({
+        id: 8,
+        name: 'DeepSeek proxy',
+        type,
+        key: '',
+        status: 1,
+        created_time: 1,
+        test_time: 0,
+        response_time: 0,
+        balance_updated_time: 0,
+        models: 'deepseek-flash',
+        settings: JSON.stringify({ reasoning_replay: ' FORCE ' }),
+      })
+      const defaults = transformChannelToFormDefaults(channel)
+      expect(defaults.reasoning_replay).toBe('force')
+      const update = transformFormDataToUpdatePayload(
+        { ...defaults, reasoning_replay: 'off' },
+        channel.id
+      )
+      expect(
+        transformChannelToFormDefaults({ ...channel, ...update })
+          .reasoning_replay
+      ).toBe('off')
+      expect(
+        transformChannelToFormDefaults({ ...channel, settings: '{}' })
+          .reasoning_replay
+      ).toBe('auto')
+    }
+  )
+
   test('round-trips per-channel reasoning_content stripping', () => {
     const channel = channelSchema.parse({
       id: 8,

@@ -460,6 +460,24 @@ func TestResponsesAffinityRedisRejectsConflictsAtomically(t *testing.T) {
 	assert.True(t, types.IsSkipRetryError(apiErr))
 	assert.NotContains(t, server.Dump(), "final-override-A", "Redis must not store usable outbound credentials")
 
+	// A full-history continuation should keep the old reasoning ID live even
+	// when it is no longer emitted by the upstream on every turn.
+	server.FastForward(89 * 24 * time.Hour)
+	continued := makeContext(51)
+	_, found, err = ResolveResponsesAffinityIDs(continued, "gpt-redis-affinity", "default", "", []string{"rs-existing"})
+	require.NoError(t, err)
+	require.True(t, found)
+	require.NoError(t, ValidateResponsesOutboundIdentity(continued, outbound))
+	_, err = RecordResponsesAffinityIDs(continued, "gpt-redis-affinity", "default", "credential-A", "resp-next", []string{"rs-next"})
+	require.NoError(t, err)
+	server.FastForward(2 * 24 * time.Hour)
+	_, found, err = ResolveResponsesAffinityIDs(makeContext(0), "gpt-redis-affinity", "default", "resp-next", []string{"rs-existing", "rs-next"})
+	require.NoError(t, err)
+	assert.True(t, found)
+	_, found, err = ResolveResponsesAffinityIDs(makeContext(0), "gpt-redis-affinity", "default", "resp-existing", nil)
+	require.NoError(t, err)
+	assert.False(t, found, "unreferenced aliases must still expire")
+
 	// Competing replicas must publish either complete ID set, never a partial
 	// response alias from the losing writer. Both callers share only Redis.
 	start := make(chan struct{})

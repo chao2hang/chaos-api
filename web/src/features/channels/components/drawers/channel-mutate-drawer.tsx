@@ -157,6 +157,7 @@ import {
   FIELD_PLACEHOLDERS,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
+  REASONING_REPLAY_TYPES,
 } from '../../constants'
 import { useChannelKeyDisclosure } from '../../hooks/use-channel-key-disclosure'
 import {
@@ -336,6 +337,7 @@ const SENSITIVE_FORM_FIELDS = [
   'azure_responses_version',
   'force_format',
   'thinking_to_content',
+  'reasoning_replay',
   'proxy',
   'http_protocol',
   'http2_connection_shards',
@@ -3063,6 +3065,56 @@ export function ChannelMutateDrawer({
     </div>
   )
 
+  const reasoningReplayOptions = [
+    { value: 'auto', label: t('Auto') },
+    { value: 'off', label: t('Disabled') },
+    { value: 'chat', label: t('OpenAI Chat Completions') },
+    { value: 'responses', label: t('Responses API') },
+    { value: 'all', label: t('Both protocols') },
+    { value: 'force', label: t('Both protocols (legacy)') },
+  ] as const
+  const reasoningReplayField = REASONING_REPLAY_TYPES.has(currentType) &&
+    (currentType !== CHANNEL_TYPE_TASK_PLUGIN ||
+      boundTaskPlugin?.provider === true) && (
+      <FormField
+        control={form.control}
+        name='reasoning_replay'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('Reasoning replay')}</FormLabel>
+            <Select
+              disabled={sensitiveLocked || isSubmitting}
+              items={reasoningReplayOptions}
+              value={field.value ?? 'auto'}
+              onValueChange={(value) => {
+                if (value !== null) field.onChange(value)
+              }}
+            >
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {reasoningReplayOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <FormDescription>
+              {t(
+                'Choose the protocols that can reuse reasoning on this channel. Enable only if the upstream requires it. Explicit stripping takes precedence.'
+              )}
+            </FormDescription>
+          </FormItem>
+        )}
+      />
+    )
+
   // A plugin channel without relay routes relays no client fields.
   const fieldPassthroughSupported =
     FIELD_PASSTHROUGH_TYPES.has(currentType) &&
@@ -5092,6 +5144,7 @@ export function ChannelMutateDrawer({
                 {formatFields}
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
+                {reasoningReplayField}
                 {passthroughFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}

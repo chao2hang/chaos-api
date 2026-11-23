@@ -554,6 +554,11 @@ export const OPENAI_FIELD_PASSTHROUGH_TYPES = new Set([
   CHANNEL_TYPE_SGLANG,
 ])
 
+export const REASONING_REPLAY_TYPES = new Set([
+  ...OPENAI_FIELD_PASSTHROUGH_TYPES,
+  43, // DeepSeek
+])
+
 export const CLAUDE_FIELD_PASSTHROUGH_TYPES = new Set([
   14,
   58,

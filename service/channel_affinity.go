@@ -38,6 +38,7 @@ const (
 	ginKeyChannelAffinityRetryOffset         = "channel_affinity_retry_offset"
 	ginKeyEncryptedResponsesAffinityRequired = "encrypted_responses_affinity_required"
 	ginKeyResponsesAffinityBinding           = "responses_affinity_binding"
+	ginKeyResponsesAffinityVerifiedKeys      = "responses_affinity_verified_keys"
 	ginKeyResponsesOutboundIdentity          = "responses_outbound_identity"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v2"
@@ -222,6 +223,7 @@ func ResolveResponsesAffinityIDs(c *gin.Context, modelName, usingGroup, previous
 		return ResponsesAffinityBinding{}, false, fmt.Errorf("%w: too many identifiers", ErrResponsesAffinityInvalid)
 	}
 	var binding ResponsesAffinityBinding
+	verifiedKeys := make([]string, 0, len(ids))
 	missing := false
 	for _, id := range ids {
 		if len(id.value) > 1024 {
@@ -240,6 +242,7 @@ func ResolveResponsesAffinityIDs(c *gin.Context, modelName, usingGroup, previous
 			return ResponsesAffinityBinding{}, false, fmt.Errorf("%w: multiple IDs name different sessions", ErrResponsesAffinityConflict)
 		}
 		binding = foundBinding
+		verifiedKeys = append(verifiedKeys, key)
 	}
 	if binding.SessionID != "" && missing {
 		return ResponsesAffinityBinding{}, false, fmt.Errorf("%w: one or more IDs have no binding", ErrResponsesAffinityConflict)
@@ -250,6 +253,7 @@ func ResolveResponsesAffinityIDs(c *gin.Context, modelName, usingGroup, previous
 		return ResponsesAffinityBinding{}, false, nil
 	}
 	c.Set(ginKeyResponsesAffinityBinding, binding)
+	c.Set(ginKeyResponsesAffinityVerifiedKeys, verifiedKeys)
 	return binding, true, nil
 }
 
@@ -409,6 +413,13 @@ func RecordResponsesAffinityIDs(c *gin.Context, modelName, usingGroup, upstreamC
 	keys := make([]string, 0, len(ids))
 	for _, id := range ids {
 		keys = append(keys, responsesAffinityCacheKey(userID, tokenID, modelName, usingGroup, id.kind, id.value))
+	}
+	// Full-history clients resend earlier opaque items. Renew only aliases
+	// which resolved to this exact binding at ingress, never unverified IDs.
+	if value, ok := c.Get(ginKeyResponsesAffinityVerifiedKeys); ok {
+		if verified, valid := value.([]string); valid {
+			keys = append(keys, verified...)
+		}
 	}
 	if err := storeResponsesAffinityBindings(keys, binding, requiredCount); err != nil {
 		return "", err
