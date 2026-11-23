@@ -1,8 +1,15 @@
 package service
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"hash/fnv"
 	"maps"
+	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +18,7 @@ import (
 	"github.com/MoeForge/moego/ojson"
 	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -29,8 +37,11 @@ const (
 	ginKeyChannelAffinitySkipRetry           = "channel_affinity_skip_retry_on_failure"
 	ginKeyChannelAffinityRetryOffset         = "channel_affinity_retry_offset"
 	ginKeyEncryptedResponsesAffinityRequired = "encrypted_responses_affinity_required"
+	ginKeyResponsesAffinityBinding           = "responses_affinity_binding"
+	ginKeyResponsesOutboundIdentity          = "responses_outbound_identity"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v2"
+	responsesAffinityCacheNamespace         = "new-api:responses_affinity:v1"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
 
 	channelAffinityFallbackTTLSeconds       = 3600
@@ -38,14 +49,33 @@ const (
 )
 
 var (
+	ErrResponsesAffinityConflict = errors.New("conflicting Responses session bindings")
+	ErrResponsesAffinityInvalid  = errors.New("invalid Responses session identifier")
+
 	channelAffinityCacheOnce sync.Once
 	channelAffinityCache     *cachex.HybridCache[int]
+
+	responsesAffinityCacheOnce sync.Once
+	responsesAffinityCache     *cachex.HybridCache[ResponsesAffinityBinding]
+	responsesAffinityWriteLock sync.Mutex
 
 	channelAffinityUsageCacheStatsOnce  sync.Once
 	channelAffinityUsageCacheStatsCache *cachex.HybridCache[ChannelAffinityUsageCacheCounters]
 
 	channelAffinityRegexCache sync.Map // map[string]*regexp.Regexp
 )
+
+// ResponsesAffinityBinding is scoped to a verified API token and one Responses
+// conversation identifier. Configuration credentials pin multi-key selection;
+// the separate outbound identity binds the final HTTP destination and auth after
+// overrides/signing. Only hashes are cached, never usable credentials.
+type ResponsesAffinityBinding struct {
+	ChannelID                   int    `json:"channel_id"`
+	CredentialFingerprint       string `json:"credential_fp"`
+	OutboundIdentityFingerprint string `json:"outbound_identity_fp,omitempty"`
+	SessionID                   string `json:"session_id"`
+	ResolvedGroup               string `json:"resolved_group"`
+}
 
 type channelAffinityMeta struct {
 	CacheKey       string
@@ -117,6 +147,357 @@ func getChannelAffinityCache() *cachex.HybridCache[int] {
 		channelAffinityCache = newChannelAffinityCache()
 	})
 	return channelAffinityCache
+}
+
+func getResponsesAffinityCache() *cachex.HybridCache[ResponsesAffinityBinding] {
+	responsesAffinityCacheOnce.Do(func() {
+		capacity := operation_setting.GetChannelAffinitySetting().MaxEntries
+		if capacity <= 0 {
+			capacity = 100_000
+		}
+		responsesAffinityCache = cachex.NewHybridCache[ResponsesAffinityBinding](cachex.HybridCacheConfig[ResponsesAffinityBinding]{
+			Namespace:     cachex.Namespace(responsesAffinityCacheNamespace),
+			RedisProvider: func() *redis.Client { return common.RDB },
+			RedisEnabled:  func() bool { return common.RedisEnabled && common.RDB != nil },
+			RedisCodec:    cachex.JSONCodec[ResponsesAffinityBinding]{},
+			Memory: func() *hot.HotCache[string, ResponsesAffinityBinding] {
+				return hot.NewHotCache[string, ResponsesAffinityBinding](hot.LRU, capacity).
+					WithTTL(time.Duration(encryptedResponsesAffinityMinTTLSeconds) * time.Second).
+					WithJanitor().Build()
+			},
+		})
+	})
+	return responsesAffinityCache
+}
+
+func responsesAffinityCacheKey(userID, tokenID int, modelName, usingGroup, kind, id string) string {
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%d\x00%d\x00%s\x00%s\x00%s\x00%s", userID, tokenID, modelName, usingGroup, kind, id)))
+	return hex.EncodeToString(sum[:])
+}
+
+func responsesPromptCacheKey(c *gin.Context) (string, error) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return "", err
+	}
+	values, err := common.ReadBodyJSONFields(storage, "prompt_cache_key")
+	if err != nil {
+		return "", err
+	}
+	if len(values) == 0 || values[0].Type != ojson.String {
+		return "", nil
+	}
+	return strings.TrimSpace(values[0].Str), nil
+}
+
+// ResolveResponsesAffinityIDs looks up upstream-issued response/reasoning IDs
+// within the authenticated user+token+model+group. A prompt_cache_key is a
+// token-scoped selector only if the request provides no upstream ID. Partial matches
+// and conflicting IDs fail closed rather than selecting a random channel.
+func ResolveResponsesAffinityIDs(c *gin.Context, modelName, usingGroup, previousResponseID string, reasoningIDs []string) (ResponsesAffinityBinding, bool, error) {
+	if c == nil || c.GetInt("id") <= 0 || c.GetInt("token_id") <= 0 {
+		return ResponsesAffinityBinding{}, false, errors.New("verified API token is required for Responses affinity")
+	}
+	userID, tokenID := c.GetInt("id"), c.GetInt("token_id")
+	ids := make([]struct{ kind, value string }, 0, len(reasoningIDs)+1)
+	if previousResponseID = strings.TrimSpace(previousResponseID); previousResponseID != "" {
+		ids = append(ids, struct{ kind, value string }{"response", previousResponseID})
+	}
+	for _, id := range reasoningIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, struct{ kind, value string }{"reasoning", id})
+		}
+	}
+	if len(ids) == 0 {
+		promptKey, err := responsesPromptCacheKey(c)
+		if err != nil {
+			return ResponsesAffinityBinding{}, false, err
+		}
+		if promptKey == "" {
+			return ResponsesAffinityBinding{}, false, nil
+		}
+		ids = append(ids, struct{ kind, value string }{"prompt", promptKey})
+	}
+	if len(ids) > 128 {
+		return ResponsesAffinityBinding{}, false, fmt.Errorf("%w: too many identifiers", ErrResponsesAffinityInvalid)
+	}
+	var binding ResponsesAffinityBinding
+	missing := false
+	for _, id := range ids {
+		if len(id.value) > 1024 {
+			return ResponsesAffinityBinding{}, false, fmt.Errorf("%w: identifier too long", ErrResponsesAffinityInvalid)
+		}
+		key := responsesAffinityCacheKey(userID, tokenID, modelName, usingGroup, id.kind, id.value)
+		foundBinding, found, err := getResponsesAffinityCache().Get(key)
+		if err != nil {
+			return ResponsesAffinityBinding{}, false, err
+		}
+		if !found || foundBinding.ChannelID <= 0 || foundBinding.CredentialFingerprint == "" || foundBinding.SessionID == "" {
+			missing = true
+			continue
+		}
+		if binding.SessionID != "" && binding != foundBinding {
+			return ResponsesAffinityBinding{}, false, fmt.Errorf("%w: multiple IDs name different sessions", ErrResponsesAffinityConflict)
+		}
+		binding = foundBinding
+	}
+	if binding.SessionID != "" && missing {
+		return ResponsesAffinityBinding{}, false, fmt.Errorf("%w: one or more IDs have no binding", ErrResponsesAffinityConflict)
+	}
+	if missing {
+		// An unknown encrypted item must never fall back to a broad prompt
+		// cache hint: it could belong to another upstream account.
+		return ResponsesAffinityBinding{}, false, nil
+	}
+	c.Set(ginKeyResponsesAffinityBinding, binding)
+	return binding, true, nil
+}
+
+// ValidateResponsesOutboundIdentity runs after all HTTP request mutations and
+// before sending any Responses body upstream. A configured key is not proof of
+// the actual account: Authorization overrides can select a different credential.
+// Only the digest enters the request context or the conversation cache.
+func ValidateResponsesOutboundIdentity(c *gin.Context, req *http.Request, additionalHeaders ...string) error {
+	if c == nil || req == nil || req.URL == nil {
+		return types.NewErrorWithStatusCode(errors.New("Responses outbound identity unavailable"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
+	}
+	identity := [][]string{{req.URL.String(), req.Host}}
+	headerNames := make([]string, 0, len(req.Header))
+	for name := range req.Header {
+		headerNames = append(headerNames, name)
+	}
+	slices.Sort(headerNames)
+	trackedHeaders := []string{
+		"authorization", "api-key", "x-api-key", "x-goog-api-key", "x-auth-token",
+		"cookie", "openai-organization", "openai-project", "chatgpt-account-id",
+		"ocp-apim-subscription-key",
+	}
+	for _, name := range additionalHeaders {
+		if name = strings.ToLower(strings.TrimSpace(name)); name != "" {
+			trackedHeaders = append(trackedHeaders, name)
+		}
+	}
+	slices.Sort(trackedHeaders)
+	for _, name := range slices.Compact(trackedHeaders) {
+		// Preserve value boundaries and duplicates instead of concatenating
+		// headers, which can make different credential sets hash identically.
+		values := []string{name}
+		for _, actualName := range headerNames {
+			if strings.EqualFold(actualName, name) {
+				values = append(values, req.Header[actualName]...)
+			}
+		}
+		identity = append(identity, values)
+	}
+	encoded, err := common.Marshal(identity)
+	if err != nil {
+		return types.NewErrorWithStatusCode(errors.New("Responses outbound identity unavailable"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
+	}
+	digest := sha256.Sum256(encoded)
+	fingerprint := hex.EncodeToString(digest[:])
+	if value, exists := c.Get(ginKeyResponsesAffinityBinding); exists {
+		binding, valid := value.(ResponsesAffinityBinding)
+		if !valid || binding.OutboundIdentityFingerprint == "" || binding.OutboundIdentityFingerprint != fingerprint {
+			return types.NewErrorWithStatusCode(errors.New("Responses session outbound identity changed"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
+		}
+	}
+	c.Set(ginKeyResponsesOutboundIdentity, fingerprint)
+	return nil
+}
+
+// AuthorizeResponsesAffinityBinding rechecks current entitlements before a
+// cached conversation can become a channel pin. A pin must not revive removed
+// model abilities or groups, nor price an auto request under the literal "auto".
+func AuthorizeResponsesAffinityBinding(c *gin.Context, modelName, usingGroup string, binding ResponsesAffinityBinding) error {
+	if c == nil || binding.ChannelID <= 0 || binding.ResolvedGroup == "" || binding.ResolvedGroup == "auto" {
+		return errors.New("Responses session group is unavailable")
+	}
+	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	if usingGroup == "auto" {
+		if !slices.Contains(GetRequestAutoGroups(c, userGroup), binding.ResolvedGroup) {
+			return errors.New("Responses session group is no longer authorized")
+		}
+	} else if binding.ResolvedGroup != usingGroup || !IsUserSelectableGroup(userGroup, usingGroup) {
+		return errors.New("Responses session group is no longer authorized")
+	}
+	if !model.IsChannelEnabledForGroupModel(binding.ResolvedGroup, modelName, binding.ChannelID) {
+		return errors.New("Responses session channel no longer serves this group and model")
+	}
+	if usingGroup == "auto" {
+		common.SetContextKey(c, constant.ContextKeyAutoGroup, binding.ResolvedGroup)
+	}
+	return nil
+}
+
+// RecordResponsesAffinityIDs must run after the upstream selected its actual
+// channel credential and emitted a successful response. Its caller extracts
+// response.id and output[].reasoning.id from complete HTTP/SSE responses.
+// IDs are selectors scoped by the verified API token, never authenticators.
+func RecordResponsesAffinityIDs(c *gin.Context, modelName, usingGroup, upstreamCredential, responseID string, reasoningIDs []string) (string, error) {
+	if c == nil || c.GetInt("id") <= 0 || c.GetInt("token_id") <= 0 {
+		return "", errors.New("verified API token is required for Responses affinity")
+	}
+	userID, tokenID := c.GetInt("id"), c.GetInt("token_id")
+	channelID := c.GetInt("channel_id")
+	if channelID <= 0 || upstreamCredential == "" {
+		return "", errors.New("selected upstream credential is required for Responses affinity")
+	}
+	// Keep the requested group in the owner key, but retain the exact resolved
+	// group for auto-group reauthorization and pricing on later pinned turns.
+	resolvedGroup := usingGroup
+	if usingGroup == "auto" {
+		resolvedGroup = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	}
+	if resolvedGroup == "" || resolvedGroup == "auto" {
+		return "", errors.New("resolved Responses channel group is required")
+	}
+	fingerprint := sha256.Sum256([]byte(upstreamCredential))
+	binding := ResponsesAffinityBinding{
+		ChannelID: channelID, CredentialFingerprint: hex.EncodeToString(fingerprint[:]), ResolvedGroup: resolvedGroup,
+		OutboundIdentityFingerprint: c.GetString(ginKeyResponsesOutboundIdentity),
+	}
+	ids := make([]struct{ kind, value string }, 0, len(reasoningIDs)+2)
+	if responseID = strings.TrimSpace(responseID); responseID != "" {
+		ids = append(ids, struct{ kind, value string }{"response", responseID})
+	}
+	for _, id := range reasoningIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, struct{ kind, value string }{"reasoning", id})
+		}
+	}
+	promptKey, err := responsesPromptCacheKey(c)
+	if err != nil {
+		return "", err
+	}
+	if promptKey != "" {
+		ids = append(ids, struct{ kind, value string }{"prompt", promptKey})
+	}
+	if len(ids) == 0 {
+		return "", nil
+	}
+	if len(ids) > 128 {
+		return "", errors.New("too many Responses session identifiers")
+	}
+	requiredCount := len(ids)
+	if promptKey != "" && requiredCount > 1 {
+		requiredCount-- // A prompt hint is optional when a provider supplied IDs.
+	}
+	for _, id := range ids {
+		if len(id.value) > 1024 {
+			return "", errors.New("Responses session identifier is too long")
+		}
+	}
+	if current, ok := c.Get(ginKeyResponsesAffinityBinding); ok {
+		if previous, valid := current.(ResponsesAffinityBinding); valid && previous.SessionID != "" {
+			if previous.ChannelID != channelID || previous.CredentialFingerprint != binding.CredentialFingerprint || previous.ResolvedGroup != resolvedGroup {
+				return "", errors.New("Responses session changed upstream credential or group")
+			}
+			if binding.OutboundIdentityFingerprint == "" {
+				// Direct response-handler callers (including fixtures) have no
+				// HTTP egress hook. Preserve, never erase, an existing identity.
+				binding.OutboundIdentityFingerprint = previous.OutboundIdentityFingerprint
+			} else if previous.OutboundIdentityFingerprint != binding.OutboundIdentityFingerprint {
+				return "", errors.New("Responses session changed outbound identity")
+			}
+			binding.SessionID = previous.SessionID
+		}
+	}
+	if binding.SessionID == "" {
+		first := ids[0]
+		binding.SessionID = responsesAffinityCacheKey(userID, tokenID, modelName, usingGroup, first.kind, first.value)
+	}
+	keys := make([]string, 0, len(ids))
+	for _, id := range ids {
+		keys = append(keys, responsesAffinityCacheKey(userID, tokenID, modelName, usingGroup, id.kind, id.value))
+	}
+	if err := storeResponsesAffinityBindings(keys, binding, requiredCount); err != nil {
+		return "", err
+	}
+	c.Set(ginKeyResponsesAffinityBinding, binding)
+	return binding.SessionID, nil
+}
+
+// storeResponsesAffinityBindings checks and writes every required ID in one
+// operation. Redis uses one Lua script across instances; memory locks the
+// entire preflight+write. An optional prompt alias is never allowed to replace
+// an existing session, while a required upstream ID conflict rejects all IDs.
+func storeResponsesAffinityBindings(keys []string, binding ResponsesAffinityBinding, requiredCount int) error {
+	const ttl = time.Duration(encryptedResponsesAffinityMinTTLSeconds) * time.Second
+	cache := getResponsesAffinityCache()
+	if common.RedisEnabled && common.RDB != nil {
+		encoded, err := common.Marshal(binding)
+		if err != nil {
+			return err
+		}
+		fullKeys := make([]string, len(keys))
+		for i, key := range keys {
+			fullKeys[i] = cache.FullKey(key)
+		}
+		const atomicSet = `
+for i = 1, tonumber(ARGV[3]) do
+  local old = redis.call('GET', KEYS[i])
+  if old and old ~= ARGV[1] then return 0 end
+end
+for i = 1, tonumber(ARGV[3]) do
+  redis.call('SET', KEYS[i], ARGV[1], 'EX', ARGV[2])
+end
+for i = tonumber(ARGV[3]) + 1, #KEYS do
+  local old = redis.call('GET', KEYS[i])
+  if not old or old == ARGV[1] then
+    redis.call('SET', KEYS[i], ARGV[1], 'EX', ARGV[2])
+  end
+end
+return 1`
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		written, err := common.RDB.Eval(ctx, atomicSet, fullKeys, string(encoded), encryptedResponsesAffinityMinTTLSeconds, requiredCount).Int64()
+		if err != nil {
+			return err
+		}
+		if written != 1 {
+			return ErrResponsesAffinityConflict
+		}
+		return nil
+	}
+	responsesAffinityWriteLock.Lock()
+	defer responsesAffinityWriteLock.Unlock()
+	writeKeys := make([]string, 0, len(keys))
+	for i, key := range keys {
+		previous, found, err := cache.Get(key)
+		if err != nil {
+			return err
+		}
+		if found && previous != binding {
+			if i < requiredCount {
+				return ErrResponsesAffinityConflict
+			}
+			continue
+		}
+		writeKeys = append(writeKeys, key)
+	}
+	for _, key := range writeKeys {
+		if err := cache.SetWithTTL(key, binding, ttl); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CurrentResponsesAffinityScope is the validated conversation/credential scope
+// for replay capture. The fingerprint is safe to cache but is never a key.
+func CurrentResponsesAffinityScope(c *gin.Context) (channelID int, credentialFingerprint, sessionID string, ok bool) {
+	if c == nil {
+		return 0, "", "", false
+	}
+	value, exists := c.Get(ginKeyResponsesAffinityBinding)
+	if !exists {
+		return 0, "", "", false
+	}
+	binding, valid := value.(ResponsesAffinityBinding)
+	if !valid || binding.ChannelID <= 0 || binding.CredentialFingerprint == "" || binding.SessionID == "" {
+		return 0, "", "", false
+	}
+	return binding.ChannelID, binding.CredentialFingerprint, binding.SessionID, true
 }
 
 func GetChannelAffinityCacheStats() ChannelAffinityCacheStats {
@@ -583,6 +964,16 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 // matched independently from whether its channel binding exists. Encrypted
 // Responses continuations must fail closed on a missing or unavailable binding.
 func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (int, bool, error) {
+	return resolveChannelAffinityRule(c, modelName, usingGroup, false)
+}
+
+// MatchResponsesAffinityRule preserves rule templates on a strictly bound
+// continuation without consulting its optional channel hint cache.
+func MatchResponsesAffinityRule(c *gin.Context, modelName, usingGroup string) {
+	_, _, _ = resolveChannelAffinityRule(c, modelName, usingGroup, true)
+}
+
+func resolveChannelAffinityRule(c *gin.Context, modelName, usingGroup string, metadataOnly bool) (int, bool, error) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	state := RequestPolicy(c)
 	if setting == nil || !setting.Enabled {
@@ -619,6 +1010,15 @@ func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGr
 		if affinityValue == "" {
 			continue
 		}
+		// Persisted copies of the old built-in rule still contain token_id.
+		// It is not a conversation identity; allow distinct first turns on
+		// the same token and model to choose their own eligible channel.
+		if path == "/v1/responses" && rule.Name == "responses session trace" &&
+			len(rule.KeySources) == 2 && rule.KeySources[0].Type == "gjson" &&
+			rule.KeySources[0].Path == "prompt_cache_key" &&
+			usedSource.Type == "context_int" && usedSource.Key == "token_id" {
+			continue
+		}
 		if rule.ValueRegex != "" && !matchAnyRegexCached([]string{rule.ValueRegex}, affinityValue) {
 			continue
 		}
@@ -636,9 +1036,11 @@ func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGr
 		}
 		cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, modelName, usingGroup, affinityValue, userID)
 		cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
-		state.SessionMode, state.SessionModeSource = EffectiveSessionMode(setting, rule)
-		if c != nil && c.GetBool(ginKeyEncryptedResponsesAffinityRequired) {
-			state.SessionMode, state.SessionModeSource = "strict", "encrypted_reasoning"
+		if !metadataOnly {
+			state.SessionMode, state.SessionModeSource = EffectiveSessionMode(setting, rule)
+			if c != nil && c.GetBool(ginKeyEncryptedResponsesAffinityRequired) {
+				state.SessionMode, state.SessionModeSource = "strict", "encrypted_reasoning"
+			}
 		}
 		// Encrypted Responses reasoning can be resumed after long idle periods.
 		// Keep bindings derived from a stable client identity long enough to
@@ -665,7 +1067,7 @@ func ResolvePreferredChannelByAffinity(c *gin.Context, modelName string, usingGr
 		})
 
 		state.AddEvent(PolicyEvent{Decision: PolicyDecision{Action: "match", Reason: "session_rule_matched", Source: "session_rule"}})
-		if state.SessionMode == "off" {
+		if metadataOnly || state.SessionMode == "off" {
 			return 0, true, nil
 		}
 		channelID, found, err := getChannelAffinityCache().Get(cacheKeySuffix)
@@ -688,8 +1090,19 @@ func RequireEncryptedResponsesAffinity(c *gin.Context) {
 		return
 	}
 	c.Set(ginKeyEncryptedResponsesAffinityRequired, true)
+	c.Set(ginKeyChannelAffinitySkipRetry, true)
 	state := RequestPolicy(c)
 	state.SessionMode, state.SessionModeSource = "strict", "encrypted_reasoning"
+}
+
+func RequireResponsesPreviousResponseAffinity(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	c.Set(ginKeyEncryptedResponsesAffinityRequired, true)
+	c.Set(ginKeyChannelAffinitySkipRetry, true)
+	state := RequestPolicy(c)
+	state.SessionMode, state.SessionModeSource = "strict", "previous_response_id"
 }
 
 func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {

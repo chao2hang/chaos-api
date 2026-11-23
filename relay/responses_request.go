@@ -1,11 +1,14 @@
 package relay
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -51,10 +54,37 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 		return nil, nil, nil, types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+	_, replayReasoning := service.ReasoningReplayPolicyForChannel(info, service.ReasoningReplayModeResponses)
+	scope := service.ReasoningReplayScopeForChannel(info)
+	scope.RequestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if channelID, credential, sessionID, ok := service.CurrentResponsesAffinityScope(c); ok {
+		digest := sha256.Sum256([]byte(info.ApiKey))
+		if channelID != info.ChannelId || credential != hex.EncodeToString(digest[:]) {
+			return nil, nil, nil, types.NewErrorWithStatusCode(fmt.Errorf("reasoning continuation belongs to another upstream"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
+		}
+		scope.SessionID = sessionID
+	}
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return nil, nil, nil, types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+		}
+		if replayReasoning {
+			raw, readErr := storage.Bytes()
+			if readErr != nil {
+				return nil, nil, nil, types.NewError(readErr, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			if replayed, changed := service.ReplayResponsesReasoningWithPolicy(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, raw, service.IsCodexClient(service.ClientUserAgent(info.RequestHeaders)), scope); changed {
+				storage, err = common.CreateBodyStorage(replayed)
+				if err != nil {
+					return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+				}
+				if apiErr := requestplugin.PassThrough(c, info, storage); apiErr != nil {
+					storage.Close()
+					return nil, nil, nil, apiErr
+				}
+				return adaptor, common.NewReplayableBodyReader(storage), storage, nil
+			}
 		}
 		if apiErr := requestplugin.PassThrough(c, info, storage); apiErr != nil {
 			return nil, nil, nil, apiErr
@@ -76,16 +106,6 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 	if err != nil {
 		return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
-	// Re-attach cached thinking state for clients that replay an assistant turn
-	// without its reasoning item — only on channels that speak the stateful
-	// protocol. Codex sends the items itself; adding a second copy breaks the
-	// chain.
-	if service.ReplayAllowedForChannel(info.ChannelType, info.ChannelOtherSettings.ReasoningReplay) {
-		clientIsCodex := service.IsCodexClient(service.ClientUserAgent(info.RequestHeaders))
-		if replayed, ok := service.ReplayResponsesReasoningWithPolicy(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, jsonData, clientIsCodex); ok {
-			jsonData = replayed
-		}
-	}
 	jsonData, apiErr := requestplugin.Outbound(c, info, jsonData)
 	if apiErr != nil {
 		return nil, nil, nil, apiErr
@@ -94,6 +114,11 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 		if err != nil {
 			return nil, nil, nil, newAPIErrorFromParamOverride(err)
+		}
+	}
+	if replayReasoning {
+		if replayed, changed := service.ReplayResponsesReasoningWithPolicy(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, jsonData, service.IsCodexClient(service.ClientUserAgent(info.RequestHeaders)), scope); changed {
+			jsonData = replayed
 		}
 	}
 	if finalizer, ok := adaptor.(relaychannel.ResponsesRequestFinalizer); ok {

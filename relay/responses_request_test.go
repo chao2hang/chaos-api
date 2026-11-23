@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"encoding/json"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
@@ -23,6 +25,122 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func TestPrepareResponsesReasoningChannelReplay(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	old := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = old })
+	for _, tc := range []struct {
+		name, mode, ua    string
+		channel           int
+		passthrough, want bool
+	}{
+		{"explicit opt in", "responses", "", 9601, false, true},
+		{"passthrough opt in", "responses", "", 9601, true, true},
+		{"same model other instance", "responses", "", 9602, false, false},
+		{"off", "off", "", 9601, false, false},
+		{"codex client", "responses", "codex_cli_rs/1", 9601, false, false},
+		{"codex passthrough", "responses", "codex_cli_rs/1", 9601, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := `{"model":"shared-model","input":[{"role":"user","content":"hi"},{"role":"assistant","content":"answer"},{"role":"user","content":"continue"}]}`
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/responses", strings.NewReader(raw))
+			c.Request.Header.Set("Content-Type", "application/json")
+			c.Request.Header.Set("User-Agent", tc.ua)
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "shared-model")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			common.SetContextKey(c, constant.ContextKeyChannelId, tc.channel)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://relay.example")
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "key")
+			common.SetContextKey(c, constant.ContextKeyTokenId, 9600)
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passthrough})
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: tc.mode})
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+			var req dto.OpenAIResponsesRequest
+			require.NoError(t, common.Unmarshal([]byte(raw), &req))
+			info := relaycommon.GenRelayInfoResponses(c, &req)
+			info.InitChannelMeta(c)
+			scope := service.ReasoningReplayScopeForChannel(info)
+			scope.ChannelID = 9601
+			require.True(t, service.CaptureResponsesReasoning(9600, "shared-model", json.RawMessage(`[{"role":"user","content":"hi"}]`), json.RawMessage(`[{"type":"reasoning","content":[{"type":"reasoning_text","text":"cached"}]},{"role":"assistant","content":"answer"}]`), scope))
+			_, body, closer, apiErr := PrepareResponsesRequest(c, info, &req)
+			require.Nil(t, apiErr)
+			defer closer.Close()
+			wire, err := io.ReadAll(body)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, strings.Contains(string(wire), `"reasoning_text"`))
+		})
+	}
+}
+
+func TestPrepareResponsesReplayKeepsRootAfterPromptKeyIsOmitted(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = previous })
+
+	const model = "gpt-root-session-test"
+	const tokenID = 9671
+	const channelID = 9672
+	firstBody := `{"model":"gpt-root-session-test","prompt_cache_key":"session-p","input":[{"role":"user","content":"first"}]}`
+	first, _ := gin.CreateTestContext(httptest.NewRecorder())
+	first.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(firstBody))
+	first.Set("id", 9670)
+	first.Set("token_id", tokenID)
+	first.Set("channel_id", channelID)
+	common.SetContextKey(first, constant.ContextKeyOriginalModel, model)
+	common.SetContextKey(first, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(first, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(first, constant.ContextKeyChannelId, channelID)
+	common.SetContextKey(first, constant.ContextKeyChannelBaseUrl, "https://upstream.example")
+	common.SetContextKey(first, constant.ContextKeyChannelKey, "sk-root-session")
+	common.SetContextKey(first, constant.ContextKeyTokenId, tokenID)
+	common.SetContextKey(first, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: service.ReasoningReplayModeResponses})
+	t.Cleanup(func() { common.CleanupBodyStorage(first) })
+	var firstReq dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal([]byte(firstBody), &firstReq))
+	firstInfo := relaycommon.GenRelayInfoResponses(first, &firstReq)
+	firstInfo.InitChannelMeta(first)
+	sessionID, err := service.RecordResponsesAffinityIDs(first, model, "default", "sk-root-session", "resp_first", []string{"rs_first"})
+	require.NoError(t, err)
+	require.NotEmpty(t, sessionID)
+
+	scope := service.ReasoningReplayScopeForChannel(firstInfo)
+	scope.RequestedGroup = "default"
+	scope.SessionID = sessionID
+	secondInput := json.RawMessage(`[{"role":"user","content":"first"},{"type":"reasoning","id":"rs_first","content":[{"type":"reasoning_text","text":"first-thought"}]},{"role":"assistant","content":"answer-one"},{"role":"user","content":"second"}]`)
+	secondOutput := json.RawMessage(`[{"type":"reasoning","id":"rs_second","content":[{"type":"reasoning_text","text":"second-thought"}]},{"role":"assistant","content":"answer-two"}]`)
+	require.True(t, service.CaptureResponsesReasoning(tokenID, model, secondInput, secondOutput, scope))
+
+	thirdBody := `{"model":"gpt-root-session-test","prompt_cache_key":"session-p","input":[{"role":"user","content":"first"},{"type":"reasoning","id":"rs_first","content":[{"type":"reasoning_text","text":"first-thought"}]},{"role":"assistant","content":"answer-one"},{"role":"user","content":"second"},{"role":"assistant","content":"answer-two"},{"role":"user","content":"third"}]}`
+	third, _ := gin.CreateTestContext(httptest.NewRecorder())
+	third.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(thirdBody))
+	third.Set("id", 9670)
+	third.Set("token_id", tokenID)
+	common.SetContextKey(third, constant.ContextKeyOriginalModel, model)
+	common.SetContextKey(third, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(third, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(third, constant.ContextKeyChannelId, channelID)
+	common.SetContextKey(third, constant.ContextKeyChannelBaseUrl, "https://upstream.example")
+	common.SetContextKey(third, constant.ContextKeyChannelKey, "sk-root-session")
+	common.SetContextKey(third, constant.ContextKeyTokenId, tokenID)
+	common.SetContextKey(third, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: service.ReasoningReplayModeResponses})
+	t.Cleanup(func() { common.CleanupBodyStorage(third) })
+	_, found, err := service.ResolveResponsesAffinityIDs(third, model, "default", "", nil)
+	require.NoError(t, err)
+	require.True(t, found)
+	var thirdReq dto.OpenAIResponsesRequest
+	require.NoError(t, common.Unmarshal([]byte(thirdBody), &thirdReq))
+	thirdInfo := relaycommon.GenRelayInfoResponses(third, &thirdReq)
+	_, outgoing, closer, apiErr := PrepareResponsesRequest(third, thirdInfo, &thirdReq)
+	require.Nil(t, apiErr)
+	t.Cleanup(func() { require.NoError(t, closer.Close()) })
+	wire, err := io.ReadAll(outgoing)
+	require.NoError(t, err)
+	assert.Contains(t, string(wire), `"text":"second-thought"`)
+}
 
 func TestPrepareResponsesRequestDeepSeekEffectiveReasoning(t *testing.T) {
 	settings := model_setting.GetGlobalSettings()

@@ -398,6 +398,44 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err = signUpstreamRequest(a, c, info, req.Method, req.URL, req.Header); err != nil {
 		return nil, err
 	}
+	if info.RelayFormat == types.RelayFormatOpenAIResponses && info.RelayMode == constant.RelayModeResponses {
+		// A custom header can be the real upstream credential too. Include
+		// every explicitly rewritten field, but not unrelated ambient headers.
+		overrides, resolveErr := ResolveHeaderOverride(info, c)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		var identityHeaders []string
+		for name := range overrides {
+			identityHeaders = append(identityHeaders, name)
+		}
+		for _, effect := range info.RequestPluginHeaders {
+			for name := range effect.Set {
+				identityHeaders = append(identityHeaders, name)
+			}
+			identityHeaders = append(identityHeaders, effect.Remove...)
+		}
+		if err = service.ValidateResponsesOutboundIdentity(c, req, identityHeaders...); err != nil {
+			if req.Body != nil {
+				_ = req.Body.Close()
+			}
+			return nil, err
+		}
+	}
+	if info.RelayMode == constant.RelayModeChatCompletions && service.ChatReasoningReplayMarked(c) {
+		if _, signs := a.(RequestSigner); signs {
+			if req.Body != nil {
+				_ = req.Body.Close()
+			}
+			return nil, types.NewErrorWithStatusCode(errors.New("chat reasoning replay cannot verify signed upstream identity"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
+		}
+	}
+	if info.RelayMode == constant.RelayModeChatCompletions && !service.ChatReasoningReplayHeadersMatch(c, info) {
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+		return nil, types.NewErrorWithStatusCode(errors.New("chat reasoning replay outbound headers changed"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
+	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)

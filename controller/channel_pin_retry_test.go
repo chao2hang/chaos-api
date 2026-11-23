@@ -358,6 +358,8 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 	require.Len(t, selectedChannels, 1)
 	boundChannelID := selectedChannels[0]
 	assert.Contains(t, []int{9101, 9102}, boundChannelID)
+	_, err := service.RecordResponsesAffinityIDs(affinityContext, modelName, "default", common.GetContextKeyString(affinityContext, constant.ContextKeyChannelKey), "resp_opaque", []string{"rs_opaque"})
+	require.NoError(t, err)
 
 	encryptedContinuation := fmt.Sprintf(`{"model":%q,"prompt_cache_key":%q,"input":[{"type":"reasoning","id":"rs_opaque","summary":[],"encrypted_content":"opaque-ciphertext"}]}`, modelName, affinityKey)
 	secondResponse := send(encryptedContinuation, "203.0.113.11:5678", true, false, "")
@@ -366,22 +368,38 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 	assert.Equal(t, boundChannelID, selectedChannels[1], "a changed client IP must not move the reasoning item to another channel")
 	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "strict_session", Source: "encrypted_reasoning"}, encryptedRetryDecision)
 
+	previousOnly := send(fmt.Sprintf(`{"model":%q,"previous_response_id":"resp_opaque","input":"continue without encrypted input"}`, modelName), "203.0.113.18:1234", false, false, "")
+	require.Equal(t, http.StatusOK, previousOnly.Code, previousOnly.Body.String())
+	require.Len(t, selectedChannels, 3)
+	assert.Equal(t, boundChannelID, selectedChannels[2], "previous_response_id alone must keep the upstream account")
+
+	promptOnly := send(fmt.Sprintf(`{"model":%q,"prompt_cache_key":%q,"input":"another ordinary turn"}`, modelName, affinityKey), "203.0.113.20:1234", false, false, "")
+	require.Equal(t, http.StatusOK, promptOnly.Code, promptOnly.Body.String())
+	require.Len(t, selectedChannels, 4)
+	assert.Equal(t, boundChannelID, selectedChannels[3], "a known prompt key must pin even without encrypted input or previous_response_id")
+
 	beforeRejectedRequests := len(selectedChannels)
 	otherUserSameKey := send(encryptedContinuation, "203.0.113.17:1234", true, false, "other")
 	assert.Equal(t, http.StatusConflict, otherUserSameKey.Code, "another user must not inherit this session's channel binding")
 	assert.Len(t, selectedChannels, beforeRejectedRequests)
 
 	for _, requestBody := range []string{
-		fmt.Sprintf(`{"model":%q,"input":[{"type":"reasoning","id":"rs_missing_key","encrypted_content":"opaque-ciphertext"}]}`, modelName),
+		fmt.Sprintf(`{"model":%q,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName),
 		fmt.Sprintf(`{"model":%q,"prompt_cache_key":null,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName),
 		fmt.Sprintf(`{"model":%q,"prompt_cache_key":"  ","input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName),
 		fmt.Sprintf(`{"model":%q,"prompt_cache_key":123,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName),
+		fmt.Sprintf(`{"model":%q,"prompt_cache_key":%q,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName, affinityKey),
+		fmt.Sprintf(`{"model":%q,"prompt_cache_key":%q,"previous_response_id":"resp_opaque","input":[{"type":"reasoning","id":"rs_opaque","encrypted_content":"known"},{"type":"reasoning","encrypted_content":"unidentified"}]}`, modelName, affinityKey),
 	} {
 		missingKeyResponse := send(requestBody, "203.0.113.12:1234", true, false, "")
 		assert.Equal(t, http.StatusBadRequest, missingKeyResponse.Code)
 		assert.Contains(t, missingKeyResponse.Body.String(), "prompt_cache_key")
 		assert.Len(t, selectedChannels, beforeRejectedRequests, "missing-key requests must stop before channel selection")
 	}
+
+	unknownPrevious := send(fmt.Sprintf(`{"model":%q,"previous_response_id":"resp_unknown","input":"follow-up"}`, modelName), "203.0.113.19:1234", false, false, "")
+	assert.Equal(t, http.StatusConflict, unknownPrevious.Code, "unknown previous_response_id must fail closed")
+	assert.Len(t, selectedChannels, beforeRejectedRequests)
 
 	unknownKeyRequest := fmt.Sprintf(`{"model":%q,"prompt_cache_key":"unknown-session-key","input":[{"type":"reasoning","id":"rs_unknown_binding","encrypted_content":"opaque-ciphertext"}]}`, modelName)
 	unknownBindingResponse := send(unknownKeyRequest, "203.0.113.13:1234", true, false, "")
@@ -403,16 +421,15 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, disabledBindingResponse.Code)
 	assert.Len(t, selectedChannels, beforeRejectedRequests+1, "a disabled bound channel must not fall back to another account")
 
-	// Clients that never send prompt_cache_key (VS Code's custom endpoint, for
-	// example) fall back to a token-and-model binding so their encrypted
-	// continuations return to the account that answered the first turn.
+	// Without a prompt key, the first turn must expose a response/reasoning
+	// identifier that the client returns on a later encrypted turn.
 	*affinity = operation_setting.ChannelAffinitySetting{
 		Enabled:           true,
 		SwitchOnSuccess:   true,
 		MaxEntries:        100,
 		DefaultTTLSeconds: 60,
 		Rules: []operation_setting.ChannelAffinityRule{{
-			Name:       "responses-session-test",
+			Name:       "responses session trace",
 			ModelRegex: []string{"^" + modelName + "$"},
 			PathRegex:  []string{"^/v1/responses$"},
 			KeySources: []operation_setting.ChannelAffinityKeySource{
@@ -442,6 +459,8 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 	require.Equal(t, http.StatusOK, fallbackFirst.Code, fallbackFirst.Body.String())
 	require.Len(t, selectedChannels, beforeFallback+1)
 	fallbackChannelID := selectedChannels[beforeFallback]
+	_, err = service.RecordResponsesAffinityIDs(fallbackAffinityContext, modelName, "default", common.GetContextKeyString(fallbackAffinityContext, constant.ContextKeyChannelKey), "resp_fallback", []string{"rs_fallback"})
+	require.NoError(t, err)
 
 	fallbackContinuation := fmt.Sprintf(`{"model":%q,"input":[{"type":"reasoning","id":"rs_fallback","encrypted_content":"opaque-ciphertext"}]}`, modelName)
 	fallbackSecond := sendWithToken(fallbackContinuation, 7701, true, false)
@@ -454,15 +473,187 @@ func TestEncryptedResponsesReasoningRequiresAffinityBinding(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, fallbackOtherToken.Code, "another token must not inherit the session's channel binding")
 	assert.Len(t, selectedChannels, beforeFallback+2)
 
-	nullKey := sendWithToken(fmt.Sprintf(`{"model":%q,"prompt_cache_key":null,"input":[{"type":"reasoning","id":"rs_fallback_null","encrypted_content":"opaque-ciphertext"}]}`, modelName), 7701, true, false)
+	nullKey := sendWithToken(fmt.Sprintf(`{"model":%q,"prompt_cache_key":null,"input":[{"type":"reasoning","id":"rs_fallback","encrypted_content":"opaque-ciphertext"}]}`, modelName), 7701, true, false)
 	require.Equal(t, http.StatusOK, nullKey.Code, nullKey.Body.String())
 	require.Len(t, selectedChannels, beforeFallback+3)
-	assert.Equal(t, fallbackChannelID, selectedChannels[beforeFallback+2], "a null prompt_cache_key must fall back to the token source")
+	assert.Equal(t, fallbackChannelID, selectedChannels[beforeFallback+2], "a null prompt_cache_key must still route by the upstream reasoning ID")
 
 	malformedKey := sendWithToken(fmt.Sprintf(`{"model":%q,"prompt_cache_key":123,"input":[{"type":"reasoning","encrypted_content":"opaque-ciphertext"}]}`, modelName), 7701, true, false)
 	assert.Equal(t, http.StatusBadRequest, malformedKey.Code)
 	assert.Contains(t, malformedKey.Body.String(), "prompt_cache_key")
 	assert.Len(t, selectedChannels, beforeFallback+3, "a malformed prompt_cache_key must stop before channel selection")
+}
+
+func TestResponsesAffinityBindingReauthorizesRouting(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			dsn := os.Getenv(dialect.env)
+			if dialect.env != "" && dsn == "" {
+				t.Skipf("%s not configured", dialect.env)
+			}
+			db := modelManagementDB(t, dialect.kind, dsn)
+			previousMemory := common.MemoryCacheEnabled
+			previousGroups := setting.UserUsableGroups2JSONString()
+			previousRatios := ratio_setting.GroupRatio2JSONString()
+			affinity := operation_setting.GetChannelAffinitySetting()
+			previousAffinity := *affinity
+			t.Cleanup(func() {
+				common.MemoryCacheEnabled = previousMemory
+				*affinity = previousAffinity
+				require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(previousGroups))
+				require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousRatios))
+				if previousMemory {
+					model.InitChannelCache()
+				}
+			})
+			require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
+			require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":3}`))
+			const modelName = "gpt-bound-route-test"
+			*affinity = operation_setting.ChannelAffinitySetting{
+				Enabled: true, MaxEntries: 100, DefaultTTLSeconds: 60,
+				Rules: []operation_setting.ChannelAffinityRule{{
+					Name: "responses session trace", ModelRegex: []string{"^" + modelName + "$"}, PathRegex: []string{"^/v1/responses$"},
+					KeySources:  []operation_setting.ChannelAffinityKeySource{{Type: "gjson", Path: "prompt_cache_key"}, {Type: "context_int", Key: "token_id"}},
+					SessionMode: "off", IncludeModelName: true, IncludeUsingGroup: true,
+					ParamOverrideTemplate: map[string]any{"temperature": 0.2},
+				}},
+			}
+			for _, spec := range []struct {
+				id       int
+				priority int64
+			}{{9201, 10}, {9202, 5}} {
+				channel := model.Channel{Id: spec.id, Name: fmt.Sprintf("binding-%d", spec.id), Type: constant.ChannelTypeOpenAI,
+					Key: "key-A\nkey-B", ChannelInfo: model.ChannelInfo{IsMultiKey: true, MultiKeyMode: constant.MultiKeyModePolling},
+					Status: common.ChannelStatusEnabled, Models: modelName, Group: "default,vip", Priority: common.GetPointer(spec.priority),
+					ParamOverride: common.GetPointer(fmt.Sprintf(`{"provider_marker":%d}`, spec.id))}
+				require.NoError(t, db.Create(&channel).Error)
+				require.NoError(t, channel.AddAbilities(db))
+			}
+			for _, cached := range []bool{false, true} {
+				for _, group := range []string{"default", "auto"} {
+					t.Run(fmt.Sprintf("cache=%t/group=%s", cached, group), func(t *testing.T) {
+						common.MemoryCacheEnabled = cached
+						require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 9202).Update("priority", 5).Error)
+						require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 9202).Update("priority", 5).Error)
+						model.InitChannelCache()
+						allowedGroups := []string{"vip", "default"}
+						var selectedKey, selectedGroup string
+						var selectedID, attempts int
+						var template map[string]any
+						var decision service.PolicyDecision
+						router := gin.New()
+						tokenID := 8200
+						if cached {
+							tokenID++
+						}
+						if group == "auto" {
+							tokenID += 2
+						}
+						router.POST("/v1/responses", func(c *gin.Context) {
+							c.Set("id", 8210)
+							c.Set("token_id", tokenID)
+							common.SetContextKey(c, constant.ContextKeyUsingGroup, group)
+							common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+							common.SetContextKey(c, constant.ContextKeyTokenAutoGroups, allowedGroups)
+						}, middleware.Distribute(), func(c *gin.Context) {
+							attempts++
+							selectedID = c.GetInt("channel_id")
+							selectedKey = common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+							selectedGroup = group
+							if group == "auto" {
+								selectedGroup = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+							}
+							template, _ = common.GetContextKeyType[map[string]any](c, constant.ContextKeyChannelParamOverride)
+							decision = service.DecideRelayRetry(c, types.NewOpenAIError(errors.New("upstream"), types.ErrorCodeBadResponseStatusCode, 500), 1)
+							if c.Request.Header.Get("X-Test-Record") != "" {
+								_, err := service.RecordResponsesAffinityIDs(c, modelName, group, selectedKey, fmt.Sprintf("resp-routing-%d-%s", tokenID, dialect.kind), []string{fmt.Sprintf("rs-routing-%d-%s", tokenID, dialect.kind)})
+								require.NoError(t, err)
+							}
+							c.Status(http.StatusOK)
+						})
+						send := func(body string, record bool) *httptest.ResponseRecorder {
+							rec := httptest.NewRecorder()
+							req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+							req.Header.Set("Content-Type", "application/json")
+							if record {
+								req.Header.Set("X-Test-Record", "true")
+							}
+							router.ServeHTTP(rec, req)
+							return rec
+						}
+						first := send(fmt.Sprintf(`{"model":%q,"prompt_cache_key":"routing-prompt","input":"hello"}`, modelName), true)
+						require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+						assert.Equal(t, 9201, selectedID, "first turns must use the best normal priority")
+						assert.Equal(t, 0.2, template["temperature"])
+						assert.EqualValues(t, 9201, template["provider_marker"], "same-model channels retain their own override configuration")
+						firstKey, firstGroup := selectedKey, selectedGroup
+						require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 9202).Update("priority", 20).Error)
+						require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 9202).Update("priority", 20).Error)
+						model.InitChannelCache()
+						independent := send(fmt.Sprintf(`{"model":%q,"input":"separate conversation without cache key"}`, modelName), false)
+						require.Equal(t, http.StatusOK, independent.Code, independent.Body.String())
+						assert.Equal(t, 9202, selectedID, "another first turn on the same token must follow current priorities")
+						assert.EqualValues(t, 9202, template["provider_marker"])
+						if group == "auto" {
+							assert.Equal(t, "vip", firstGroup)
+						}
+						channel, err := model.GetChannelById(9201, true)
+						require.NoError(t, err)
+						channel.Key = "key-B\nkey-A"
+						channel.ChannelInfo.MultiKeyPollingIndex = 0
+						require.NoError(t, db.Model(channel).Updates(map[string]any{"key": channel.Key, "channel_info": channel.ChannelInfo}).Error)
+						model.InitChannelCache()
+						continuation := fmt.Sprintf(`{"model":%q,"prompt_cache_key":"routing-prompt","previous_response_id":%q,"input":[{"type":"reasoning","id":%q,"encrypted_content":"opaque"}]}`, modelName, fmt.Sprintf("resp-routing-%d-%s", tokenID, dialect.kind), fmt.Sprintf("rs-routing-%d-%s", tokenID, dialect.kind))
+						next := send(continuation, false)
+						require.Equal(t, http.StatusOK, next.Code, next.Body.String())
+						assert.Equal(t, firstKey, selectedKey, "reordering keys must not rotate the session credential")
+						assert.Equal(t, firstGroup, selectedGroup, "the pinned auto turn must restore its pricing group")
+						assert.Equal(t, 0.2, template["temperature"], "strict ID routing must preserve matched rule templates")
+						assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "strict_session", Source: "encrypted_reasoning"}, decision)
+						previousOnly := send(fmt.Sprintf(`{"model":%q,"prompt_cache_key":"routing-prompt","previous_response_id":%q,"input":"continue"}`, modelName, fmt.Sprintf("resp-routing-%d-%s", tokenID, dialect.kind)), false)
+						require.Equal(t, http.StatusOK, previousOnly.Code, previousOnly.Body.String())
+						assert.Equal(t, firstKey, selectedKey)
+						assert.Equal(t, firstGroup, selectedGroup)
+						assert.Equal(t, 0.2, template["temperature"])
+						assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "strict_session", Source: "previous_response_id"}, decision)
+						beforeRejected := attempts
+						boundIndex := 0
+						if firstKey == "key-A" {
+							boundIndex = 1
+						}
+						channel.ChannelInfo.MultiKeyStatusList = map[int]int{boundIndex: common.ChannelStatusAutoDisabled}
+						require.NoError(t, db.Model(channel).Update("channel_info", channel.ChannelInfo).Error)
+						model.InitChannelCache()
+						assert.Equal(t, http.StatusServiceUnavailable, send(continuation, false).Code, "disabled bound keys must not rotate")
+						channel.ChannelInfo.MultiKeyStatusList = nil
+						require.NoError(t, db.Model(channel).Update("channel_info", channel.ChannelInfo).Error)
+						model.InitChannelCache()
+						if group == "auto" {
+							allowedGroups = []string{"default"}
+							assert.Equal(t, http.StatusServiceUnavailable, send(continuation, false).Code, "revoked auto groups must not fall back")
+							allowedGroups = []string{"vip", "default"}
+						}
+						for _, removed := range []string{"group", "models"} {
+							if removed == "group" {
+								channel.Group = "retired"
+							} else {
+								channel.Models = "gpt-other-model"
+							}
+							require.NoError(t, db.Model(channel).Updates(map[string]any{"group": channel.Group, "models": channel.Models}).Error)
+							require.NoError(t, channel.UpdateAbilities(db))
+							model.InitChannelCache()
+							assert.Equal(t, http.StatusServiceUnavailable, send(continuation, false).Code, "a cached pin cannot revive removed %s eligibility", removed)
+							channel.Group, channel.Models = "default,vip", modelName
+							require.NoError(t, db.Model(channel).Updates(map[string]any{"group": channel.Group, "models": channel.Models}).Error)
+							require.NoError(t, channel.UpdateAbilities(db))
+						}
+						assert.Equal(t, beforeRejected, attempts)
+					})
+				}
+			}
+		})
+	}
 }
 
 func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {

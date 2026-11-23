@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -12,6 +13,9 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/pkg/requestpatch"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -213,23 +217,18 @@ func TestTextHelperReplaysCachedReasoningForStatefulUpstream(t *testing.T) {
 		globalSettings.ChatCompletionsToResponsesPolicy = previousResponsesPolicy
 	})
 
-	history := &dto.GeneralOpenAIRequest{
-		Model: "deepseek-flash",
-		Messages: []dto.Message{
-			{Role: "user", Content: "summarize the plan"},
-			{Role: "assistant", Content: "the plan is ..."},
-		},
-	}
-	require.True(t, service.CaptureChatReasoning(9301, "deepseek-flash", history, "step 1, step 2"))
-
 	cases := []struct {
-		name       string
-		replayMode string
-		wantReason string
+		name        string
+		replayMode  string
+		wantReason  string
+		passThrough bool
+		channelID   int
 	}{
-		{name: "force replays cached reasoning on a standard channel", replayMode: "force", wantReason: "step 1, step 2"},
-		{name: "default leaves a standard channel untouched", replayMode: ""},
-		{name: "off keeps the request untouched", replayMode: "off"},
+		{name: "force replays cached reasoning on a standard channel", replayMode: "force", wantReason: "step 1, step 2", channelID: 9301},
+		{name: "pass through replays cached reasoning", replayMode: "chat", passThrough: true, wantReason: "step 1, step 2", channelID: 9301},
+		{name: "another same-model channel cannot reuse state", replayMode: "chat", channelID: 9302},
+		{name: "default leaves a standard channel untouched", replayMode: "", channelID: 9301},
+		{name: "off keeps the request untouched", replayMode: "off", channelID: 9301},
 	}
 
 	for _, tc := range cases {
@@ -257,6 +256,7 @@ func TestTextHelperReplaysCachedReasoningForStatefulUpstream(t *testing.T) {
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
 			common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-test")
 			common.SetContextKey(c, constant.ContextKeyTokenId, 9301)
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passThrough})
 			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: tc.replayMode})
 			t.Cleanup(func() { common.CleanupBodyStorage(c) })
 
@@ -264,9 +264,17 @@ func TestTextHelperReplaysCachedReasoningForStatefulUpstream(t *testing.T) {
 			require.Nil(t, apiErr)
 			request, err := helper.GetAndValidateTextRequest(c, relayconstant.RelayModeChatCompletions)
 			require.NoError(t, err)
+			common.SetContextKey(c, constant.ContextKeyChannelId, 9301)
 			info := relaycommon.GenRelayInfoOpenAI(c, request)
 			info.SetRequestPluginIngress(steps, records)
+			info.InitChannelMeta(c)
+			thought := "step 1, step 2"
+			captureScope := service.ReasoningReplayScopeForChannel(info)
+			captureScope.RequestedGroup = "default"
+			require.True(t, service.CaptureChatReasoningTurn(9301, "deepseek-flash", captureScope, &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: "summarize the plan"}}}, dto.Message{Role: "assistant", Content: "the plan is ...", ReasoningContent: &thought}))
 
+			info.ChannelId = tc.channelID
+			common.SetContextKey(c, constant.ContextKeyChannelId, tc.channelID)
 			apiErr = TextHelper(c, info)
 			require.NotNil(t, apiErr, "the fixture upstream rejects after recording the body")
 
@@ -297,9 +305,280 @@ func TestTextHelperReplaysCachedReasoningForStatefulUpstream(t *testing.T) {
 	}
 }
 
-// Groq (#843/#1100) and every other standard OpenAI-compatible upstream rejects
+// reasoningRoundTripper captures the real outbound request without network I/O.
+type reasoningRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f reasoningRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestTextHelperReasoningRejectsChatToResponsesConversion(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.ChatCompletionsToResponsesPolicy
+	oldPass := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = false
+	settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{Enabled: true, AllChannels: true, ModelPatterns: []string{".*"}}
+	t.Cleanup(func() {
+		settings.ChatCompletionsToResponsesPolicy = previous
+		settings.PassThroughRequestEnabled = oldPass
+	})
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"shared-model","messages":[{"role":"user","content":"hello"}]}`))
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "shared-model")
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: "chat"})
+	info := relaycommon.GenRelayInfoOpenAI(c, &dto.GeneralOpenAIRequest{Model: "shared-model", Messages: []dto.Message{{Role: "user", Content: "hello"}}})
+	apiErr := TextHelper(c, info)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, 400, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Error(), "native chat upstream")
+}
+
+func TestTextHelperReasoningSameModelChannelInstances(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	settings := model_setting.GetGlobalSettings()
+	oldPolicy, oldPass := settings.ChatCompletionsToResponsesPolicy, settings.PassThroughRequestEnabled
+	settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{}
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() {
+		settings.ChatCompletionsToResponsesPolicy = oldPolicy
+		settings.PassThroughRequestEnabled = oldPass
+	})
+	service.InitHttpClient()
+	client := service.GetHttpClient()
+	oldTransport := client.Transport
+	t.Cleanup(func() { client.Transport = oldTransport })
+	for _, tc := range []struct {
+		name                               string
+		channel, kind                      int
+		endpoint, mode, clientReason, want string
+		passthrough                        bool
+	}{
+		{"official", 9501, 43, "https://api.deepseek.com", "", "client thought", "client thought", false},
+		{"official passthrough", 9501, 43, "https://api.deepseek.com", "", "client thought", "client thought", true},
+		{"groq", 9502, 1, "https://api.groq.com/openai", "", "client thought", "", false},
+		{"groq passthrough", 9502, 1, "https://api.groq.com/openai", "", "client thought", "", true},
+		{"codex2api opt in", 9503, 1, "https://relay.example", "chat", "", "cached thought", false},
+		{"codex2api passthrough", 9503, 1, "https://relay.example", "chat", "", "cached thought", true},
+		{"same model separate opt in channel", 9504, 1, "https://relay.example", "chat", "", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			received := []byte(nil)
+			client.Transport = reasoningRoundTripper(func(r *http.Request) (*http.Response, error) {
+				var err error
+				received, err = io.ReadAll(r.Body)
+				return &http.Response{StatusCode: 400, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"message":"fixture","type":"invalid_request_error"}}`)), Request: r}, err
+			})
+			messages := []dto.Message{{Role: "user", Content: "same opening"}, {Role: "assistant", Content: "same answer"}, {Role: "user", Content: "next"}}
+			if tc.clientReason != "" {
+				messages[1].ReasoningContent = &tc.clientReason
+			}
+			req := &dto.GeneralOpenAIRequest{Model: "shared-model", Messages: messages}
+			raw, err := common.Marshal(req)
+			require.NoError(t, err)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(string(raw)))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "shared-model")
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyChannelType, tc.kind)
+			common.SetContextKey(c, constant.ContextKeyChannelId, tc.channel)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, tc.endpoint)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "key")
+			common.SetContextKey(c, constant.ContextKeyTokenId, 9500)
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passthrough})
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: tc.mode})
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+			info := relaycommon.GenRelayInfoOpenAI(c, req)
+			info.InitChannelMeta(c)
+			captureScope := service.ReasoningReplayScopeForChannel(info)
+			captureScope.RequestedGroup = "default"
+			captureScope.ChannelID = 9503
+			captureScope.Endpoint = "https://relay.example"
+			thought := "cached thought"
+			require.True(t, service.CaptureChatReasoningTurn(9500, "shared-model", captureScope, &dto.GeneralOpenAIRequest{Messages: messages[:1]}, dto.Message{Role: "assistant", Content: "same answer", ReasoningContent: &thought}))
+			require.NotNil(t, TextHelper(c, info))
+			require.NotEmpty(t, received)
+			var actual dto.GeneralOpenAIRequest
+			require.NoError(t, common.Unmarshal(received, &actual))
+			assert.Equal(t, tc.want, actual.Messages[1].GetReasoningContent())
+		})
+	}
+}
+
 // assistant reasoning_content outright, so the default policy strips it even
 // when the channel has no explicit strip_reasoning_content setting.
+type lateChatReasoningHeaderAdaptor struct {
+	openai.Adaptor
+	late func(*relaycommon.RelayInfo)
+}
+
+func (a *lateChatReasoningHeaderAdaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
+	if err := a.Adaptor.SetupRequestHeader(c, header, info); err != nil {
+		return err
+	}
+	if a.late != nil {
+		a.late(info)
+	}
+	return nil
+}
+
+type signedChatReasoningHeaderAdaptor struct {
+	lateChatReasoningHeaderAdaptor
+}
+
+func (*signedChatReasoningHeaderAdaptor) SignUpstreamRequest(_ *gin.Context, _ *relaycommon.RelayInfo, _ string, _ *url.URL, header http.Header) error {
+	header.Set("Authorization", "Bearer signed-for-another-account")
+	return nil
+}
+
+func TestChatReasoningReplayRejectsLateHeaderEffectsBeforeSend(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		late     func(*relaycommon.RelayInfo)
+		signed   bool
+		wantSend bool
+	}{
+		{name: "static same value", late: func(info *relaycommon.RelayInfo) {
+			info.HeadersOverride = map[string]any{"X-Upstream-Account": "account-a"}
+		}, wantSend: true},
+		{name: "late plugin set", late: func(info *relaycommon.RelayInfo) {
+			info.RequestPluginHeaders = []requestpatch.Effect{{Set: map[string]string{"X-Upstream-Account": "account-b"}}}
+		}},
+		{name: "late plugin remove", late: func(info *relaycommon.RelayInfo) {
+			info.RequestPluginHeaders = []requestpatch.Effect{{Remove: []string{"X-Upstream-Account"}}}
+		}},
+		{name: "signed upstream may change account", signed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			received := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received++
+				raw, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				assert.Contains(t, string(raw), "account-a thought")
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{}`)
+			}))
+			t.Cleanup(upstream.Close)
+			req := &dto.GeneralOpenAIRequest{Model: "m", Messages: []dto.Message{{Role: "user", Content: "opening"}, {Role: "assistant", Content: "answer"}}}
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 9913, ChannelType: constant.ChannelTypeOpenAI, ApiKey: "configured", ChannelBaseUrl: upstream.URL, UpstreamModelName: "m", HeadersOverride: map[string]any{"X-Upstream-Account": "account-a"}}, RelayMode: relayconstant.RelayModeChatCompletions, RelayFormat: types.RelayFormatOpenAI, RequestURLPath: "/v1/chat/completions", Request: req}
+			scope := service.ReasoningReplayScopeForChannel(info)
+			thought := "account-a thought"
+			require.True(t, service.CaptureChatReasoningTurn(9913, "m", scope, &dto.GeneralOpenAIRequest{Messages: req.Messages[:1]}, dto.Message{Role: "assistant", Content: "answer", ReasoningContent: &thought}))
+			raw, err := common.Marshal(req)
+			require.NoError(t, err)
+			replayed, changed := service.ReplayChatReasoningBody(9913, "m", "chat", raw, scope)
+			require.True(t, changed)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(string(replayed)))
+			service.MarkChatReasoningReplay(c, info)
+			var adaptor channel.Adaptor = &lateChatReasoningHeaderAdaptor{late: tc.late}
+			if tc.signed {
+				adaptor = &signedChatReasoningHeaderAdaptor{}
+			}
+			response, err := channel.DoApiRequest(adaptor, c, info, strings.NewReader(string(replayed)))
+			if tc.wantSend {
+				require.NoError(t, err)
+				require.NotNil(t, response)
+				response.Body.Close()
+				assert.Equal(t, 1, received)
+			} else {
+				require.Error(t, err)
+				var apiErr *types.NewAPIError
+				require.ErrorAs(t, err, &apiErr)
+				assert.Equal(t, http.StatusConflict, apiErr.StatusCode)
+				assert.True(t, types.IsSkipRetryError(apiErr))
+				assert.Zero(t, received)
+			}
+			service.ResetChatReasoningReplay(c)
+			assert.True(t, service.ChatReasoningReplayHeadersMatch(c, info))
+		})
+	}
+}
+
+func TestTextHelperChatReasoningDoesNotCrossHeaderAccounts(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	settings := model_setting.GetGlobalSettings()
+	oldPolicy, oldPass := settings.ChatCompletionsToResponsesPolicy, settings.PassThroughRequestEnabled
+	settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{}
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() {
+		settings.ChatCompletionsToResponsesPolicy = oldPolicy
+		settings.PassThroughRequestEnabled = oldPass
+	})
+	service.InitHttpClient()
+	client := service.GetHttpClient()
+	oldTransport := client.Transport
+	t.Cleanup(func() { client.Transport = oldTransport })
+	for _, tc := range []struct {
+		name                           string
+		passthrough, dynamic, official bool
+	}{
+		{name: "dynamic normal", dynamic: true}, {name: "dynamic passthrough", dynamic: true, passthrough: true},
+		{name: "static normal"}, {name: "static passthrough", passthrough: true},
+		{name: "DeepSeek dynamic preserves client", dynamic: true, official: true}, {name: "DeepSeek dynamic passthrough preserves client", dynamic: true, passthrough: true, official: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var received []byte
+			var authorization string
+			client.Transport = reasoningRoundTripper(func(r *http.Request) (*http.Response, error) {
+				var err error
+				received, err = io.ReadAll(r.Body)
+				authorization = r.Header.Get("Authorization")
+				return &http.Response{StatusCode: 400, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"message":"fixture","type":"invalid_request_error"}}`)), Request: r}, err
+			})
+			req := &dto.GeneralOpenAIRequest{Model: "same-model", Messages: []dto.Message{{Role: "user", Content: "opening"}, {Role: "assistant", Content: "answer"}, {Role: "user", Content: "next"}}}
+			if tc.official {
+				thought := "client supplied"
+				req.Messages[1].ReasoningContent = &thought
+			}
+			raw, err := common.Marshal(req)
+			require.NoError(t, err)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(string(raw)))
+			c.Request.Header.Set("Content-Type", "application/json")
+			c.Request.Header.Set("X-Upstream-Authorization", "Bearer account-b")
+			kind, endpoint := constant.ChannelTypeOpenAI, "https://relay.example"
+			if tc.official {
+				kind = constant.ChannelTypeDeepSeek
+				endpoint = "https://api.deepseek.com"
+			}
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "same-model")
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyChannelType, kind)
+			common.SetContextKey(c, constant.ContextKeyChannelId, 9912)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, endpoint)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "configured-key")
+			common.SetContextKey(c, constant.ContextKeyTokenId, 9912)
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passthrough})
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{ReasoningReplay: "chat"})
+			common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, map[string]any{"Authorization": "Bearer account-a"})
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+			info := relaycommon.GenRelayInfoOpenAI(c, req)
+			info.InitChannelMeta(c)
+			scope := service.ReasoningReplayScopeForChannel(info)
+			scope.RequestedGroup = "default"
+			thought := "private account-a thinking"
+			require.True(t, service.CaptureChatReasoningTurn(9912, "same-model", scope, &dto.GeneralOpenAIRequest{Messages: req.Messages[:1]}, dto.Message{Role: "assistant", Content: "answer", ReasoningContent: &thought}))
+			override := "Bearer account-b"
+			if tc.dynamic {
+				override = "{client_header:X-Upstream-Authorization}"
+			}
+			common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, map[string]any{"Authorization": override})
+			require.NotNil(t, TextHelper(c, info))
+			require.NotEmpty(t, received)
+			assert.Equal(t, "Bearer account-b", authorization)
+			assert.NotContains(t, string(received), thought)
+			var actual dto.GeneralOpenAIRequest
+			require.NoError(t, common.Unmarshal(received, &actual))
+			if tc.official {
+				assert.Equal(t, "client supplied", actual.Messages[1].GetReasoningContent())
+			} else {
+				assert.Empty(t, actual.Messages[1].GetReasoningContent())
+			}
+		})
+	}
+}
+
 func TestTextHelperStripsReasoningContentOnStandardUpstreams(t *testing.T) {
 	previousGinMode := gin.Mode()
 	gin.SetMode(gin.TestMode)

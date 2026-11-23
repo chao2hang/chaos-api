@@ -140,17 +140,15 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			IncludeRuleName:       true,
 		},
 		{
-			// Encrypted Responses reasoning items can only be decrypted by the
-			// upstream account that produced them. Clients such as VS Code's
-			// custom endpoint never send prompt_cache_key, so a token-and-model
-			// binding keeps each continuation on the account that answered the
-			// first turn; prompt_cache_key stays the preferred key when present.
+			// Without prompt_cache_key, token+model alone is not a conversation
+			// identity: concurrent sessions may use different upstream accounts.
+			// The first turn uses normal channel selection. Successful Responses
+			// output IDs bind later encrypted reasoning to that exact account.
 			Name:       "responses session trace",
 			ModelRegex: []string{"^gpt-.*$"},
 			PathRegex:  []string{"/v1/responses"},
 			KeySources: []ChannelAffinityKeySource{
 				{Type: "gjson", Path: "prompt_cache_key"},
-				{Type: "context_int", Key: "token_id"},
 			},
 			ValueRegex:         "",
 			TTLSeconds:         0,

@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+	service.ResetChatReasoningReplay(c)
 
 	textReq, ok := info.Request.(*dto.GeneralOpenAIRequest)
 	if !ok {
@@ -48,15 +50,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return newConvertRequestFailedError(c, info, err)
 	}
 
-	// Upstreams that run thinking mode as a stateful protocol (codex2api and
-	// similar Codex relays) reject a continuation whose assistant message lost
-	// its reasoning. Every other upstream rejects the field outright, so the
-	// decision is per channel: replay on stateful ones, strip elsewhere.
-	stripReasoning := service.ShouldStripReasoningContent(info.ChannelType, info.ChannelOtherSettings)
-	if !stripReasoning && service.ReplayAllowedForChannel(info.ChannelType, info.ChannelOtherSettings.ReasoningReplay) &&
-		service.ReplayChatReasoning(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, request) {
-		logger.LogDebug(c, "reasoning replay: attached cached reasoning to the last assistant message")
-	}
+	// Policy belongs to the selected channel instance and outbound surface.
+	stripReasoning, replayReasoning := service.ReasoningReplayPolicyForChannel(info, service.ReasoningReplayModeChat)
+	scope := service.ReasoningReplayScopeForChannel(info)
+	scope.RequestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 
 	includeUsage := true
 	// 判断用户是否需要返回使用情况
@@ -89,6 +86,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		!passThroughGlobal &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
+		if replayReasoning {
+			return types.NewErrorWithStatusCode(fmt.Errorf("reasoning replay requires a native chat upstream; disable chat-to-responses conversion for this channel"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
 		applySystemPromptIfNeeded(c, info, request)
 		usage, newApiErr := textRequestViaResponses(c, info, adaptor, request)
 		if newApiErr != nil {
@@ -114,17 +114,26 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		outboundStorage := storage
-		if stripReasoning {
+		if stripReasoning || replayReasoning {
 			bodyBytes, bodyErr := storage.Bytes()
 			if bodyErr != nil {
 				return types.NewError(bodyErr, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 			}
-			strippedBody, stripErr := relaycommon.StripReasoningContentFromAssistantMessages(bodyBytes)
-			if stripErr != nil {
-				return types.NewError(stripErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			outbound := bodyBytes
+			if stripReasoning {
+				outbound, err = relaycommon.StripReasoningContentFromAssistantMessages(outbound)
+				if err != nil {
+					return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+				}
+			} else if replayReasoning {
+				var changed bool
+				outbound, changed = service.ReplayChatReasoningBody(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, outbound, scope)
+				if changed {
+					service.MarkChatReasoningReplay(c, info)
+				}
 			}
-			if len(strippedBody) != len(bodyBytes) {
-				outboundStorage, err = common.CreateBodyStorage(strippedBody)
+			if !bytes.Equal(outbound, bodyBytes) {
+				outboundStorage, err = common.CreateBodyStorage(outbound)
 				if err != nil {
 					return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 				}
@@ -170,6 +179,16 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 			if err != nil {
 				return newAPIErrorFromParamOverride(err)
+			}
+		}
+		_, replayReasoning = service.ReasoningReplayPolicyForChannel(info, service.ReasoningReplayModeChat)
+		if !stripReasoning && replayReasoning {
+			scope = service.ReasoningReplayScopeForChannel(info)
+			scope.RequestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			var changed bool
+			jsonData, changed = service.ReplayChatReasoningBody(info.TokenId, info.OriginModelName, info.ChannelOtherSettings.ReasoningReplay, jsonData, scope)
+			if changed {
+				service.MarkChatReasoningReplay(c, info)
 			}
 		}
 		if stripReasoning {

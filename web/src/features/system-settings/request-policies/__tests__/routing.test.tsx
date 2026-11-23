@@ -22,6 +22,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 
 import { SettingsPageProvider } from '../../components/settings-page-context'
+import type { AffinityRule } from '../../general/channel-affinity/types'
 import { RoutingPolicySection } from '../routing-section'
 
 const options = {
@@ -900,7 +901,7 @@ it('cancelling deletion from the rule menu leaves the rule in the draft', async 
   expect(api.patch).not.toHaveBeenCalled()
 })
 
-it('the empty state can fill templates without saving them to the server', async () => {
+it('filling an empty rule list drafts and saves Responses affinity with only prompt_cache_key', async () => {
   currentOptions['channel_affinity_setting.rules'] = '[]'
   show()
   const panel = await screen.findByRole('tabpanel', { name: 'Visual' })
@@ -909,10 +910,59 @@ it('the empty state can fill templates without saving them to the server', async
     within(panel).getByRole('button', { name: 'Fill Templates' })
   )
   expect(screen.getByRole('table')).toHaveTextContent('codex cli trace')
-  expect(screen.getByRole('table')).toHaveTextContent('responses session trace')
+  const responses = screen.getByRole('row', { name: /responses session trace/ })
+  expect(responses).toHaveTextContent('prompt_cache_key')
+  expect(responses).not.toHaveTextContent('token_id')
   expect(screen.getByRole('table')).toHaveTextContent('claude cli trace')
   expect(screen.queryByText('No rules yet')).not.toBeInTheDocument()
   expect(api.patch).not.toHaveBeenCalled()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+  await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+  const savedRules = JSON.parse(
+    currentOptions['channel_affinity_setting.rules']
+  ) as AffinityRule[]
+  expect(
+    savedRules.find((rule) => rule.name === 'responses session trace')
+      ?.key_sources
+  ).toEqual([{ type: 'gjson', path: 'prompt_cache_key' }])
+})
+
+it('appending templates preserves a same-named custom Responses rule and its token fallback', async () => {
+  const customRule = {
+    ...JSON.parse(options['channel_affinity_setting.rules'])[0],
+    name: 'responses session trace',
+    key_sources: [
+      { type: 'gjson', path: 'prompt_cache_key' },
+      { type: 'context_int', key: 'token_id' },
+    ],
+  }
+  currentOptions['channel_affinity_setting.rules'] = JSON.stringify([
+    customRule,
+  ])
+  show()
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Fill Templates' })
+  )
+  await userEvent.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Continue',
+    })
+  )
+  expect(api.patch).not.toHaveBeenCalled()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+  await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+  const savedRules = JSON.parse(
+    currentOptions['channel_affinity_setting.rules']
+  ) as AffinityRule[]
+  expect(savedRules[0]).toEqual(customRule)
+  expect(
+    savedRules.find((rule) => rule.name === 'responses session trace-2')
+      ?.key_sources
+  ).toEqual([{ type: 'gjson', path: 'prompt_cache_key' }])
 })
 
 it('long rule fields stay in a keyboard-scrollable table and reveal the full name on focus', async () => {

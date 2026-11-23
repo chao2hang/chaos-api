@@ -319,6 +319,205 @@ func TestResponsesPromptCacheAffinityUsesLongRetention(t *testing.T) {
 	require.GreaterOrEqual(t, meta.TTLSeconds, 90*24*60*60)
 }
 
+func TestResponsesAffinityIDsKeepConversationsAndTokensSeparate(t *testing.T) {
+	const modelName = "gpt-affinity-isolation"
+	makeContext := func(userID, tokenID, channelID int, promptKey string) *gin.Context {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":%q}`, promptKey)))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Set("id", userID)
+		ctx.Set("token_id", tokenID)
+		ctx.Set("channel_id", channelID)
+		t.Cleanup(func() { common.CleanupBodyStorage(ctx) })
+		return ctx
+	}
+	first := makeContext(341, 9341, 51, "prompt-A")
+	firstSession, err := RecordResponsesAffinityIDs(first, modelName, "default", "upstream-key-A", "resp-A", []string{"rs-A"})
+	require.NoError(t, err)
+	require.NotEmpty(t, firstSession)
+	channelID, fingerprint, sessionID, ok := CurrentResponsesAffinityScope(first)
+	require.True(t, ok)
+	assert.Equal(t, 51, channelID)
+	assert.Len(t, fingerprint, 64)
+	assert.Equal(t, firstSession, sessionID)
+
+	multiKeyChannel := &model.Channel{Key: "upstream-key-B\nupstream-key-A", ChannelInfo: model.ChannelInfo{IsMultiKey: true}}
+	key, index, found := multiKeyChannel.GetEnabledKeyByFingerprint(fingerprint)
+	require.True(t, found)
+	assert.Equal(t, "upstream-key-A", key)
+	assert.Equal(t, 1, index, "reordered multi-key channels must recover the same credential")
+	multiKeyChannel.ChannelInfo.MultiKeyStatusList = map[int]int{1: common.ChannelStatusAutoDisabled}
+	_, _, found = multiKeyChannel.GetEnabledKeyByFingerprint(fingerprint)
+	assert.False(t, found, "a disabled bound credential must never rotate to a different key")
+
+	second := makeContext(341, 9341, 52, "prompt-B")
+	secondSession, err := RecordResponsesAffinityIDs(second, modelName, "default", "upstream-key-B", "resp-B", []string{"rs-B"})
+	require.NoError(t, err)
+	assert.NotEqual(t, firstSession, secondSession)
+
+	for _, tc := range []struct {
+		name  string
+		user  int
+		token int
+		model string
+		group string
+		id    string
+		want  int
+	}{
+		{"first conversation", 341, 9341, modelName, "default", "rs-A", 51},
+		{"second conversation", 341, 9341, modelName, "default", "rs-B", 52},
+		{"different token", 341, 9342, modelName, "default", "rs-A", 0},
+		{"different user", 342, 9341, modelName, "default", "rs-A", 0},
+		{"different model", 341, 9341, "gpt-other", "default", "rs-A", 0},
+		{"different group", 341, 9341, modelName, "premium", "rs-A", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := makeContext(tc.user, tc.token, 0, "")
+			binding, found, resolveErr := ResolveResponsesAffinityIDs(ctx, tc.model, tc.group, "", []string{tc.id})
+			require.NoError(t, resolveErr)
+			assert.Equal(t, tc.want > 0, found)
+			assert.Equal(t, tc.want, binding.ChannelID)
+		})
+	}
+	conflict := makeContext(341, 9341, 0, "")
+	_, _, err = ResolveResponsesAffinityIDs(conflict, modelName, "default", "resp-A", []string{"rs-B"})
+	require.ErrorIs(t, err, ErrResponsesAffinityConflict)
+	duplicate := makeContext(341, 9341, 53, "")
+	_, err = RecordResponsesAffinityIDs(duplicate, modelName, "default", "upstream-key-C", "resp-A", []string{"rs-A"})
+	require.Error(t, err, "the same upstream ID cannot silently move to another account")
+	promptOnly := makeContext(341, 9341, 0, "prompt-A")
+	promptBinding, found, err := ResolveResponsesAffinityIDs(promptOnly, modelName, "default", "", nil)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 51, promptBinding.ChannelID)
+	unknownWithPrompt := makeContext(341, 9341, 0, "prompt-A")
+	_, found, err = ResolveResponsesAffinityIDs(unknownWithPrompt, modelName, "default", "", []string{"rs-not-recorded"})
+	require.NoError(t, err)
+	assert.False(t, found, "an unknown encrypted item must not inherit an unrelated prompt binding")
+	t.Cleanup(func() {
+		cache := getResponsesAffinityCache()
+		keys := []string{
+			responsesAffinityCacheKey(341, 9341, modelName, "default", "response", "resp-A"),
+			responsesAffinityCacheKey(341, 9341, modelName, "default", "reasoning", "rs-A"),
+			responsesAffinityCacheKey(341, 9341, modelName, "default", "prompt", "prompt-A"),
+			responsesAffinityCacheKey(341, 9341, modelName, "default", "response", "resp-B"),
+			responsesAffinityCacheKey(341, 9341, modelName, "default", "reasoning", "rs-B"),
+			responsesAffinityCacheKey(341, 9341, modelName, "default", "prompt", "prompt-B"),
+		}
+		_, _ = cache.DeleteMany(keys)
+	})
+}
+
+func TestResponsesAffinityRedisRejectsConflictsAtomically(t *testing.T) {
+	previousEnabled, previousClient := common.RedisEnabled, common.RDB
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	common.RedisEnabled, common.RDB = true, client
+	t.Cleanup(func() {
+		common.RedisEnabled, common.RDB = previousEnabled, previousClient
+		require.NoError(t, client.Close())
+	})
+	makeContext := func(channelID int) *gin.Context {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{}`))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Set("id", 551)
+		ctx.Set("token_id", 9551)
+		ctx.Set("channel_id", channelID)
+		t.Cleanup(func() { common.CleanupBodyStorage(ctx) })
+		return ctx
+	}
+	first := makeContext(51)
+	outbound := httptest.NewRequest(http.MethodPost, "https://upstream.example/v1/responses", nil)
+	outbound.Header.Set("Authorization", "Bearer final-override-A")
+	require.NoError(t, ValidateResponsesOutboundIdentity(first, outbound))
+	_, err := RecordResponsesAffinityIDs(first, "gpt-redis-affinity", "default", "credential-A", "resp-existing", []string{"rs-existing"})
+	require.NoError(t, err)
+	conflicting := makeContext(52)
+	_, err = RecordResponsesAffinityIDs(conflicting, "gpt-redis-affinity", "default", "credential-B", "resp-must-not-appear", []string{"rs-existing"})
+	require.ErrorIs(t, err, ErrResponsesAffinityConflict)
+	probe := makeContext(0)
+	_, found, err := ResolveResponsesAffinityIDs(probe, "gpt-redis-affinity", "default", "resp-must-not-appear", nil)
+	require.NoError(t, err)
+	assert.False(t, found, "a later ID conflict must not leave an earlier response ID cached")
+	bound, found, err := ResolveResponsesAffinityIDs(probe, "gpt-redis-affinity", "default", "resp-existing", []string{"rs-existing"})
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 51, bound.ChannelID)
+	assert.Equal(t, "default", bound.ResolvedGroup)
+	require.Len(t, bound.OutboundIdentityFingerprint, 64, "Redis must retain the actual outbound identity, not only the configured key")
+	require.NoError(t, ValidateResponsesOutboundIdentity(probe, outbound))
+	changed := outbound.Clone(outbound.Context())
+	// Signers may assign directly to http.Header with noncanonical casing.
+	// These fields still go on the wire and must not disappear from identity.
+	changed.Header = http.Header{"authorization": {"Bearer final-override-A"}}
+	require.NoError(t, ValidateResponsesOutboundIdentity(probe, changed))
+	changed.Header["authorization"] = []string{"Bearer final-override-B"}
+	identityErr := ValidateResponsesOutboundIdentity(probe, changed)
+	var apiErr *types.NewAPIError
+	require.ErrorAs(t, identityErr, &apiErr)
+	assert.Equal(t, http.StatusConflict, apiErr.StatusCode)
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	assert.NotContains(t, server.Dump(), "final-override-A", "Redis must not store usable outbound credentials")
+
+	// Competing replicas must publish either complete ID set, never a partial
+	// response alias from the losing writer. Both callers share only Redis.
+	start := make(chan struct{})
+	results := make(chan struct {
+		channelID int
+		err       error
+	}, 2)
+	for _, channelID := range []int{61, 62} {
+		ctx := makeContext(channelID)
+		go func() {
+			<-start
+			_, writeErr := RecordResponsesAffinityIDs(ctx, "gpt-redis-affinity", "default", fmt.Sprintf("credential-%d", channelID), fmt.Sprintf("resp-race-%d", channelID), []string{"rs-race-shared"})
+			results <- struct {
+				channelID int
+				err       error
+			}{channelID, writeErr}
+		}()
+	}
+	close(start)
+	winner, loser := <-results, <-results
+	if winner.err != nil {
+		winner, loser = loser, winner
+	}
+	require.NoError(t, winner.err)
+	require.ErrorIs(t, loser.err, ErrResponsesAffinityConflict)
+	_, found, err = ResolveResponsesAffinityIDs(makeContext(0), "gpt-redis-affinity", "default", fmt.Sprintf("resp-race-%d", loser.channelID), nil)
+	require.NoError(t, err)
+	assert.False(t, found)
+	bound, found, err = ResolveResponsesAffinityIDs(makeContext(0), "gpt-redis-affinity", "default", fmt.Sprintf("resp-race-%d", winner.channelID), []string{"rs-race-shared"})
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, winner.channelID, bound.ChannelID)
+}
+
+func TestResponsesAffinityLegacyTokenRuleDoesNotChooseFirstTurn(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	t.Cleanup(func() { *setting = previous })
+	rule := operation_setting.ChannelAffinityRule{
+		Name: "responses session trace", ModelRegex: []string{"^gpt-legacy-first-turn$"}, PathRegex: []string{"^/v1/responses$"},
+		KeySources:       []operation_setting.ChannelAffinityKeySource{{Type: "gjson", Path: "prompt_cache_key"}, {Type: "context_int", Key: "token_id"}},
+		IncludeModelName: true, IncludeUsingGroup: true, IncludeRuleName: true,
+	}
+	*setting = operation_setting.ChannelAffinitySetting{Enabled: true, DefaultTTLSeconds: 60, Rules: []operation_setting.ChannelAffinityRule{rule}}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"input":"new conversation"}`))
+	ctx.Set("id", 671)
+	ctx.Set("token_id", 9671)
+	t.Cleanup(func() { common.CleanupBodyStorage(ctx) })
+	key := buildChannelAffinityCacheKeySuffix(rule, "gpt-legacy-first-turn", "default", "9671", 671)
+	require.NoError(t, getChannelAffinityCache().SetWithTTL(key, 99, time.Minute))
+	t.Cleanup(func() { _, _ = getChannelAffinityCache().DeleteMany([]string{key}) })
+	channelID, matched, err := ResolvePreferredChannelByAffinity(ctx, "gpt-legacy-first-turn", "default")
+	require.NoError(t, err)
+	assert.False(t, matched, "the persisted token fallback is not a conversation selector")
+	assert.Zero(t, channelID)
+}
+
 func TestClearCurrentChannelAffinityCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

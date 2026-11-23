@@ -55,6 +55,27 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}), types.ErrorCodeInvalidRequest)
 			return
 		}
+		previousResponseID := ""
+		if !encryptedReasoningRequest && c.Request.Method == http.MethodPost && c.Request.URL.Path == "/v1/responses" {
+			storage, storageErr := common.GetBodyStorage(c)
+			if storageErr != nil {
+				abortWithOpenAiMessage(c, invalidRequestStatus(storageErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": storageErr.Error()}), types.ErrorCodeInvalidRequest)
+				return
+			}
+			values, fieldsErr := common.ReadBodyJSONFields(storage, "previous_response_id")
+			if fieldsErr != nil {
+				abortWithOpenAiMessage(c, invalidRequestStatus(fieldsErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": fieldsErr.Error()}), types.ErrorCodeInvalidRequest)
+				return
+			}
+			if len(values) > 0 {
+				previousResponseID, err = getJSONStringValue(values[0], "previous_response_id")
+				if err != nil {
+					abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}), types.ErrorCodeInvalidRequest)
+					return
+				}
+			}
+		}
+		statefulResponsesRequest := encryptedReasoningRequest || strings.TrimSpace(previousResponseID) != ""
 		requiredAffinityChannelID := 0
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {
@@ -103,34 +124,96 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
-		if encryptedReasoningRequest {
+		promptOnlyBinding := false
+		if !statefulResponsesRequest && c.Request.Method == http.MethodPost && c.Request.URL.Path == "/v1/responses" {
 			if keyErr := validateResponsesPromptCacheKey(c); keyErr != nil {
 				abortWithOpenAiMessage(c, invalidRequestStatus(keyErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": keyErr.Error()}), types.ErrorCodeInvalidRequest)
 				return
 			}
-			service.RequireEncryptedResponsesAffinity(c)
-			channelID, keyMatched, affinityErr := service.ResolvePreferredChannelByAffinity(c, modelRequest.Model, common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
+			storage, storageErr := common.GetBodyStorage(c)
+			if storageErr != nil {
+				abortWithOpenAiMessage(c, invalidRequestStatus(storageErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": storageErr.Error()}), types.ErrorCodeInvalidRequest)
+				return
+			}
+			values, fieldsErr := common.ReadBodyJSONFields(storage, "prompt_cache_key")
+			if fieldsErr != nil {
+				abortWithOpenAiMessage(c, invalidRequestStatus(fieldsErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": fieldsErr.Error()}), types.ErrorCodeInvalidRequest)
+				return
+			}
+			if len(values) > 0 && values[0].Type == ojson.String && strings.TrimSpace(values[0].Str) != "" {
+				_, found, affinityErr := service.ResolveResponsesAffinityIDs(c, modelRequest.Model, common.GetContextKeyString(c, constant.ContextKeyUsingGroup), "", nil)
+				if affinityErr != nil {
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
+					return
+				}
+				if found {
+					statefulResponsesRequest = true
+					promptOnlyBinding = true
+				}
+			}
+		}
+		if statefulResponsesRequest {
+			previousID := previousResponseID
+			var reasoningIDs []string
+			var hasPromptKey bool
+			if encryptedReasoningRequest {
+				if keyErr := validateResponsesPromptCacheKey(c); keyErr != nil {
+					abortWithOpenAiMessage(c, invalidRequestStatus(keyErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": keyErr.Error()}), types.ErrorCodeInvalidRequest)
+					return
+				}
+				var idErr error
+				previousID, reasoningIDs, hasPromptKey, idErr = encryptedResponsesBindingIDs(c)
+				if idErr != nil {
+					abortWithOpenAiMessage(c, invalidRequestStatus(idErr), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": idErr.Error()}), types.ErrorCodeInvalidRequest)
+					return
+				}
+				service.RequireEncryptedResponsesAffinity(c)
+			} else if promptOnlyBinding {
+				service.RequireResponsesPreviousResponseAffinity(c)
+				service.RequestPolicy(c).SessionModeSource = "prompt_cache_key"
+			} else {
+				service.RequireResponsesPreviousResponseAffinity(c)
+			}
+			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			binding, found, affinityErr := service.ResolveResponsesAffinityIDs(c, modelRequest.Model, usingGroup, previousID, reasoningIDs)
 			if affinityErr != nil {
-				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
+				status := http.StatusServiceUnavailable
+				if errors.Is(affinityErr, service.ErrResponsesAffinityConflict) {
+					status = http.StatusConflict
+				} else if errors.Is(affinityErr, service.ErrResponsesAffinityInvalid) {
+					status = http.StatusBadRequest
+				}
+				abortWithOpenAiMessage(c, status, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
 				return
 			}
-			if !keyMatched {
-				// No configured key source can name this session, so no channel
-				// binding can exist or be recorded for the encrypted item.
-				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorEncryptedReasoningAffinityRequired), types.ErrorCodeInvalidRequest)
+			if !found {
+				if previousID == "" && len(reasoningIDs) == 0 && !hasPromptKey {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorEncryptedReasoningAffinityRequired), types.ErrorCodeInvalidRequest)
+				} else {
+					abortWithOpenAiMessage(c, http.StatusConflict, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingMissing), types.ErrorCodeInvalidRequest)
+				}
 				return
 			}
-			if channelID <= 0 {
+			if pin, pinned, _ := constraints.ResolvedPin(); pinned && pin.ChannelId != binding.ChannelID {
 				abortWithOpenAiMessage(c, http.StatusConflict, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingMissing), types.ErrorCodeInvalidRequest)
 				return
 			}
-			requiredAffinityChannelID = channelID
+			if authErr := service.AuthorizeResponsesAffinityBinding(c, modelRequest.Model, usingGroup, binding); authErr != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
+				return
+			}
+			service.MatchResponsesAffinityRule(c, modelRequest.Model, usingGroup)
+			constraints.AddPin(taskdto.ChannelPin{
+				ChannelId: binding.ChannelID, Source: taskdto.ChannelPinSource("responses_affinity"),
+				Rank: taskdto.PinRankToken, RetryMode: taskdto.PinRetrySingleAttempt,
+			})
+			requiredAffinityChannelID = binding.ChannelID
 		}
 		selectedGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 		if pinned || shouldSelectChannel {
 			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 			var selectErr *service.ChannelSelectError
-			if value, exists := c.Get(contextKeyTaskPluginEndpointSelection); exists && !pinned && !encryptedReasoningRequest {
+			if value, exists := c.Get(contextKeyTaskPluginEndpointSelection); exists && !pinned && !statefulResponsesRequest {
 				if selected, ok := value.(taskPluginEndpointSelection); ok && selected.Model == modelRequest.Model && selected.Channel != nil && selected.Channel.Status == common.ChannelStatusEnabled {
 					if matches, _ := model.ChannelSatisfiesFilters(selected.Channel, modelRequest.Model, constraints.Filters); matches {
 						channel = selected.Channel
@@ -147,6 +230,10 @@ func Distribute() func(c *gin.Context) {
 				})
 			}
 			if selectErr != nil {
+				if statefulResponsesRequest {
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
+					return
+				}
 				if selectErr.FilterKind == taskdto.FilterTaskPluginIdentity {
 					logTaskPluginChannelDecision(c, selectErr.Channel, modelRequest.Model, "channel_rejected", "identity_mismatch")
 				}
@@ -160,7 +247,7 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 		}
-		if encryptedReasoningRequest {
+		if statefulResponsesRequest {
 			if channel == nil || channel.Id != requiredAffinityChannelID {
 				abortWithOpenAiMessage(c, http.StatusConflict, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingMissing), types.ErrorCodeInvalidRequest)
 				return
@@ -174,7 +261,11 @@ func Distribute() func(c *gin.Context) {
 			service.MarkChannelAffinityUsed(c, selectedGroup, channel.Id)
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if statefulResponsesRequest && setupErr != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorEncryptedReasoningBindingUnavailable), types.ErrorCodeGetChannelFailed)
+			return
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
@@ -484,6 +575,46 @@ func validateResponsesPromptCacheKey(c *gin.Context) error {
 	default:
 		return errors.New("field prompt_cache_key must be a string")
 	}
+}
+
+func encryptedResponsesBindingIDs(c *gin.Context) (string, []string, bool, error) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return "", nil, false, err
+	}
+	values, err := common.ReadBodyJSONFields(storage, "previous_response_id", `input.#(type=="reasoning")#`, "prompt_cache_key")
+	if err != nil {
+		return "", nil, false, err
+	}
+	if len(values) != 3 {
+		return "", nil, false, errors.New("cannot parse Responses session identifiers")
+	}
+	previousID, err := getJSONStringValue(values[0], "previous_response_id")
+	if err != nil {
+		return "", nil, false, err
+	}
+	promptKey, err := getJSONStringValue(values[2], "prompt_cache_key")
+	if err != nil {
+		return "", nil, false, err
+	}
+	var reasoningIDs []string
+	for _, item := range values[1].Array() {
+		if item.Get("encrypted_content").String() == "" {
+			continue
+		}
+		id, itemErr := getJSONStringValue(item.Get("id"), "input reasoning id")
+		if itemErr != nil {
+			return "", nil, false, itemErr
+		}
+		if strings.TrimSpace(id) == "" || len(id) > 1024 {
+			return "", nil, false, errors.New("encrypted reasoning requires a valid upstream item id; prompt_cache_key cannot identify an opaque item")
+		}
+		reasoningIDs = append(reasoningIDs, id)
+	}
+	if len(reasoningIDs) == 0 {
+		return "", nil, false, errors.New("encrypted reasoning requires an upstream item id")
+	}
+	return previousID, reasoningIDs, strings.TrimSpace(promptKey) != "", nil
 }
 
 func hasEncryptedResponsesReasoningItem(c *gin.Context) (bool, error) {
@@ -807,7 +938,21 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelModelLiteralMatch, slices.Contains(channel.GetModels(), modelName))
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
+	var key string
+	var index int
+	var newAPIError *types.NewAPIError
+	if boundChannelID, fingerprint, _, bound := service.CurrentResponsesAffinityScope(c); bound {
+		if channel.Id != boundChannelID {
+			return types.NewErrorWithStatusCode(errors.New("Responses session channel changed"), types.ErrorCodeGetChannelFailed, http.StatusConflict, types.ErrOptionWithSkipRetry())
+		}
+		var available bool
+		key, index, available = channel.GetEnabledKeyByFingerprint(fingerprint)
+		if !available {
+			return types.NewErrorWithStatusCode(errors.New("Responses session credential unavailable"), types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		}
+	} else {
+		key, index, newAPIError = channel.GetNextEnabledKey()
+	}
 	if newAPIError != nil {
 		return newAPIError
 	}

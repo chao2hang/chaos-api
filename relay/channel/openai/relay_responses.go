@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -38,8 +39,8 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	info.ObserveResponseModel(responsesResponse.Model)
 	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", responsesResponse.CreatedAt)
 
-	captureResponsesReasoning(info, responsesResponse.Output)
-	captureResponsesReasoningRaw(info, responseBody)
+	scope := recordResponsesAffinity(c, info, responsesResponse.ID, responsesResponse.Output)
+	captureResponsesReasoningRaw(info, responseBody, scope)
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
@@ -78,6 +79,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
+	var completedResponse *dto.OpenAIResponsesResponse
+	var completedFrame []byte
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -98,38 +101,24 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		if (streamResponse.Type == "response.completed" || streamResponse.Type == "response.done") &&
 			streamResponse.Response != nil && info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeCompleted) {
-			captureResponsesReasoning(info, streamResponse.Response.Output)
-			captureResponsesReasoningRaw(info, common.StringToByteSlice(data))
+			completedResponse = streamResponse.Response
+			completedFrame = append(completedFrame[:0], data...)
 			sr.Done()
 		}
 	})
 
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	info.StreamStatus.RequireTerminal()
+	if completedResponse != nil && info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
+		scope := recordResponsesAffinity(c, info, completedResponse.ID, completedResponse.Output)
+		captureResponsesReasoningRaw(info, completedFrame, scope)
+	}
 	return accumulator.Finish(), nil
 }
 
-// captureResponsesReasoning stores the plaintext reasoning emitted by a
-// Responses API call so a later turn can echo it back as a reasoning item.
-func captureResponsesReasoning(info *relaycommon.RelayInfo, output []dto.ResponsesOutput) {
-	if info == nil || len(output) == 0 {
-		return
-	}
-	req, ok := info.Request.(*dto.OpenAIResponsesRequest)
-	if !ok || req == nil || len(req.Input) == 0 {
-		return
-	}
-	raw, err := common.Marshal(output)
-	if err != nil {
-		return
-	}
-	service.CaptureResponsesReasoning(info.TokenId, info.OriginModelName, req.Input, raw)
-}
-
-// captureResponsesReasoningRaw stores the reasoning items exactly as the
-// upstream emitted them (id and encrypted_content included), which is what
-// stateful thinking upstreams validate on the next turn.
-func captureResponsesReasoningRaw(info *relaycommon.RelayInfo, payload []byte) {
+// captureResponsesReasoningRaw preserves opaque reasoning items, including
+// encrypted content, only under the session and credential that produced them.
+func captureResponsesReasoningRaw(info *relaycommon.RelayInfo, payload []byte, scope service.ReasoningReplayScope) {
 	if info == nil || len(payload) == 0 {
 		return
 	}
@@ -137,7 +126,44 @@ func captureResponsesReasoningRaw(info *relaycommon.RelayInfo, payload []byte) {
 	if !ok || req == nil || len(req.Input) == 0 {
 		return
 	}
-	service.CaptureResponsesReasoningRaw(info.TokenId, info.OriginModelName, req.Input, payload)
+	service.CaptureResponsesReasoningRaw(info.TokenId, info.OriginModelName, req.Input, payload, scope)
+}
+
+// recordResponsesAffinity attaches the provider-issued response and reasoning
+// IDs to the exact credential used by this successful attempt. The session ID
+// returned here scopes any subsequently cached opaque reasoning to its owner.
+func recordResponsesAffinity(c *gin.Context, info *relaycommon.RelayInfo, responseID string, output []dto.ResponsesOutput) service.ReasoningReplayScope {
+	scope := service.ReasoningReplayScopeForChannel(info)
+	if c == nil || info == nil {
+		return scope
+	}
+	scope.RequestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	reasoningIDs := make([]string, 0, len(output))
+	for _, item := range output {
+		if item.Type == "reasoning" && item.ID != "" {
+			reasoningIDs = append(reasoningIDs, item.ID)
+		}
+	}
+	var promptKey string
+	if req, ok := info.Request.(*dto.OpenAIResponsesRequest); ok && req != nil {
+		_ = common.Unmarshal(req.PromptCacheKey, &promptKey)
+	}
+	if responseID == "" && len(reasoningIDs) == 0 && strings.TrimSpace(promptKey) == "" {
+		return scope
+	}
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if usingGroup == "" {
+		usingGroup = info.UsingGroup
+	}
+	sessionID, err := service.RecordResponsesAffinityIDs(c, info.OriginModelName, usingGroup, info.ApiKey, responseID, reasoningIDs)
+	if err != nil {
+		logger.LogWarn(c, common.LogText("record Responses reasoning affinity failed: %v", err))
+		return scope
+	}
+	if sessionID != "" {
+		scope.SessionID = sessionID
+	}
+	return scope
 }
 
 func rewriteSGLangResponsesCreatedAt(info *relaycommon.RelayInfo, payload []byte, path string, createdAt dto.IntValue) []byte {

@@ -1,97 +1,80 @@
 package service
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/cachex"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/samber/hot"
 )
 
-// Reasoning replay exists for upstreams that run thinking mode as a stateful
-// protocol: the assistant reasoning text produced on turn N must be echoed back
-// on turn N+1, or the request fails with
-// "The `reasoning_text` in the thinking mode must be passed back to the API."
-// Codex CLI does this itself; generic OpenAI clients (VS Code custom endpoint,
-// BYOK) drop the reasoning component and break on the second turn.
-//
-// The gateway therefore keeps the last reasoning text per conversation and
-// re-attaches it to the assistant message that the client replays without one.
-// Conversations are identified by the API token, the model and a hash of the
-// first user message, so parallel chats on the same token never cross-talk.
-
 const (
-	reasoningReplayCacheNamespace = "new-api:reasoning_replay:v1"
+	reasoningReplayCacheNamespace = "new-api:reasoning_replay:v2"
 	reasoningReplayTTLSeconds     = 6 * 60 * 60
 	reasoningReplayCacheCapacity  = 50_000
-
-	// Channel setting values (channel_other_settings.reasoning_replay).
-	ReasoningReplayModeOff       = "off"
-	ReasoningReplayModeChat      = "chat"
-	ReasoningReplayModeResponses = "responses"
-	ReasoningReplayModeAll       = "all"
-	// ReasoningReplayModeAuto follows the channel capability: replay only where
-	// the upstream runs stateful thinking. It is the default.
-	ReasoningReplayModeAuto = "auto"
-	// ReasoningReplayModeForce keeps replay on for a channel outside the
-	// stateful set below; operators use it when a vendor speaks the round-trip
-	// protocol under a generic OpenAPI-compatible channel type.
-	ReasoningReplayModeForce = "force"
+	ReasoningReplayModeOff        = "off"
+	ReasoningReplayModeChat       = "chat"
+	ReasoningReplayModeResponses  = "responses"
+	ReasoningReplayModeAll        = "all"
+	ReasoningReplayModeAuto       = "auto"
+	ReasoningReplayModeForce      = "force"
 )
 
+// ReasoningReplayScope is derived from the selected channel, never the model's
+// other candidate channels. Credential is hashed and never stored or logged.
+// Without an explicit session, an exact history prefix is required and any
+// conflicting capture permanently disables that prefix until its TTL expires.
+type ReasoningReplayScope struct {
+	ChannelID         int
+	Credential        string
+	SessionID         string
+	UpstreamModel     string
+	Endpoint          string
+	RequestedGroup    string
+	HeaderFingerprint string
+}
+
 type reasoningReplayEntry struct {
-	Reasoning string `json:"reasoning"`
-	// Items keeps the reasoning items verbatim as the upstream emitted them,
-	// opaque fields included (id, encrypted_content). Stateful thinking
-	// upstreams validate that blob, so a reconstructed summary-only item is
-	// rejected with "The `reasoning_text` in the thinking mode must be passed
-	// back to the API." Items therefore win over Reasoning on replay.
+	Reasoning string            `json:"reasoning,omitempty"`
 	Items     []json.RawMessage `json:"items,omitempty"`
-	Model     string            `json:"model"`
-	UpdatedAt int64             `json:"updated_at"`
+	Ambiguous bool              `json:"ambiguous,omitempty"`
 }
 
 var (
 	reasoningReplayCacheOnce sync.Once
 	reasoningReplayCache     *cachex.HybridCache[reasoningReplayEntry]
+	reasoningReplayMu        sync.Mutex
 )
 
 func newReasoningReplayCache() *cachex.HybridCache[reasoningReplayEntry] {
 	return cachex.NewHybridCache[reasoningReplayEntry](cachex.HybridCacheConfig[reasoningReplayEntry]{
 		Namespace:     cachex.Namespace(reasoningReplayCacheNamespace),
 		RedisProvider: func() *redis.Client { return common.RDB },
-		RedisEnabled: func() bool {
-			return common.RedisEnabled && common.RDB != nil
-		},
-		RedisCodec: cachex.JSONCodec[reasoningReplayEntry]{},
+		RedisEnabled:  func() bool { return common.RedisEnabled && common.RDB != nil },
+		RedisCodec:    cachex.JSONCodec[reasoningReplayEntry]{},
 		Memory: func() *hot.HotCache[string, reasoningReplayEntry] {
-			return hot.NewHotCache[string, reasoningReplayEntry](hot.LRU, reasoningReplayCacheCapacity).
-				WithTTL(reasoningReplayTTLSeconds * time.Second).
-				WithJanitor().
-				Build()
+			return hot.NewHotCache[string, reasoningReplayEntry](hot.LRU, reasoningReplayCacheCapacity).WithTTL(reasoningReplayTTLSeconds * time.Second).WithJanitor().Build()
 		},
 	})
 }
-
 func getReasoningReplayCache() *cachex.HybridCache[reasoningReplayEntry] {
-	reasoningReplayCacheOnce.Do(func() {
-		reasoningReplayCache = newReasoningReplayCache()
-	})
+	reasoningReplayCacheOnce.Do(func() { reasoningReplayCache = newReasoningReplayCache() })
 	return reasoningReplayCache
 }
-
-// NormalizeReasoningReplayMode maps an operator-supplied channel setting to one
-// of the four known modes. Empty and unknown values fall back to "all": the
-// echo is harmless for upstreams that ignore reasoning, and defaulting to it
-// keeps generic clients working without per-channel configuration.
 func NormalizeReasoningReplayMode(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case ReasoningReplayModeOff:
@@ -100,205 +83,282 @@ func NormalizeReasoningReplayMode(raw string) string {
 		return ReasoningReplayModeChat
 	case ReasoningReplayModeResponses:
 		return ReasoningReplayModeResponses
-	case ReasoningReplayModeForce:
-		return ReasoningReplayModeForce
 	case ReasoningReplayModeAll:
 		return ReasoningReplayModeAll
-	case ReasoningReplayModeAuto, "", "on", "true":
-		return ReasoningReplayModeAuto
+	case ReasoningReplayModeForce:
+		return ReasoningReplayModeForce
 	default:
 		return ReasoningReplayModeAuto
 	}
 }
-
-// ChannelSupportsReasoningRoundTrip reports whether the channel speaks the
-// stateful thinking protocol: the upstream issues reasoning items that must be
-// echoed back on the next turn. Standard OpenAI-compatible upstreams (Groq,
-// OpenAI direct, DeepSeek direct) reject or ignore assistant reasoning content,
-// so replay must not touch them.
-func ChannelSupportsReasoningRoundTrip(channelType int) bool {
-	return channelType == constant.ChannelTypeCodex
-}
-
-// ReplayAllowedForChannel resolves the per-channel policy. An explicit mode
-// (all/chat/responses/force) is operator intent and wins; auto follows the
-// channel capability; off disables replay.
-func ReplayAllowedForChannel(channelType int, mode string) bool {
+func ReasoningReplayAllows(mode, surface string) bool {
 	switch NormalizeReasoningReplayMode(mode) {
 	case ReasoningReplayModeOff:
 		return false
-	case ReasoningReplayModeAll, ReasoningReplayModeChat, ReasoningReplayModeResponses, ReasoningReplayModeForce:
-		return true
-	default: // auto
-		return ChannelSupportsReasoningRoundTrip(channelType)
-	}
-}
-
-// ShouldStripReasoningContent decides whether the outbound chat request must
-// drop assistant reasoning_content. Standard upstreams do not accept the field,
-// so stripping is the default outside the stateful set; an explicit channel
-// setting or a forced replay mode turns it off.
-func ShouldStripReasoningContent(channelType int, settings dto.ChannelOtherSettings) bool {
-	if settings.StripReasoningContent {
-		return true
-	}
-	if ChannelSupportsReasoningRoundTrip(channelType) {
-		return false
-	}
-	// A standard channel keeps the field only when the operator opted into
-	// round-trip replay for it; otherwise the upstream would reject the request.
-	return !ReplayAllowedForChannel(channelType, settings.ReasoningReplay)
-}
-
-// ReasoningReplayAllows reports whether the mode covers the given surface.
-func ReasoningReplayAllows(mode, surface string) bool {
-	mode = NormalizeReasoningReplayMode(mode)
-	if mode == ReasoningReplayModeForce || mode == ReasoningReplayModeAuto {
-		return true
-	}
-	switch surface {
 	case ReasoningReplayModeChat:
-		return mode == ReasoningReplayModeChat || mode == ReasoningReplayModeAll
+		return surface == ReasoningReplayModeChat
 	case ReasoningReplayModeResponses:
-		return mode == ReasoningReplayModeResponses || mode == ReasoningReplayModeAll
+		return surface == ReasoningReplayModeResponses
 	default:
-		return mode != ReasoningReplayModeOff
+		return true
 	}
 }
 
-func reasoningReplayKey(tokenID int, model, anchor string) string {
-	sum := sha256.Sum256([]byte(anchor))
-	return strings.Join([]string{
-		"tok", itoa(tokenID), "model", model, "anchor", hex.EncodeToString(sum[:12]),
-	}, "|")
-}
-
-func itoa(v int) string {
-	if v == 0 {
-		return "0"
+// ReasoningReplayPolicyForChannel resolves the final channel instance and actual
+// outbound protocol. An opt-in for Responses never enables Chat replay or vice
+// versa. Turning replay off does not discard valid DeepSeek client history.
+func ReasoningReplayPolicyForChannel(info *relaycommon.RelayInfo, surface string) (strip, replay bool) {
+	if info == nil || info.ChannelMeta == nil {
+		return surface == ReasoningReplayModeChat, false
 	}
-	neg := v < 0
-	if neg {
-		v = -v
+	settings := info.ChannelOtherSettings
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = constant.GetChannelBaseURL(info.ChannelType)
 	}
-	var buf [20]byte
-	i := len(buf)
-	for v > 0 {
-		i--
-		buf[i] = byte('0' + v%10)
-		v /= 10
+	endpoint, err := url.Parse(baseURL)
+	officialDeepSeek := info.ChannelType == constant.ChannelTypeDeepSeek && err == nil && endpoint.Scheme == "https" && strings.EqualFold(endpoint.Hostname(), "api.deepseek.com") && (endpoint.Port() == "" || endpoint.Port() == "443")
+	mode := NormalizeReasoningReplayMode(settings.ReasoningReplay)
+	replay = ReasoningReplayAllows(mode, surface)
+	if mode == ReasoningReplayModeAuto {
+		replay = replay && (officialDeepSeek || (info.ChannelType == constant.ChannelTypeCodex && surface == ReasoningReplayModeResponses))
 	}
-	if neg {
-		i--
-		buf[i] = '-'
+	strip = surface == ReasoningReplayModeChat && (settings.StripReasoningContent || (!officialDeepSeek && !replay))
+	if settings.StripReasoningContent || IsCodexClient(ClientUserAgent(info.RequestHeaders)) {
+		replay = false
 	}
-	return string(buf[i:])
-}
-
-// messageFingerprint hashes the textual part of a chat message so the same
-// conversation maps to the same cache entry across turns and instances.
-func messageFingerprint(msg dto.Message) string {
-	var b strings.Builder
-	b.WriteString(msg.Role)
-	b.WriteByte('\x00')
-	switch content := msg.Content.(type) {
-	case string:
-		b.WriteString(content)
-	case nil:
-	default:
-		if raw, err := common.Marshal(content); err == nil {
-			b.Write(raw)
+	if surface == ReasoningReplayModeChat {
+		if _, stable := chatReasoningHeaderFingerprint(info); !stable {
+			replay = false
 		}
 	}
-	return b.String()
+	return
 }
 
-// ChatReasoningAnchor returns the conversation anchor for a chat-completions
-// request: the first user message, falling back to the first message of any
-// role. Requests without messages produce an empty anchor and never touch the
-// cache.
+// Header overrides may select an upstream account through any vendor-specific
+// field. Do not infer identity from a client-controlled placeholder or a rule
+// matching arbitrary header names; static overrides and plugin effects are
+// included verbatim in the hash, never persisted or logged as plaintext.
+func chatReasoningHeaderFingerprint(info *relaycommon.RelayInfo) (string, bool) {
+	if info == nil {
+		return "", false
+	}
+	overrides := relaycommon.GetEffectiveHeaderOverride(info)
+	for name, value := range overrides {
+		key := strings.ToLower(strings.TrimSpace(name))
+		text, ok := value.(string)
+		if !ok || key == "*" || strings.HasPrefix(key, "re:") || strings.HasPrefix(key, "regex:") || strings.Contains(text, "{client_header:") {
+			return "", false
+		}
+	}
+	raw, err := common.Marshal([]any{overrides, info.RequestPluginHeaders})
+	if err != nil {
+		return "", false
+	}
+	digest := sha256.Sum256(raw)
+	return hex.EncodeToString(digest[:]), true
+}
+
+const chatReasoningReplayHeadersKey = "chat_reasoning_replay_headers"
+
+// MarkChatReasoningReplay snapshots the identity-affecting header configuration
+// before later plugin stages. The sender must check it immediately before I/O.
+func MarkChatReasoningReplay(c *gin.Context, info *relaycommon.RelayInfo) {
+	fingerprint, stable := chatReasoningHeaderFingerprint(info)
+	if !stable {
+		fingerprint = "unstable"
+	}
+	c.Set(chatReasoningReplayHeadersKey, fingerprint)
+}
+
+// ChatReasoningReplayHeadersMatch rejects a replayed body if a later plugin or
+// parameter override changed its upstream identity after cache lookup.
+func ChatReasoningReplayHeadersMatch(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if c == nil {
+		return true
+	}
+	expected := c.GetString(chatReasoningReplayHeadersKey)
+	if expected == "" {
+		return true
+	}
+	actual, stable := chatReasoningHeaderFingerprint(info)
+	return stable && expected == actual
+}
+
+// ChatReasoningReplayMarked reports whether this attempt inserted cached thinking.
+func ChatReasoningReplayMarked(c *gin.Context) bool {
+	return c != nil && c.GetString(chatReasoningReplayHeadersKey) != ""
+}
+
+// ResetChatReasoningReplay clears a previous attempt's snapshot before retry.
+func ResetChatReasoningReplay(c *gin.Context) { c.Set(chatReasoningReplayHeadersKey, "") }
+func ReasoningReplayScopeForChannel(info *relaycommon.RelayInfo) ReasoningReplayScope {
+	if info == nil || info.ChannelMeta == nil {
+		return ReasoningReplayScope{}
+	}
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = constant.GetChannelBaseURL(info.ChannelType)
+	}
+	scope := ReasoningReplayScope{ChannelID: info.ChannelId, Credential: info.ApiKey, UpstreamModel: info.GetUpstreamModelName(), Endpoint: strings.TrimRight(baseURL, "/"), RequestedGroup: info.TokenGroup}
+	if _, chat := info.Request.(*dto.GeneralOpenAIRequest); chat {
+		fingerprint, stable := chatReasoningHeaderFingerprint(info)
+		if !stable {
+			return ReasoningReplayScope{}
+		}
+		scope.HeaderFingerprint = fingerprint
+	}
+	if req, ok := info.Request.(*dto.GeneralOpenAIRequest); ok && req != nil && strings.TrimSpace(req.PromptCacheKey) != "" {
+		scope.SessionID = "prompt_cache_key:" + req.PromptCacheKey
+		return scope
+	}
+	for _, name := range []string{"session_id", "x-session-id"} {
+		for k, v := range info.RequestHeaders {
+			if strings.EqualFold(k, name) && strings.TrimSpace(v) != "" {
+				scope.SessionID = name + ":" + v
+				return scope
+			}
+		}
+	}
+	if req, ok := info.Request.(*dto.OpenAIResponsesRequest); ok && req != nil {
+		var key string
+		if common.Unmarshal(req.PromptCacheKey, &key) == nil && strings.TrimSpace(key) != "" {
+			scope.SessionID = "prompt_cache_key:" + key
+		}
+	}
+	return scope
+}
+func reasoningReplayKey(tokenID int, model, history string, scopes ...ReasoningReplayScope) string {
+	if tokenID <= 0 || len(scopes) != 1 || scopes[0].ChannelID <= 0 || scopes[0].Credential == "" || history == "" {
+		return ""
+	}
+	scope := scopes[0]
+	raw, _ := common.Marshal([]string{strconv.Itoa(tokenID), model, strconv.Itoa(scope.ChannelID), scope.Credential, scope.SessionID, scope.UpstreamModel, scope.Endpoint, scope.RequestedGroup, scope.HeaderFingerprint, history})
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
+// A compare-and-set is essential: two concurrent completions for the same
+// visible history must not silently overwrite each other's thinking state.
+func storeReasoningReplay(key string, entry reasoningReplayEntry) bool {
+	if key == "" {
+		return false
+	}
+	raw, err := common.Marshal(entry)
+	if err != nil {
+		return false
+	}
+	cache := getReasoningReplayCache()
+	if common.RedisEnabled && common.RDB != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		const script = `local old=redis.call('GET',KEYS[1]); if not old or old==ARGV[1] then redis.call('SET',KEYS[1],ARGV[1],'EX',ARGV[2]); return 1 end; redis.call('SET',KEYS[1],'{"ambiguous":true}','EX',ARGV[2]); return 0`
+		result, err := common.RDB.Eval(ctx, script, []string{cache.FullKey(key)}, string(raw), reasoningReplayTTLSeconds).Int()
+		return err == nil && result == 1
+	}
+	reasoningReplayMu.Lock()
+	defer reasoningReplayMu.Unlock()
+	previous, found, err := cache.Get(key)
+	if err != nil {
+		return false
+	}
+	if found {
+		old, _ := common.Marshal(previous)
+		if string(old) != string(raw) {
+			entry = reasoningReplayEntry{Ambiguous: true}
+		}
+	}
+	if cache.SetWithTTL(key, entry, reasoningReplayTTLSeconds*time.Second) != nil {
+		return false
+	}
+	return !entry.Ambiguous
+}
+
+// ChatReasoningAnchor describes the complete visible prefix, including tool IDs
+// and results. It deliberately excludes only assistant reasoning fields.
 func ChatReasoningAnchor(req *dto.GeneralOpenAIRequest) string {
 	if req == nil || len(req.Messages) == 0 {
 		return ""
 	}
-	for _, msg := range req.Messages {
-		if msg.Role == "user" {
-			return messageFingerprint(msg)
+	messages := make([]dto.Message, len(req.Messages))
+	copy(messages, req.Messages)
+	for i := range messages {
+		messages[i].ReasoningContent = nil
+		messages[i].Reasoning = nil
+		if messages[i].Content == nil {
+			messages[i].Content = ""
 		}
 	}
-	return messageFingerprint(req.Messages[0])
+	raw, err := common.Marshal(messages)
+	if err != nil {
+		return ""
+	}
+	return "chat|" + string(raw)
 }
 
-// CaptureChatReasoning stores the reasoning text produced for the newest
-// assistant turn so the next request in the same conversation can echo it back.
+// CaptureChatReasoning cannot safely associate a text-only capture with the
+// assistant actually returned. Call CaptureChatReasoningTurn with that message.
 func CaptureChatReasoning(tokenID int, model string, req *dto.GeneralOpenAIRequest, reasoning string) bool {
-	reasoning = strings.TrimSpace(reasoning)
-	if reasoning == "" {
-		return false
-	}
-	anchor := ChatReasoningAnchor(req)
-	if anchor == "" {
-		return false
-	}
-	entry := reasoningReplayEntry{
-		Reasoning: reasoning,
-		Model:     model,
-		UpdatedAt: time.Now().Unix(),
-	}
-	if err := getReasoningReplayCache().SetWithTTL(
-		reasoningReplayKey(tokenID, model, anchor), entry, reasoningReplayTTLSeconds*time.Second,
-	); err != nil {
-		common.SysError(common.LogText("reasoning replay cache set failed: err=%v", err))
-		return false
-	}
-	return true
+	return false
 }
-
-// ReplayChatReasoning attaches the cached reasoning text to the last assistant
-// message when the client replayed that message without any reasoning content.
-// Client-supplied reasoning always wins; the function reports whether it
-// modified the request.
-func ReplayChatReasoning(tokenID int, model, mode string, req *dto.GeneralOpenAIRequest) bool {
+func CaptureChatReasoningTurn(tokenID int, model string, scope ReasoningReplayScope, req *dto.GeneralOpenAIRequest, assistant dto.Message) bool {
+	if req == nil || strings.TrimSpace(assistant.GetReasoningContent()) == "" {
+		return false
+	}
+	history := &dto.GeneralOpenAIRequest{Messages: append(append([]dto.Message{}, req.Messages...), assistant)}
+	return storeReasoningReplay(reasoningReplayKey(tokenID, model, ChatReasoningAnchor(history), scope), reasoningReplayEntry{Reasoning: assistant.GetReasoningContent()})
+}
+func ReplayChatReasoning(tokenID int, model, mode string, req *dto.GeneralOpenAIRequest, scopes ...ReasoningReplayScope) bool {
 	if req == nil || !ReasoningReplayAllows(mode, ReasoningReplayModeChat) {
 		return false
 	}
-	target := -1
-	for i := len(req.Messages) - 1; i >= 0; i-- {
-		if req.Messages[i].Role != "assistant" {
+	changed := false
+	for i := range req.Messages {
+		message := &req.Messages[i]
+		if message.Role != "assistant" || message.ReasoningContent != nil || message.Reasoning != nil {
 			continue
 		}
-		if strings.TrimSpace(req.Messages[i].GetReasoningContent()) == "" {
-			target = i
+		key := reasoningReplayKey(tokenID, model, ChatReasoningAnchor(&dto.GeneralOpenAIRequest{Messages: req.Messages[:i+1]}), scopes...)
+		if key == "" {
+			continue
 		}
-		break
+		entry, found, err := getReasoningReplayCache().Get(key)
+		if err == nil && found && !entry.Ambiguous && entry.Reasoning != "" {
+			reasoning := entry.Reasoning
+			message.ReasoningContent = &reasoning
+			changed = true
+		}
 	}
-	if target < 0 {
-		return false
-	}
-	anchor := ChatReasoningAnchor(req)
-	if anchor == "" {
-		return false
-	}
-	entry, found, err := getReasoningReplayCache().Get(reasoningReplayKey(tokenID, model, anchor))
-	if err != nil || !found || strings.TrimSpace(entry.Reasoning) == "" {
-		return false
-	}
-	reasoning := entry.Reasoning
-	req.Messages[target].ReasoningContent = &reasoning
-	req.Messages[target].Reasoning = nil
-	return true
+	return changed
 }
 
-// IsCodexClient reports whether the caller is Codex CLI (or a fork that keeps
-// its User-Agent). Codex runs the stateful thinking protocol itself: it resends
-// the reasoning items of the previous turn, encrypted blob included. Injecting
-// captured items on top of that duplicates the chain and stateful upstreams
-// reject the turn, so replay has to stay out of Codex's way.
+// ReplayChatReasoningBody patches only absent assistant reasoning fields in the
+// final wire JSON. Provider extensions and numeric values remain untouched.
+func ReplayChatReasoningBody(tokenID int, model, mode string, body []byte, scope ReasoningReplayScope) ([]byte, bool) {
+	var request dto.GeneralOpenAIRequest
+	if common.Unmarshal(body, &request) != nil || !ReplayChatReasoning(tokenID, model, mode, &request, scope) {
+		return body, false
+	}
+	doc := ojson.NewDoc(body)
+	changed := false
+	for i, message := range request.Messages {
+		if message.Role != "assistant" || message.ReasoningContent == nil {
+			continue
+		}
+		original := ojson.GetBytes(body, "messages."+strconv.Itoa(i)+".reasoning_content")
+		legacy := ojson.GetBytes(body, "messages."+strconv.Itoa(i)+".reasoning")
+		if original.Exists() || legacy.Exists() {
+			continue
+		}
+		if doc.Set("messages."+strconv.Itoa(i)+".reasoning_content", *message.ReasoningContent) != nil {
+			return body, false
+		}
+		changed = true
+	}
+	return doc.Bytes(), changed
+}
 func IsCodexClient(userAgent string) bool {
 	ua := strings.ToLower(strings.TrimSpace(userAgent))
-	if ua == "" {
-		return false
-	}
 	for _, marker := range []string{"codex_cli_rs", "codex-cli", "codex/", "openai-codex", "codex_rs"} {
 		if strings.Contains(ua, marker) {
 			return true
@@ -306,8 +366,6 @@ func IsCodexClient(userAgent string) bool {
 	}
 	return false
 }
-
-// ClientUserAgent reads the User-Agent out of the captured request headers.
 func ClientUserAgent(headers map[string]string) string {
 	for k, v := range headers {
 		if strings.EqualFold(k, "User-Agent") {
@@ -317,274 +375,192 @@ func ClientUserAgent(headers map[string]string) string {
 	return ""
 }
 
-// ReplayResponsesReasoning injects a reasoning item ahead of the last assistant
-// message of a Responses API `input` array. Clients that replay a plain
-// assistant message (no `reasoning` item) get the cached reasoning re-attached.
-func ReplayResponsesReasoning(tokenID int, model, mode string, body []byte) ([]byte, bool) {
-	return ReplayResponsesReasoningWithPolicy(tokenID, model, mode, body, false)
+// responsesVisibleItem canonicalizes only the fields clients routinely omit
+// when echoing output as input. Unknown provider fields remain part of identity.
+func responsesVisibleItem(raw json.RawMessage) (json.RawMessage, string) {
+	var item map[string]json.RawMessage
+	if common.Unmarshal(raw, &item) != nil {
+		return nil, ""
+	}
+	var kind, role string
+	_ = common.Unmarshal(item["type"], &kind)
+	_ = common.Unmarshal(item["role"], &role)
+	if kind == "reasoning" {
+		return nil, kind
+	}
+	if kind == "" && role != "" {
+		kind = "message"
+		item["type"] = json.RawMessage(`"message"`)
+	}
+	delete(item, "id")
+	delete(item, "status")
+	if kind == "message" {
+		var parts []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if common.Unmarshal(item["content"], &parts) == nil && len(parts) > 0 {
+			text := ""
+			allText := true
+			for _, part := range parts {
+				if part.Type != "output_text" && part.Type != "input_text" && part.Type != "text" {
+					allText = false
+					break
+				}
+				text += part.Text
+			}
+			if allText {
+				item["content"], _ = common.Marshal(text)
+			}
+		}
+	}
+	normalized, err := common.Marshal(item)
+	if err != nil {
+		return nil, ""
+	}
+	return normalized, kind
 }
-
-// ReplayResponsesReasoningWithPolicy is ReplayResponsesReasoning with the
-// caller's protocol capability taken into account. clientIsCodex short-circuits
-// the whole path: Codex already echoes upstream reasoning items and the gateway
-// must not add a second copy.
-func ReplayResponsesReasoningWithPolicy(tokenID int, model, mode string, body []byte, clientIsCodex bool) ([]byte, bool) {
-	if clientIsCodex || len(body) == 0 || !ReasoningReplayAllows(mode, ReasoningReplayModeResponses) {
+func responsesReasoningAnchor(items []json.RawMessage) string {
+	visible := make([]json.RawMessage, 0, len(items))
+	for _, raw := range items {
+		item, kind := responsesVisibleItem(raw)
+		if kind == "reasoning" {
+			continue
+		}
+		if item == nil {
+			return ""
+		}
+		visible = append(visible, item)
+	}
+	if len(visible) == 0 {
+		return ""
+	}
+	raw, err := common.Marshal(visible)
+	if err != nil {
+		return ""
+	}
+	return "responses|" + string(raw)
+}
+func ReplayResponsesReasoning(tokenID int, model, mode string, body []byte, scopes ...ReasoningReplayScope) ([]byte, bool) {
+	return ReplayResponsesReasoningWithPolicy(tokenID, model, mode, body, false, scopes...)
+}
+func ReplayResponsesReasoningWithPolicy(tokenID int, model, mode string, body []byte, clientIsCodex bool, scopes ...ReasoningReplayScope) ([]byte, bool) {
+	if clientIsCodex || !ReasoningReplayAllows(mode, ReasoningReplayModeResponses) {
 		return body, false
 	}
 	var payload map[string]json.RawMessage
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return body, false
-	}
-	rawInput, ok := payload["input"]
-	if !ok {
+	if common.Unmarshal(body, &payload) != nil {
 		return body, false
 	}
 	var items []json.RawMessage
-	if err := json.Unmarshal(rawInput, &items); err != nil || len(items) == 0 {
+	if common.Unmarshal(payload["input"], &items) != nil {
 		return body, false
 	}
-	// The client already replayed its reasoning: leave the chain untouched.
-	if responsesHasReasoningItem(items) {
-		return body, false
-	}
-	anchor := responsesReasoningAnchor(items)
-	if anchor == "" {
-		return body, false
-	}
-	entry, found, err := getReasoningReplayCache().Get(reasoningReplayKey(tokenID, model, anchor))
-	if err != nil || !found {
-		return body, false
-	}
-	insert := replayItems(entry)
-	if len(insert) == 0 {
-		return body, false
-	}
-	target := -1
-	for i := len(items) - 1; i >= 0; i-- {
+	history := make([]json.RawMessage, 0, len(items))
+	out := make([]json.RawMessage, 0, len(items))
+	changed, hasReasoning := false, false
+	for _, raw := range items {
+		_, kind := responsesVisibleItem(raw)
+		if kind == "reasoning" {
+			hasReasoning = true
+			out = append(out, raw)
+			continue
+		}
+		history = append(history, raw)
 		var item struct {
-			Type string `json:"type"`
 			Role string `json:"role"`
 		}
-		if json.Unmarshal(items[i], &item) != nil {
-			continue
-		}
-		if item.Role != "assistant" {
-			continue
-		}
-		if item.Type != "" && item.Type != "message" {
-			continue
-		}
-		target = i
-		break
-	}
-	if target < 0 {
-		return body, false
-	}
-	merged := make([]json.RawMessage, 0, len(items)+len(insert))
-	merged = append(merged, items[:target]...)
-	merged = append(merged, insert...)
-	merged = append(merged, items[target:]...)
-	encoded, err := json.Marshal(merged)
-	if err != nil {
-		return body, false
-	}
-	payload["input"] = encoded
-	out, err := json.Marshal(payload)
-	if err != nil {
-		return body, false
-	}
-	return out, true
-}
-
-// replayItems returns the payload to re-attach: the verbatim upstream items
-// when the entry carries them, otherwise a summary synthesized from text so
-// entries written by older versions still work.
-func replayItems(entry reasoningReplayEntry) []json.RawMessage {
-	if len(entry.Items) > 0 {
-		out := make([]json.RawMessage, 0, len(entry.Items))
-		for _, raw := range entry.Items {
-			if len(raw) == 0 {
-				continue
+		_ = common.Unmarshal(raw, &item)
+		assistant := item.Role == "assistant" || kind == "function_call" || kind == "custom_tool_call"
+		if assistant && !hasReasoning {
+			key := reasoningReplayKey(tokenID, model, responsesReasoningAnchor(history), scopes...)
+			if key != "" {
+				entry, found, err := getReasoningReplayCache().Get(key)
+				if err == nil && found && !entry.Ambiguous && len(entry.Items) > 0 {
+					out = append(out, entry.Items...)
+					changed = true
+					hasReasoning = true
+				}
 			}
-			out = append(out, raw)
 		}
-		if len(out) > 0 {
-			return out
+		out = append(out, raw)
+		if !assistant {
+			hasReasoning = false
 		}
 	}
-	text := strings.TrimSpace(entry.Reasoning)
-	if text == "" {
-		return nil
+	if !changed {
+		return body, false
 	}
-	item, err := json.Marshal(map[string]any{
-		"type": "reasoning",
-		"summary": []map[string]string{
-			{"type": "summary_text", "text": text},
-		},
-	})
+	payload["input"], _ = common.Marshal(out)
+	encoded, err := common.Marshal(payload)
 	if err != nil {
-		return nil
+		return body, false
 	}
-	return []json.RawMessage{item}
+	return encoded, true
 }
-
-func responsesHasReasoningItem(items []json.RawMessage) bool {
-	for _, raw := range items {
-		var item struct {
-			Type string `json:"type"`
-		}
-		if json.Unmarshal(raw, &item) == nil && item.Type == "reasoning" {
-			return true
-		}
-	}
-	return false
-}
-
-// CaptureResponsesReasoningRaw stores the reasoning items of a Responses API
-// payload verbatim, so opaque state (id, encrypted_content) survives the round
-// trip. payload is either the whole non-stream response or one stream event;
-// both shapes are handled.
-func CaptureResponsesReasoningRaw(tokenID int, model string, input json.RawMessage, payload []byte) bool {
-	if len(input) == 0 || len(payload) == 0 {
-		return false
-	}
-	var flat struct {
-		Output []json.RawMessage `json:"output"`
-	}
-	var wrapped struct {
-		Response struct {
+func CaptureResponsesReasoningRaw(tokenID int, model string, input json.RawMessage, payload []byte, scopes ...ReasoningReplayScope) bool {
+	var response struct {
+		Output   []json.RawMessage `json:"output"`
+		Response *struct {
 			Output []json.RawMessage `json:"output"`
 		} `json:"response"`
 	}
-	if err := json.Unmarshal(payload, &flat); err != nil {
+	if common.Unmarshal(payload, &response) != nil {
 		return false
 	}
-	output := flat.Output
-	if len(output) == 0 {
-		if err := json.Unmarshal(payload, &wrapped); err != nil {
+	output := response.Output
+	if len(output) == 0 && response.Response != nil {
+		output = response.Response.Output
+	}
+	encodedOutput, err := common.Marshal(output)
+	if err != nil {
+		return false
+	}
+	return CaptureResponsesReasoning(tokenID, model, input, encodedOutput, scopes...)
+}
+func CaptureResponsesReasoning(tokenID int, model string, input, output json.RawMessage, scopes ...ReasoningReplayScope) bool {
+	var history, items []json.RawMessage
+	if common.Unmarshal(input, &history) != nil {
+		var text string
+		if common.Unmarshal(input, &text) != nil || text == "" {
 			return false
 		}
-		output = wrapped.Response.Output
+		user, err := common.Marshal(map[string]any{"role": "user", "content": text})
+		if err != nil {
+			return false
+		}
+		history = []json.RawMessage{user}
 	}
-	items := reasoningItemsOnly(output)
-	if len(items) == 0 {
+	if common.Unmarshal(output, &items) != nil {
 		return false
 	}
-	var inputItems []json.RawMessage
-	if err := json.Unmarshal(input, &inputItems); err != nil {
-		return false
-	}
-	anchor := responsesReasoningAnchor(inputItems)
-	if anchor == "" {
-		return false
-	}
-	entry := reasoningReplayEntry{
-		Reasoning: responsesReasoningText(items),
-		Items:     items,
-		Model:     model,
-		UpdatedAt: time.Now().Unix(),
-	}
-	if err := getReasoningReplayCache().SetWithTTL(
-		reasoningReplayKey(tokenID, model, anchor), entry, reasoningReplayTTLSeconds*time.Second,
-	); err != nil {
-		common.SysError(common.LogText("reasoning replay cache set failed: err=%v", err))
-		return false
-	}
-	return true
-}
-
-// reasoningItemsOnly keeps reasoning items untouched, opaque fields included.
-func reasoningItemsOnly(items []json.RawMessage) []json.RawMessage {
-	out := make([]json.RawMessage, 0, len(items))
+	pending := []json.RawMessage{}
+	stored := false
 	for _, raw := range items {
-		var item struct {
-			Type string `json:"type"`
-		}
-		if len(raw) == 0 || json.Unmarshal(raw, &item) != nil {
+		_, kind := responsesVisibleItem(raw)
+		if kind == "reasoning" {
+			pending = append(pending, raw)
 			continue
 		}
-		if item.Type != "reasoning" {
+		history = append(history, raw)
+		if len(pending) == 0 {
 			continue
 		}
-		out = append(out, raw)
-	}
-	return out
-}
-
-// CaptureResponsesReasoning stores plaintext reasoning seen in a Responses API
-// output array ({"type":"reasoning","summary":[{"text":...}]}) for later replay.
-func CaptureResponsesReasoning(tokenID int, model string, input json.RawMessage, output json.RawMessage) bool {
-	if len(input) == 0 || len(output) == 0 {
-		return false
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(output, &items); err != nil {
-		return false
-	}
-	text := responsesReasoningText(items)
-	if text == "" {
-		return false
-	}
-	var inputItems []json.RawMessage
-	if err := json.Unmarshal(input, &inputItems); err != nil {
-		return false
-	}
-	anchor := responsesReasoningAnchor(inputItems)
-	if anchor == "" {
-		return false
-	}
-	entry := reasoningReplayEntry{Reasoning: text, Model: model, UpdatedAt: time.Now().Unix()}
-	if err := getReasoningReplayCache().SetWithTTL(
-		reasoningReplayKey(tokenID, model, anchor), entry, reasoningReplayTTLSeconds*time.Second,
-	); err != nil {
-		common.SysError(common.LogText("reasoning replay cache set failed: err=%v", err))
-		return false
-	}
-	return true
-}
-
-func responsesReasoningAnchor(items []json.RawMessage) string {
-	for _, raw := range items {
-		var item struct {
-			Type    string          `json:"type"`
-			Role    string          `json:"role"`
-			Content json.RawMessage `json:"content"`
+		// Opaque upstream state needs an explicit session/owner binding. A visible
+		// history match alone cannot prove ownership of a provider-issued blob.
+		opaque := false
+		for _, reasoning := range pending {
+			var item struct {
+				Encrypted string `json:"encrypted_content"`
+			}
+			if common.Unmarshal(reasoning, &item) != nil || item.Encrypted != "" {
+				opaque = true
+			}
 		}
-		if json.Unmarshal(raw, &item) != nil {
-			continue
+		if !opaque || (len(scopes) == 1 && scopes[0].SessionID != "") {
+			stored = storeReasoningReplay(reasoningReplayKey(tokenID, model, responsesReasoningAnchor(history), scopes...), reasoningReplayEntry{Items: pending}) || stored
 		}
-		if item.Role == "user" {
-			return "responses|" + strings.TrimSpace(string(item.Content))
-		}
+		pending = nil
 	}
-	if len(items) > 0 {
-		return "responses|" + strings.TrimSpace(string(items[0]))
-	}
-	return ""
-}
-
-func responsesReasoningText(items []json.RawMessage) string {
-	var b strings.Builder
-	for _, raw := range items {
-		var item struct {
-			Type    string `json:"type"`
-			Summary []struct {
-				Text string `json:"text"`
-			} `json:"summary"`
-			Content []struct {
-				Text string `json:"text"`
-			} `json:"content"`
-		}
-		if json.Unmarshal(raw, &item) != nil || item.Type != "reasoning" {
-			continue
-		}
-		for _, s := range item.Summary {
-			b.WriteString(s.Text)
-		}
-		for _, c := range item.Content {
-			b.WriteString(c.Text)
-		}
-	}
-	return b.String()
+	return stored
 }

@@ -2,11 +2,22 @@ package channel
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/requestpatch"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -205,6 +216,176 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+// responsesIdentityAdaptor exercises the real HTTP sender while exposing the
+// two provider hooks that can change the final destination and authentication.
+type responsesIdentityAdaptor struct {
+	Adaptor
+	target     string
+	signedAuth string
+}
+
+func (a *responsesIdentityAdaptor) GetRequestURL(_ *relaycommon.RelayInfo) (string, error) {
+	return a.target, nil
+}
+
+func (a *responsesIdentityAdaptor) SetupRequestHeader(c *gin.Context, headers *http.Header, info *relaycommon.RelayInfo) error {
+	headers.Set("Authorization", "Bearer "+info.ApiKey)
+	headers.Set("X-Trace-Id", c.Request.Header.Get("X-Trace-Id"))
+	return nil
+}
+
+func (a *responsesIdentityAdaptor) SignUpstreamRequest(_ *gin.Context, _ *relaycommon.RelayInfo, _ string, _ *url.URL, headers http.Header) error {
+	if a.signedAuth != "" {
+		headers.Set("Authorization", a.signedAuth)
+	}
+	return nil
+}
+
+func TestDoApiRequestResponsesOutboundIdentity(t *testing.T) {
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+
+	for i, tc := range []struct {
+		name                                                    string
+		header, firstValue, nextValue                           string
+		signer, changedSigner, runtime, destination, rotateKeys bool
+		legacyBinding, chat, plugin, reject                     bool
+	}{
+		{name: "same override identity", header: "Authorization", firstValue: "Bearer account-A", nextValue: "Bearer account-A"},
+		{name: "changed override identity", header: "Authorization", firstValue: "Bearer account-A", nextValue: "Bearer account-B", reject: true},
+		{name: "same custom credential override", header: "X-Vendor-Token", firstValue: "account-A", nextValue: "account-A"},
+		{name: "changed custom credential override", header: "X-Vendor-Token", firstValue: "account-A", nextValue: "account-B", reject: true},
+		{name: "same custom plugin credential", header: "X-Vendor-Token", firstValue: "account-A", nextValue: "account-A", plugin: true},
+		{name: "changed custom plugin credential", header: "X-Vendor-Token", firstValue: "account-A", nextValue: "account-B", plugin: true, reject: true},
+		{name: "changed runtime plugin identity", header: "Authorization", firstValue: "Bearer account-A", nextValue: "Bearer account-B", runtime: true, reject: true},
+		{name: "same final signer identity", header: "Authorization", firstValue: "Bearer account-A", nextValue: "Bearer account-B", signer: true},
+		{name: "changed final signer identity", signer: true, changedSigner: true, reject: true},
+		{name: "changed api key", header: "api-key", firstValue: "account-A", nextValue: "account-B", reject: true},
+		{name: "changed account header", header: "ChatGPT-Account-Id", firstValue: "account-A", nextValue: "account-B", reject: true},
+		{name: "changed host", header: "Host", firstValue: "account-a.example", nextValue: "account-b.example", reject: true},
+		{name: "changed destination", destination: true, reject: true},
+		{name: "multi key order rotates but bound key stays", rotateKeys: true},
+		{name: "unknown legacy outbound identity fails closed", legacyBinding: true, reject: true},
+		{name: "chat is not affected", header: "Authorization", firstValue: "Bearer account-A", nextValue: "Bearer account-B", chat: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var sent atomic.Int64
+			observed := make(chan http.Header, 2)
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sent.Add(1)
+				observed <- r.Header.Clone()
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{"id":"resp_http_identity","status":"completed","output":[]}`)
+			}))
+			defer upstream.Close()
+			const configuredKey = "configured-key-fixture"
+			const modelName = "responses-http-identity"
+			responseID := fmt.Sprintf("resp_http_identity_%d_%s", i, upstream.URL)
+			newContext := func(body, headerValue string) *gin.Context {
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+				c.Request.Header.Set("X-Upstream-Authorization", headerValue)
+				c.Request.Header.Set("X-Trace-Id", fmt.Sprint(len(body)))
+				c.Set("id", 9871)
+				c.Set("token_id", 9872+i)
+				c.Set("channel_id", 9873+i)
+				return c
+			}
+			first := newContext(`{"model":"responses-http-identity","input":"hello"}`, tc.firstValue)
+			info := &relaycommon.RelayInfo{
+				RelayMode: relayconstant.RelayModeResponses, RelayFormat: types.RelayFormatOpenAIResponses,
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 9873 + i, ApiKey: configuredKey},
+			}
+			if tc.header != "" {
+				info.HeadersOverride = map[string]any{tc.header: "{client_header:X-Upstream-Authorization}"}
+			}
+			if tc.plugin {
+				info.HeadersOverride = nil
+				info.RequestPluginHeaders = []requestpatch.Effect{{Set: map[string]string{tc.header: tc.firstValue}}}
+			}
+			if tc.runtime {
+				// Request plugins/parameter overrides publish the effective final
+				// header map here; it must take precedence over static config.
+				info.UseRuntimeHeadersOverride = true
+				info.RuntimeHeadersOverride = info.HeadersOverride
+				info.HeadersOverride = map[string]any{"Authorization": "Bearer ignored-static"}
+			}
+			if tc.chat {
+				info.RelayFormat = types.RelayFormatOpenAI
+				info.RelayMode = relayconstant.RelayModeChatCompletions
+			}
+			adaptor := &responsesIdentityAdaptor{target: upstream.URL + "/v1/responses"}
+			if tc.signer {
+				adaptor.signedAuth = "Bearer signed-account"
+			}
+			if !tc.legacyBinding {
+				resp, err := DoApiRequest(adaptor, first, info, strings.NewReader(`{"input":"hello"}`))
+				require.NoError(t, err)
+				require.NoError(t, resp.Body.Close())
+				<-observed
+			}
+			// Mirrors successful response handling: the actual HTTP egress
+			// fingerprint is read from c, not reconstructed from channel.Key.
+			_, err := service.RecordResponsesAffinityIDs(first, modelName, "default", configuredKey, responseID, nil)
+			require.NoError(t, err)
+			next := newContext(`{"model":"responses-http-identity","input":"follow up"}`, tc.nextValue)
+			binding, found, err := service.ResolveResponsesAffinityIDs(next, modelName, "default", responseID, nil)
+			require.NoError(t, err)
+			require.True(t, found)
+			if !tc.legacyBinding && !tc.chat {
+				require.Len(t, binding.OutboundIdentityFingerprint, 64)
+			}
+			encoded, err := common.Marshal(binding)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), configuredKey)
+			assert.NotContains(t, string(encoded), "account-A")
+			if tc.rotateKeys {
+				channel := &model.Channel{Id: info.ChannelId, Key: "other-key\n" + configuredKey, ChannelInfo: model.ChannelInfo{IsMultiKey: true}}
+				unbound, _, keyErr := channel.GetNextEnabledKey()
+				require.Nil(t, keyErr)
+				assert.Equal(t, "other-key", unbound, "unbound selection has rotated")
+				pinned, index, available := channel.GetEnabledKeyByFingerprint(binding.CredentialFingerprint)
+				require.True(t, available)
+				require.Equal(t, 1, index)
+				require.Equal(t, configuredKey, pinned)
+				info.ApiKey = pinned
+			}
+			if tc.destination {
+				adaptor.target = upstream.URL + "/other-tenant/responses"
+			}
+			if tc.changedSigner {
+				adaptor.signedAuth = "Bearer changed-signed-account"
+			}
+			if tc.plugin {
+				info.RequestPluginHeaders[0].Set[tc.header] = tc.nextValue
+			}
+			before := sent.Load()
+			resp, err := DoApiRequest(adaptor, next, info, strings.NewReader(`{"input":"follow up"}`))
+			if tc.reject {
+				require.Error(t, err)
+				require.Nil(t, resp)
+				var apiErr *types.NewAPIError
+				require.ErrorAs(t, err, &apiErr)
+				assert.Equal(t, http.StatusConflict, apiErr.StatusCode)
+				assert.True(t, types.IsSkipRetryError(apiErr))
+				assert.Equal(t, before, sent.Load(), "rejected continuation must not reach upstream")
+				return
+			}
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			assert.Equal(t, before+1, sent.Load())
+			actualHeaders := <-observed
+			if tc.rotateKeys {
+				assert.Equal(t, "Bearer "+configuredKey, actualHeaders.Get("Authorization"))
+			}
+			if tc.signer {
+				assert.Equal(t, "Bearer signed-account", actualHeaders.Get("Authorization"))
+			}
+		})
+	}
 }
 
 func TestToWebSocketURL(t *testing.T) {

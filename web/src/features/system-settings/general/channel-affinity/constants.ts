@@ -106,12 +106,7 @@ export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
     name: 'responses session trace',
     model_regex: ['^gpt-.*$'],
     path_regex: ['/v1/responses'],
-    key_sources: [
-      { type: 'gjson', path: 'prompt_cache_key' },
-      // Clients that never send prompt_cache_key (for example VS Code's
-      // custom endpoint) stay on the account that answered their first turn.
-      { type: 'context_int', key: 'token_id' },
-    ],
+    key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
     value_regex: '',
     ttl_seconds: 0,
     skip_retry_on_failure: false,

@@ -2,8 +2,10 @@ package model
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -320,6 +322,32 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		// Unknown mode, default to first enabled key (or original key string)
 		return keys[enabledIdx[0]], enabledIdx[0], nil
 	}
+}
+
+func (channel *Channel) GetEnabledKeyByFingerprint(fingerprint string) (string, int, bool) {
+	if channel == nil || fingerprint == "" {
+		return "", 0, false
+	}
+	lock := GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
+	if !channel.ChannelInfo.IsMultiKey {
+		sum := sha256.Sum256([]byte(channel.Key))
+		if channel.Key != "" && hex.EncodeToString(sum[:]) == fingerprint {
+			return channel.Key, 0, true
+		}
+		return "", 0, false
+	}
+	for index, key := range channel.GetKeys() {
+		if status := channel.ChannelInfo.MultiKeyStatusList[index]; status != 0 && status != common.ChannelStatusEnabled {
+			continue
+		}
+		sum := sha256.Sum256([]byte(key))
+		if key != "" && hex.EncodeToString(sum[:]) == fingerprint {
+			return key, index, true
+		}
+	}
+	return "", 0, false
 }
 
 func (channel *Channel) SaveChannelInfo() error {

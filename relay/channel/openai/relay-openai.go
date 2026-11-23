@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -116,13 +117,16 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var systemFingerprint string
 	var containStreamUsage bool
 	var responseTextBuilder strings.Builder
-	var reasoningTextBuilder strings.Builder
+	var assistantContentBuilder strings.Builder
+	var assistantReasoningBuilder strings.Builder
+	assistantToolCalls := make(map[int]dto.ToolCallResponse)
 	var toolCount int
 	var usage = &dto.Usage{}
 	var lastStreamData string
 	var secondLastStreamData string // 保留倒数第二个stream data；部分兼容网关把完整usage放在倒数第二个事件
 	var streamEarlyError *types.NewAPIError
 	hasFinishReason := false
+	primaryFinished := false
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
 
@@ -145,7 +149,36 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 			lastStreamData = data
 			hasFinishReason = observeStreamChoices(info, data, seenStreamToolCalls, &streamFunctionCallNames) || hasFinishReason
-			collectStreamReasoning(info, data, &reasoningTextBuilder)
+			var frame dto.ChatCompletionsStreamResponse
+			if common.UnmarshalJsonStr(data, &frame) == nil {
+				for _, choice := range frame.Choices {
+					if choice.Index != 0 {
+						continue
+					}
+					if choice.FinishReason != nil && *choice.FinishReason != "" {
+						primaryFinished = true
+					}
+					assistantContentBuilder.WriteString(choice.Delta.GetContentString())
+					assistantReasoningBuilder.WriteString(choice.Delta.GetReasoningContent())
+					for index, call := range choice.Delta.ToolCalls {
+						if call.Index != nil {
+							index = *call.Index
+						}
+						collected := assistantToolCalls[index]
+						if call.ID != "" {
+							collected.ID = call.ID
+						}
+						if call.Type != nil {
+							collected.Type = call.Type
+						}
+						if call.Function.Name != "" {
+							collected.Function.Name = call.Function.Name
+						}
+						collected.Function.Arguments += call.Function.Arguments
+						assistantToolCalls[index] = collected
+					}
+				}
+			}
 			if err := processTokenData(info, data, &responseTextBuilder, &toolCount); err != nil {
 				logger.LogError(c, common.LogText("error processing stream token data: %s", err.Error()))
 				sr.Error(err)
@@ -213,47 +246,61 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage, hasFinishReason)
 	}
 
-	captureChatReasoning(info, reasoningTextBuilder.String())
+	if primaryFinished && info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() &&
+		!info.ChannelSetting.ThinkingToContent && assistantReasoningBuilder.Len() > 0 {
+		if req, ok := info.Request.(*dto.GeneralOpenAIRequest); ok {
+			if _, replay := service.ReasoningReplayPolicyForChannel(info, service.ReasoningReplayModeChat); replay {
+				reasoning := assistantReasoningBuilder.String()
+				assistant := dto.Message{Role: "assistant", Content: assistantContentBuilder.String(), ReasoningContent: &reasoning}
+				if len(assistantToolCalls) > 0 {
+					indexes := make([]int, 0, len(assistantToolCalls))
+					for index := range assistantToolCalls {
+						indexes = append(indexes, index)
+					}
+					slices.Sort(indexes)
+					calls := make([]dto.ToolCallResponse, 0, len(indexes))
+					for _, index := range indexes {
+						call := assistantToolCalls[index]
+						call.Index = nil
+						if call.Type == nil {
+							call.Type = "function"
+						}
+						calls = append(calls, call)
+					}
+					assistant.ToolCalls, _ = common.Marshal(calls)
+				}
+				scope := service.ReasoningReplayScopeForChannel(info)
+				scope.RequestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				service.CaptureChatReasoningTurn(info.TokenId, info.OriginModelName, scope, req, assistant)
+			}
+		}
+	}
 
 	return usage, nil
 }
 
-// captureChatReasoningFromChoices stores the reasoning text of a non-stream
-// completion so the next turn can echo it back to stateful thinking upstreams.
-func captureChatReasoningFromChoices(info *relaycommon.RelayInfo, choices []dto.OpenAITextResponseChoice) {
+// captureChatReasoningFromChoices associates each successful assistant turn
+// with its own visible response, not only the conversation's opening prompt.
+func captureChatReasoningFromChoices(c *gin.Context, info *relaycommon.RelayInfo, choices []dto.OpenAITextResponseChoice) {
 	if info == nil || len(choices) == 0 {
-		return
-	}
-	for i := len(choices) - 1; i >= 0; i-- {
-		if text := strings.TrimSpace(choices[i].Message.GetReasoningContent()); text != "" {
-			captureChatReasoning(info, text)
-			return
-		}
-	}
-}
-
-func captureChatReasoning(info *relaycommon.RelayInfo, reasoning string) {
-	if info == nil || strings.TrimSpace(reasoning) == "" {
 		return
 	}
 	req, ok := info.Request.(*dto.GeneralOpenAIRequest)
 	if !ok || req == nil {
 		return
 	}
-	service.CaptureChatReasoning(info.TokenId, info.OriginModelName, req, reasoning)
-}
-
-// collectStreamReasoning appends delta reasoning text from one SSE frame.
-func collectStreamReasoning(info *relaycommon.RelayInfo, data string, builder *strings.Builder) {
-	if info == nil || builder == nil || data == "" {
+	if _, replay := service.ReasoningReplayPolicyForChannel(info, service.ReasoningReplayModeChat); !replay {
 		return
 	}
-	var frame dto.ChatCompletionsStreamResponse
-	if err := common.UnmarshalJsonStr(data, &frame); err != nil {
-		return
+	scope := service.ReasoningReplayScopeForChannel(info)
+	if c != nil {
+		scope.RequestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	}
-	for _, choice := range frame.Choices {
-		builder.WriteString(choice.Delta.GetReasoningContent())
+	for _, choice := range choices {
+		if strings.TrimSpace(choice.Message.GetReasoningContent()) == "" {
+			continue
+		}
+		service.CaptureChatReasoningTurn(info.TokenId, info.OriginModelName, scope, req, choice.Message)
 	}
 }
 
@@ -373,7 +420,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	captureChatReasoningFromChoices(info, simpleResponse.Choices)
+	captureChatReasoningFromChoices(c, info, simpleResponse.Choices)
 
 	info.ObserveResponseModel(simpleResponse.Model)
 	for _, choice := range simpleResponse.Choices {
