@@ -346,6 +346,7 @@ const SENSITIVE_FORM_FIELDS = [
   'system_prompt_override',
   'allow_service_tier',
   'strip_reasoning_content',
+  'strip_prompt_cache_options',
   'disable_store',
   'allow_safety_identifier',
   'allow_include_obfuscation',
@@ -3122,6 +3123,32 @@ export function ChannelMutateDrawer({
                       <FormDescription>
                         {t(
                           'Remove assistant reasoning_content before forwarding requests to the upstream'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        disabled={sensitiveLocked}
+                        checked={field.value === true}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='strip_prompt_cache_options'
+                render={({ field }) => (
+                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-sm'>
+                        {t('Strip prompt_cache_options')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Remove only prompt_cache_options from Responses requests to this channel; prompt_cache_key and prompt_cache_retention are preserved'
                         )}
                       </FormDescription>
                     </div>

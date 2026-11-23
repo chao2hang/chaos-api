@@ -32,6 +32,7 @@ import {
   channelFormSchema,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
+  transformFormDataToUpdatePayload,
 } from '../channel-form'
 import {
   getChannelPluginExtensions,
@@ -105,6 +106,83 @@ describe('New API channel', () => {
 })
 
 describe('OpenAI-compatible request settings', () => {
+  test.each([
+    1,
+    57,
+    58,
+    59,
+    CHANNEL_TYPE_NEW_API,
+    61,
+    CHANNEL_TYPE_VLLM,
+    CHANNEL_TYPE_SGLANG,
+  ])(
+    'type %s defaults to preserving prompt cache options and round-trips explicit stripping',
+    (type) => {
+      const channel = channelSchema.parse({
+        id: 8,
+        name: 'Responses upstream',
+        type,
+        key: '',
+        status: 1,
+        created_time: 1,
+        test_time: 0,
+        response_time: 0,
+        balance_updated_time: 0,
+        models: 'gpt-5',
+        settings: JSON.stringify({ future_field: { retained: true } }),
+      })
+      const defaults = transformChannelToFormDefaults(channel)
+      expect(defaults.strip_prompt_cache_options).toBe(false)
+      const enabled = transformFormDataToCreatePayload({
+        ...defaults,
+        strip_prompt_cache_options: true,
+      })
+      expect(JSON.parse(enabled.channel.settings ?? '{}')).toMatchObject({
+        strip_prompt_cache_options: true,
+        future_field: { retained: true },
+      })
+      const reloaded = transformChannelToFormDefaults({
+        ...channel,
+        ...enabled.channel,
+      })
+      expect(reloaded.strip_prompt_cache_options).toBe(true)
+      const disabled = transformFormDataToUpdatePayload(
+        {
+          ...reloaded,
+          strip_prompt_cache_options: false,
+        },
+        channel.id
+      )
+      expect(JSON.parse(disabled.settings ?? '{}')).toMatchObject({
+        strip_prompt_cache_options: false,
+        future_field: { retained: true },
+      })
+      expect(
+        transformChannelToFormDefaults({ ...channel, ...disabled })
+          .strip_prompt_cache_options
+      ).toBe(false)
+    }
+  )
+
+  test('switching to an unsupported provider removes stale prompt cache stripping settings', () => {
+    const payload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      type: 14,
+      settings: JSON.stringify({
+        strip_prompt_cache_options: true,
+        future_field: true,
+      }),
+      strip_prompt_cache_options: true,
+    })
+    expect(JSON.parse(payload.channel.settings ?? '{}')).not.toHaveProperty(
+      'strip_prompt_cache_options'
+    )
+    expect(JSON.parse(payload.channel.settings ?? '{}')).toHaveProperty(
+      'future_field',
+      true
+    )
+  })
+
   test('round-trips per-channel reasoning_content stripping', () => {
     const channel = channelSchema.parse({
       id: 8,

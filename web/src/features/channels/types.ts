@@ -136,6 +136,7 @@ export interface ChannelOtherSettings {
   aws_api_type?: 'invoke_model' | 'mantle'
   allow_service_tier?: boolean
   strip_reasoning_content?: boolean
+  strip_prompt_cache_options?: boolean
   disable_store?: boolean
   allow_safety_identifier?: boolean
   allow_include_obfuscation?: boolean

@@ -206,3 +206,58 @@ func TestInferencePresetSettingsAndDatabaseRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestPromptCacheOptionsChannelSettingDatabaseRoundTrip(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			var driver gorm.Dialector
+			switch dialect {
+			case "sqlite":
+				driver = sqlite.Open(filepath.Join(t.TempDir(), "prompt-cache.db"))
+			case "mysql":
+				dsn := os.Getenv("TEST_MYSQL_DSN")
+				if dsn == "" {
+					t.Skip("TEST_MYSQL_DSN is not configured")
+				}
+				driver = mysql.Open(dsn)
+			case "postgres":
+				dsn := os.Getenv("TEST_POSTGRES_DSN")
+				if dsn == "" {
+					t.Skip("TEST_POSTGRES_DSN is not configured")
+				}
+				driver = postgres.Open(dsn)
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			connection, err := db.DB()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, connection.Close()) })
+			table := db.Table("prompt_cache_option_channels").Session(&gorm.Session{})
+			require.NoError(t, table.AutoMigrate(&Channel{}))
+			t.Cleanup(func() { require.NoError(t, db.Migrator().DropTable("prompt_cache_option_channels")) })
+
+			legacy := &Channel{Type: constant.ChannelTypeOpenAI, Key: "legacy", Name: "legacy", Status: common.ChannelStatusEnabled}
+			require.NoError(t, table.Create(legacy).Error)
+			var loaded Channel
+			require.NoError(t, table.First(&loaded, legacy.Id).Error)
+			assert.False(t, loaded.GetOtherSettings().StripPromptCacheOptions)
+
+			configured := &Channel{Type: constant.ChannelTypeOpenAI, Key: "configured", Name: "configured", Status: common.ChannelStatusEnabled}
+			configured.SetOtherSettings(dto.ChannelOtherSettings{StripPromptCacheOptions: true, ReasoningReplay: "chat"})
+			require.NoError(t, table.Create(configured).Error)
+			loaded = Channel{}
+			require.NoError(t, table.First(&loaded, configured.Id).Error)
+			assert.True(t, loaded.GetOtherSettings().StripPromptCacheOptions)
+			assert.Equal(t, "chat", loaded.GetOtherSettings().ReasoningReplay)
+
+			settings := loaded.GetOtherSettings()
+			settings.StripPromptCacheOptions = false
+			loaded.SetOtherSettings(settings)
+			require.NoError(t, table.Save(&loaded).Error)
+			loaded = Channel{}
+			require.NoError(t, table.First(&loaded, configured.Id).Error)
+			assert.False(t, loaded.GetOtherSettings().StripPromptCacheOptions)
+			assert.Equal(t, "chat", loaded.GetOtherSettings().ReasoningReplay)
+		})
+	}
+}

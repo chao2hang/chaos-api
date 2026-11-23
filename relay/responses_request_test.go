@@ -26,6 +26,90 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func TestPrepareResponsesRequestPromptCacheOptionsPerChannel(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.PassThroughRequestEnabled
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = previous })
+	for _, tc := range []struct {
+		name                                         string
+		strip, passthrough, global, override, stream bool
+	}{
+		{name: "direct keeps field"},
+		{name: "relay strips field", strip: true},
+		{name: "stream strips field", strip: true, stream: true},
+		{name: "channel passthrough keeps field", passthrough: true},
+		{name: "channel passthrough strips field", strip: true, passthrough: true},
+		{name: "global passthrough strips field", strip: true, global: true},
+		{name: "override cannot restore disabled field", strip: true, override: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings.PassThroughRequestEnabled = tc.global
+			raw := `{"model":"shared-model","prompt_cache_options":{"type":"memory"},"prompt_cache_key":"session-key","prompt_cache_retention":"24h","metadata":{"prompt_cache_options":"nested-keep","precise":9007199254740993},"input":"hello"}`
+			var received []byte
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var readErr error
+				received, readErr = io.ReadAll(r.Body)
+				if readErr != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{}`)
+			}))
+			t.Cleanup(upstream.Close)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(raw))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "shared-model")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			common.SetContextKey(c, constant.ContextKeyChannelId, 9681)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "fixture-key")
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passthrough})
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{StripPromptCacheOptions: tc.strip})
+			if tc.override {
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": "prompt_cache_options", "mode": "set", "value": map[string]any{"type": "override"}}}})
+			}
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+			var req dto.OpenAIResponsesRequest
+			require.NoError(t, common.Unmarshal([]byte(raw), &req))
+			req.Stream = common.GetPointer(tc.stream)
+			info := relaycommon.GenRelayInfoResponses(c, &req)
+			adaptor, body, closer, apiErr := PrepareResponsesRequest(c, info, &req)
+			require.Nil(t, apiErr)
+			wire, err := io.ReadAll(body)
+			require.NoError(t, err)
+			response, requestErr := adaptor.DoRequest(c, info, strings.NewReader(string(wire)))
+			require.NoError(t, requestErr)
+			httpResponse, ok := response.(*http.Response)
+			require.True(t, ok)
+			require.NoError(t, httpResponse.Body.Close())
+			assert.JSONEq(t, string(wire), string(received), "upstream must receive the filtered body")
+			require.NoError(t, closer.Close())
+			assert.Equal(t, !tc.strip, gjson.GetBytes(wire, "prompt_cache_options").Exists())
+			assert.Equal(t, "session-key", gjson.GetBytes(wire, "prompt_cache_key").String())
+			assert.Equal(t, "24h", gjson.GetBytes(wire, "prompt_cache_retention").String())
+			assert.Equal(t, "nested-keep", gjson.GetBytes(wire, "metadata.prompt_cache_options").String())
+			assert.Equal(t, "9007199254740993", gjson.GetBytes(wire, "metadata.precise").Raw)
+			storage, err := common.GetBodyStorage(c)
+			require.NoError(t, err)
+			original, err := storage.Bytes()
+			require.NoError(t, err)
+			assert.JSONEq(t, raw, string(original), "retry input remains unchanged for a different channel")
+		})
+	}
+	for _, raw := range []string{
+		`{"prompt_cache_options":{"a":1},"keep":9007199254740993,"prompt_cache_options":false}`,
+		`{"prompt_cache_options":null,"keep":9007199254740993}`,
+		`{"prompt_cache_options":{},"keep":9007199254740993}`,
+	} {
+		filtered, err := stripResponsesPromptCacheOptions([]byte(raw))
+		require.NoError(t, err)
+		assert.NotContains(t, string(filtered), "prompt_cache_options")
+		assert.Equal(t, "9007199254740993", gjson.GetBytes(filtered, "keep").Raw)
+	}
+}
+
 func TestPrepareResponsesReasoningChannelReplay(t *testing.T) {
 	settings := model_setting.GetGlobalSettings()
 	old := settings.PassThroughRequestEnabled

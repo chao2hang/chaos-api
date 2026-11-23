@@ -1268,6 +1268,122 @@ test('quick options and detailed settings share changes across tabs and save the
   })
 })
 
+test.each([undefined, true])(
+  'prompt cache stripping loads %s, toggles, saves, and reloads per-channel settings',
+  async (initialValue) => {
+    editingChannel.settings = JSON.stringify({
+      strip_prompt_cache_options: initialValue,
+      future_field: { retained: true },
+    })
+    const put = vi
+      .spyOn(api, 'put')
+      .mockImplementation(async (_url, payload) => {
+        editingChannel = { ...editingChannel, ...(payload as Partial<Channel>) }
+        return { data: { success: true } }
+      })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+    await user.click(requestTab)
+    const toggle = screen.getByRole('switch', {
+      name: 'Strip prompt_cache_options',
+    })
+    expect(toggle).toHaveAttribute(
+      'aria-checked',
+      String(initialValue === true)
+    )
+    expect(toggle).toHaveAccessibleDescription(
+      'Remove only prompt_cache_options from Responses requests to this channel; prompt_cache_key and prompt_cache_retention are preserved'
+    )
+    toggle.focus()
+    await user.keyboard(' ')
+    const enabled = initialValue !== true
+    expect(toggle).toHaveAttribute('aria-checked', String(enabled))
+    if (enabled) expect(requestTab).toHaveAccessibleName(/Configured/)
+    else expect(requestTab).not.toHaveAccessibleName(/Configured/)
+
+    await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ id: 42 })
+    expect(JSON.parse(editingChannel.settings)).toMatchObject({
+      strip_prompt_cache_options: enabled,
+      future_field: { retained: true },
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Update Channel' })
+      ).not.toBeInTheDocument()
+    )
+    await user.click(screen.getByRole('button', { name: 'Open channel' }))
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+    expect(
+      screen.getByRole('switch', { name: 'Strip prompt_cache_options' })
+    ).toHaveAttribute('aria-checked', String(enabled))
+  }
+)
+
+test('same-model channels retain independent prompt cache stripping settings when switching editors', async () => {
+  editingChannel.settings = JSON.stringify({ strip_prompt_cache_options: true })
+  const otherChannel = {
+    ...editingChannel,
+    id: 43,
+    name: 'OpenAI direct',
+    settings: '{}',
+  }
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/43') {
+      return { data: { success: true, data: otherChannel } }
+    }
+    return originalGet?.(url, config)
+  })
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_url, payload) => {
+    const update = payload as Partial<Channel>
+    if (update.id === 43) Object.assign(otherChannel, update)
+    else editingChannel = { ...editingChannel, ...update }
+    return { data: { success: true } }
+  })
+  const user = userEvent.setup()
+  const view = render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    screen.getByRole('switch', { name: 'Strip prompt_cache_options' })
+  ).toBeChecked()
+
+  view.rerender(<ConfigurationHarness currentRow={otherChannel} />)
+  await screen.findByDisplayValue('OpenAI direct')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    screen.getByRole('switch', { name: 'Strip prompt_cache_options' })
+  ).not.toBeChecked()
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+  expect(put.mock.calls[0]?.[1]).toMatchObject({ id: 43 })
+  expect(JSON.parse(otherChannel.settings).strip_prompt_cache_options).toBe(
+    false
+  )
+  expect(JSON.parse(editingChannel.settings).strip_prompt_cache_options).toBe(
+    true
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: 'Update Channel' })
+    ).not.toBeInTheDocument()
+  )
+  view.rerender(<ConfigurationHarness currentRow={editingChannel} />)
+  await user.click(screen.getByRole('button', { name: 'Open channel' }))
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    screen.getByRole('switch', { name: 'Strip prompt_cache_options' })
+  ).toBeChecked()
+})
+
 test.each(['stacked', 'inline'])(
   'advanced custom body passthrough saves and reloads from %s quick options and can be disabled in detailed settings',
   async (layout) => {
@@ -2239,6 +2355,12 @@ test('an operator without sensitive write permission can discover saved models a
   expect(thinking).toHaveAttribute('aria-disabled', 'true')
   await user.click(thinking)
   expect(thinking).not.toBeChecked()
+  const stripPromptCache = screen.getByRole('switch', {
+    name: 'Strip prompt_cache_options',
+  })
+  expect(stripPromptCache).toHaveAttribute('aria-disabled', 'true')
+  await user.click(stripPromptCache)
+  expect(stripPromptCache).not.toBeChecked()
   await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
   expect(screen.getByLabelText('Proxy Address')).toBeDisabled()
   await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
@@ -2249,6 +2371,7 @@ test('an operator without sensitive write permission can discover saved models a
   await waitFor(() => expect(put).toHaveBeenCalled())
   expect(put.mock.calls[0]?.[1]).toMatchObject({ id: 42, priority: 8 })
   expect(put.mock.calls[0]?.[1]).not.toHaveProperty('setting')
+  expect(put.mock.calls[0]?.[1]).not.toHaveProperty('settings')
   expect(put.mock.calls[0]?.[1]).not.toHaveProperty('key')
 })
 

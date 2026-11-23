@@ -286,6 +286,7 @@ export const channelFormSchema = z
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
     strip_reasoning_content: z.boolean().optional(), // OpenAI-compatible Chat Completions
+    strip_prompt_cache_options: z.boolean().optional(), // Responses only
     disable_store: z.boolean().optional(), // OpenAI only
     allow_safety_identifier: z.boolean().optional(), // OpenAI only
     allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
@@ -490,6 +491,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Field passthrough controls
   allow_service_tier: false,
   strip_reasoning_content: false,
+  strip_prompt_cache_options: false,
   disable_store: false,
   allow_safety_identifier: false,
   allow_include_obfuscation: false,
@@ -576,6 +578,7 @@ export function transformChannelToFormDefaults(
   let awsApiType: 'invoke_model' | 'mantle' = 'invoke_model'
   let allowServiceTier = false
   let stripReasoningContent = false
+  let stripPromptCacheOptions = false
   let disableStore = false
   let allowSafetyIdentifier = false
   let allowIncludeObfuscation = false
@@ -603,6 +606,7 @@ export function transformChannelToFormDefaults(
       awsApiType = parsed.aws_api_type || 'invoke_model'
       allowServiceTier = parsed.allow_service_tier === true
       stripReasoningContent = parsed.strip_reasoning_content === true
+      stripPromptCacheOptions = parsed.strip_prompt_cache_options === true
       disableStore = parsed.disable_store === true
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
       allowIncludeObfuscation = parsed.allow_include_obfuscation === true
@@ -670,6 +674,7 @@ export function transformChannelToFormDefaults(
     aws_api_type: awsApiType,
     allow_service_tier: allowServiceTier,
     strip_reasoning_content: stripReasoningContent,
+    strip_prompt_cache_options: stripPromptCacheOptions,
     disable_store: disableStore,
     allow_include_obfuscation: allowIncludeObfuscation,
     allow_inference_geo: allowInferenceGeo,
@@ -804,6 +809,8 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   if (OPENAI_FIELD_PASSTHROUGH_TYPES.has(formData.type)) {
     settingsObj.strip_reasoning_content =
       formData.strip_reasoning_content === true
+    settingsObj.strip_prompt_cache_options =
+      formData.strip_prompt_cache_options === true
     settingsObj.disable_store = formData.disable_store === true
     settingsObj.allow_safety_identifier =
       formData.allow_safety_identifier === true
@@ -813,6 +820,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     if ('strip_reasoning_content' in settingsObj) {
       delete settingsObj.strip_reasoning_content
     }
+    delete settingsObj.strip_prompt_cache_options
     if ('disable_store' in settingsObj) {
       delete settingsObj.disable_store
     }
