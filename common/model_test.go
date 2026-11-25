@@ -27,6 +27,22 @@ func TestWanEndpointsDistinguishImagesFromVideos(t *testing.T) {
 	}
 }
 
+func TestIsOpenAIResponsesOnlyModel(t *testing.T) {
+	for _, name := range []string{
+		"o3", "o3-pro", "o3-deep-research", "o4-mini-deep-research",
+		"gpt-5-nano", "gpt-5.4-nano", "gpt-6", "gpt-6.1-sol", "gpt-6-astra",
+		"o3-2025-04-16", "gpt-5-nano-2025-08-07", "O3-Pro-2025-06-10",
+	} {
+		assert.True(t, common.IsOpenAIResponsesOnlyModel(name), name)
+	}
+	for _, name := range []string{
+		"", "   ", "o3-mini", "o4-mini", "gpt-4.1", "gpt-5", "gpt-5.1",
+		"o3x", "o3-not-a-date", "gpt-5-nano-2025-8-7", "o3-2025-04-16-extra",
+	} {
+		assert.False(t, common.IsOpenAIResponsesOnlyModel(name), name)
+	}
+}
+
 // /v1/models reports the DeepSeek Search and Fetch routing names with their
 // own endpoint on the channels that relay them; chat models keep their list.
 func TestDeepSeekToolRoutingNamesReportTheirEndpoint(t *testing.T) {

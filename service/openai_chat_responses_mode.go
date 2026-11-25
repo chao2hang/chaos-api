@@ -1,9 +1,14 @@
 package service
 
 import (
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/MoeForge/moego/regexp"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 )
 
@@ -51,4 +56,42 @@ func ShouldChatCompletionsUseResponsesGlobal(channelID int, channelType int, mod
 		channelType,
 		model,
 	)
+}
+
+// IsOfficialOpenAIChannel reports whether the selected channel targets the
+// official OpenAI API over HTTPS (api.openai.com, default port).
+func IsOfficialOpenAIChannel(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = constant.GetChannelBaseURL(info.ChannelType)
+	}
+	endpoint, err := url.Parse(baseURL)
+	return info.ChannelType == constant.ChannelTypeOpenAI &&
+		err == nil &&
+		endpoint.Scheme == "https" &&
+		strings.EqualFold(endpoint.Hostname(), "api.openai.com") &&
+		(endpoint.Port() == "" || endpoint.Port() == "443")
+}
+
+// ShouldChatCompletionsUseResponses decides the outbound wire for a chat
+// completions request: global policy opt-in, or an official OpenAI channel
+// receiving a responses-only model.
+func ShouldChatCompletionsUseResponses(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
+		return true
+	}
+	if info.ChannelOtherSettings.DisableChatToResponsesAutoRoute {
+		return false
+	}
+	model := info.GetUpstreamModelName()
+	if model == "" {
+		model = info.GetOriginModelName()
+	}
+	return IsOfficialOpenAIChannel(info) && common.IsOpenAIResponsesOnlyModel(model)
 }
