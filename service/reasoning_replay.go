@@ -46,6 +46,7 @@ type ReasoningReplayScope struct {
 	Endpoint          string
 	RequestedGroup    string
 	HeaderFingerprint string
+	SharedChannel     bool // 官方 DeepSeek 多渠道池：key 不绑定 ChannelID/Credential
 }
 
 type reasoningReplayEntry struct {
@@ -104,6 +105,20 @@ func ReasoningReplayAllows(mode, surface string) bool {
 	}
 }
 
+// IsOfficialDeepSeekChannel reports whether the selected channel targets
+// api.deepseek.com over HTTPS on the default port.
+func IsOfficialDeepSeekChannel(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = constant.GetChannelBaseURL(info.ChannelType)
+	}
+	endpoint, err := url.Parse(baseURL)
+	return info.ChannelType == constant.ChannelTypeDeepSeek && err == nil && endpoint.Scheme == "https" && strings.EqualFold(endpoint.Hostname(), "api.deepseek.com") && (endpoint.Port() == "" || endpoint.Port() == "443")
+}
+
 // ReasoningReplayPolicyForChannel resolves the final channel instance and actual
 // outbound protocol. An opt-in for Responses never enables Chat replay or vice
 // versa. Turning replay off does not discard valid DeepSeek client history.
@@ -112,12 +127,7 @@ func ReasoningReplayPolicyForChannel(info *relaycommon.RelayInfo, surface string
 		return surface == ReasoningReplayModeChat, false
 	}
 	settings := info.ChannelOtherSettings
-	baseURL := info.ChannelBaseUrl
-	if baseURL == "" {
-		baseURL = constant.GetChannelBaseURL(info.ChannelType)
-	}
-	endpoint, err := url.Parse(baseURL)
-	officialDeepSeek := info.ChannelType == constant.ChannelTypeDeepSeek && err == nil && endpoint.Scheme == "https" && strings.EqualFold(endpoint.Hostname(), "api.deepseek.com") && (endpoint.Port() == "" || endpoint.Port() == "443")
+	officialDeepSeek := IsOfficialDeepSeekChannel(info)
 	mode := NormalizeReasoningReplayMode(settings.ReasoningReplay)
 	replay = ReasoningReplayAllows(mode, surface)
 	if mode == ReasoningReplayModeAuto {
@@ -200,7 +210,13 @@ func ReasoningReplayScopeForChannel(info *relaycommon.RelayInfo) ReasoningReplay
 	if baseURL == "" {
 		baseURL = constant.GetChannelBaseURL(info.ChannelType)
 	}
+	settings := info.ChannelOtherSettings
 	scope := ReasoningReplayScope{ChannelID: info.ChannelId, Credential: info.ApiKey, UpstreamModel: info.GetUpstreamModelName(), Endpoint: strings.TrimRight(baseURL, "/"), RequestedGroup: info.TokenGroup}
+	// Only the official api.deepseek.com pool may share state across channels.
+	crossChannel := settings.ReasoningReplayCrossChannel
+	if IsOfficialDeepSeekChannel(info) && (crossChannel == nil || *crossChannel) {
+		scope.SharedChannel = true
+	}
 	if _, chat := info.Request.(*dto.GeneralOpenAIRequest); chat {
 		fingerprint, stable := chatReasoningHeaderFingerprint(info)
 		if !stable {
@@ -233,7 +249,14 @@ func reasoningReplayKey(tokenID int, model, history string, scopes ...ReasoningR
 		return ""
 	}
 	scope := scopes[0]
-	raw, _ := common.Marshal([]string{strconv.Itoa(tokenID), model, strconv.Itoa(scope.ChannelID), scope.Credential, scope.SessionID, scope.UpstreamModel, scope.Endpoint, scope.RequestedGroup, scope.HeaderFingerprint, history})
+	channel, credential := strconv.Itoa(scope.ChannelID), scope.Credential
+	// reasoning_content 是上游返回的明文状态，api.deepseek.com 不把状态绑定到某个
+	// API Key；tokenID + Endpoint + UpstreamModel 已足以隔离租户与会话，因此同 token
+	// 跨渠道复用是安全的。
+	if scope.SharedChannel {
+		channel, credential = "shared", "shared"
+	}
+	raw, _ := common.Marshal([]string{strconv.Itoa(tokenID), model, channel, credential, scope.SessionID, scope.UpstreamModel, scope.Endpoint, scope.RequestedGroup, scope.HeaderFingerprint, history})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
