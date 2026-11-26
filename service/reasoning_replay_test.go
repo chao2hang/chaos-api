@@ -109,16 +109,63 @@ func TestChatReasoningReplayCompleteHistory(t *testing.T) {
 	second.Messages[1].ReasoningContent = &client
 	assert.False(t, ReplayChatReasoning(71, "shared-model", "all", second, scope))
 	assert.Equal(t, client, second.Messages[1].GetReasoningContent())
-	// Identical visible output with different hidden thinking is ambiguous.
+	// Chat reasoning text is plain, unsigned state: the newest capture wins
+	// instead of poisoning the slot, because a stale-but-plausible text still
+	// satisfies the upstream "must be passed back" check.
 	conflicting := "different hidden state"
 	assistant1.ReasoningContent = &conflicting
-	assert.False(t, CaptureChatReasoningTurn(71, "shared-model", scope, first, assistant1))
+	assert.True(t, CaptureChatReasoningTurn(71, "shared-model", scope, first, assistant1))
 	second.Messages[1].ReasoningContent = nil
-	assert.False(t, ReplayChatReasoning(71, "shared-model", "all", second, scope))
-	assert.False(t, CaptureChatReasoningTurn(71, "shared-model", scope, first, dto.Message{Role: "assistant", Content: "answer-a", ReasoningContent: &thought1}))
+	assert.True(t, ReplayChatReasoning(71, "shared-model", "all", second, scope))
+	assert.Equal(t, conflicting, second.Messages[1].GetReasoningContent())
 	assert.False(t, ReplayChatReasoning(71, "shared-model", "all", second))
 	assert.False(t, CaptureChatReasoning(71, "shared-model", first, "unsafe legacy"))
 }
+
+// A client that rewrites what it echoes back must still get its thinking. Each
+// tier is exercised on its own: whitespace reflow, content-shape change and
+// earlier-turn truncation.
+func TestChatReasoningReplayTolerantAnchors(t *testing.T) {
+	scope := ReasoningReplayScope{ChannelID: 2301, Credential: "tolerant-key"}
+	first := &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "system", Content: "be terse"}, {Role: "user", Content: "explain   the	plan"}}}
+	thought := "raw chain of thought"
+	assistant := dto.Message{Role: "assistant", Content: "Step one.\nStep two.\nStep three.", ReasoningContent: &thought}
+	require.True(t, CaptureChatReasoningTurn(81, "m", scope, first, assistant))
+
+	// Tier 1 regression: the exact echo still hits.
+	exact := &dto.GeneralOpenAIRequest{Messages: append(append([]dto.Message{}, first.Messages...), dto.Message{Role: "assistant", Content: "Step one.\nStep two.\nStep three."}, dto.Message{Role: "user", Content: "go on"})}
+	require.True(t, ReplayChatReasoning(81, "m", "chat", exact, scope))
+	assert.Equal(t, thought, exact.Messages[2].GetReasoningContent())
+
+	// Tier 2: whitespace reflow and a parts-array content shape.
+	reflowed := &dto.GeneralOpenAIRequest{Messages: []dto.Message{
+		{Role: "system", Content: "  be terse  "},
+		{Role: "user", Content: []any{map[string]any{"type": "text", "text": "explain the plan"}}},
+		{Role: "assistant", Content: "Step one. Step two. Step three."},
+		{Role: "user", Content: "go on"},
+	}}
+	require.True(t, ReplayChatReasoning(81, "m", "chat", reflowed, scope))
+	assert.Equal(t, thought, reflowed.Messages[2].GetReasoningContent())
+
+	// Tier 3: the client dropped earlier turns but kept the last exchange.
+	trimmed := &dto.GeneralOpenAIRequest{Messages: []dto.Message{
+		{Role: "user", Content: "explain the plan"},
+		{Role: "assistant", Content: "Step one. Step two. Step three.\n(truncated)"},
+		{Role: "user", Content: "go on"},
+	}}
+	require.True(t, ReplayChatReasoning(81, "m", "chat", trimmed, scope))
+	assert.Equal(t, thought, trimmed.Messages[1].GetReasoningContent())
+
+	// A different prompt on the same channel must not borrow it.
+	other := &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: "unrelated"}, {Role: "assistant", Content: "Step one. Step two. Step three."}}}
+	assert.False(t, ReplayChatReasoning(81, "m", "chat", other, scope))
+	// A blank reasoning_content is repaired, not treated as already present.
+	blank := &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: "explain the plan"}, {Role: "assistant", Content: "Step one. Step two. Step three.", ReasoningContent: ptrString("")}}}
+	require.True(t, ReplayChatReasoning(81, "m", "chat", blank, scope))
+	assert.Equal(t, thought, blank.Messages[1].GetReasoningContent())
+}
+
+func ptrString(value string) *string { return &value }
 func TestResponsesReasoningReplayOpaqueAndTools(t *testing.T) {
 	scope := ReasoningReplayScope{ChannelID: 2203, Credential: "opaque-owner", SessionID: "owned-session"}
 	input := json.RawMessage(`[{"role":"user","content":"lookup"}]`)

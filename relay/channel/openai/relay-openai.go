@@ -126,7 +126,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 保留倒数第二个stream data；部分兼容网关把完整usage放在倒数第二个事件
 	var streamEarlyError *types.NewAPIError
 	hasFinishReason := false
-	primaryFinished := false
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
 
@@ -154,9 +153,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				for _, choice := range frame.Choices {
 					if choice.Index != 0 {
 						continue
-					}
-					if choice.FinishReason != nil && *choice.FinishReason != "" {
-						primaryFinished = true
 					}
 					assistantContentBuilder.WriteString(choice.Delta.GetContentString())
 					assistantReasoningBuilder.WriteString(choice.Delta.GetReasoningContent())
@@ -246,7 +242,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage, hasFinishReason)
 	}
 
-	if primaryFinished && info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() &&
+	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() &&
 		!info.ChannelSetting.ThinkingToContent && assistantReasoningBuilder.Len() > 0 {
 		if req, ok := info.Request.(*dto.GeneralOpenAIRequest); ok {
 			if _, replay := service.ReasoningReplayPolicyForChannel(info, service.ReasoningReplayModeChat); replay {

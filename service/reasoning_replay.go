@@ -261,8 +261,12 @@ func reasoningReplayKey(tokenID int, model, history string, scopes ...ReasoningR
 	return hex.EncodeToString(sum[:])
 }
 
-// A compare-and-set is essential: two concurrent completions for the same
-// visible history must not silently overwrite each other's thinking state.
+// A compare-and-set is essential for opaque provider state: two concurrent
+// completions for the same visible history must not silently overwrite each
+// other's encrypted blob. A text-only chat entry cannot be forged or replayed
+// against a signed upstream state, so the newest one wins instead of poisoning
+// the slot as ambiguous — a stale-but-plausible reasoning text still satisfies
+// the upstream "must be passed back" check.
 func storeReasoningReplay(key string, entry reasoningReplayEntry) bool {
 	if key == "" {
 		return false
@@ -272,6 +276,12 @@ func storeReasoningReplay(key string, entry reasoningReplayEntry) bool {
 		return false
 	}
 	cache := getReasoningReplayCache()
+	if len(entry.Items) == 0 {
+		if err := cache.SetWithTTL(key, entry, reasoningReplayTTLSeconds*time.Second); err != nil {
+			return false
+		}
+		return true
+	}
 	if common.RedisEnabled && common.RDB != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -319,6 +329,110 @@ func ChatReasoningAnchor(req *dto.GeneralOpenAIRequest) string {
 	return "chat|" + string(raw)
 }
 
+// chatReasoningNormalizeText collapses whitespace so a client that trims,
+// reflows or re-indents echoed text still produces the same signature.
+func chatReasoningNormalizeText(text string) string {
+	return strings.Join(strings.Fields(text), " ")
+}
+
+// chatReasoningLoosePart is one message reduced to what survives a client
+// round-trip: role, normalized text and tool identity. Wire-level fields such
+// as content shape (string vs parts array), annotations or refusal are dropped
+// because clients routinely rewrite them.
+type chatReasoningLoosePart struct {
+	Role       string   `json:"role"`
+	Text       string   `json:"text,omitempty"`
+	ToolCallID string   `json:"tool_call_id,omitempty"`
+	ToolCalls  []string `json:"tool_calls,omitempty"`
+}
+
+func chatReasoningLooseParts(messages []dto.Message) []chatReasoningLoosePart {
+	parts := make([]chatReasoningLoosePart, 0, len(messages))
+	for i := range messages {
+		message := &messages[i]
+		part := chatReasoningLoosePart{
+			Role:       message.Role,
+			Text:       chatReasoningNormalizeText(message.StringContent()),
+			ToolCallID: strings.TrimSpace(message.ToolCallId),
+		}
+		if len(message.ToolCalls) > 0 {
+			var calls []struct {
+				ID       string `json:"id"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			}
+			if common.Unmarshal(message.ToolCalls, &calls) == nil {
+				for _, call := range calls {
+					part.ToolCalls = append(part.ToolCalls, strings.TrimSpace(call.ID)+"|"+strings.TrimSpace(call.Function.Name)+"|"+chatReasoningNormalizeText(call.Function.Arguments))
+				}
+			}
+		}
+		parts = append(parts, part)
+	}
+	return parts
+}
+
+// ChatReasoningAnchorLoose is the second tier: the same visible prefix after
+// whitespace and content-shape normalization. It rescues turns where the client
+// re-serialized assistant text without changing what was actually said.
+func ChatReasoningAnchorLoose(req *dto.GeneralOpenAIRequest) string {
+	if req == nil || len(req.Messages) == 0 {
+		return ""
+	}
+	raw, err := common.Marshal(chatReasoningLooseParts(req.Messages))
+	if err != nil {
+		return ""
+	}
+	return "chatloose|" + string(raw)
+}
+
+// ChatReasoningTurnAnchor is the third tier: the last user message, the ordinal
+// of the assistant turn, and a short prefix of the assistant text. It survives
+// clients that re-serialize or truncate the tail of what they echo back, which
+// is the common residual miss. The prefix (plus ordinal) keeps unrelated turns
+// apart, and token + model + scope still isolate conversations.
+const chatReasoningTurnPrefixRunes = 16
+
+func ChatReasoningTurnAnchor(req *dto.GeneralOpenAIRequest) string {
+	if req == nil || len(req.Messages) == 0 {
+		return ""
+	}
+	parts := chatReasoningLooseParts(req.Messages)
+	index := len(parts) - 1
+	if parts[index].Role != "assistant" {
+		return ""
+	}
+	prompt := ""
+	for i := index - 1; i >= 0; i-- {
+		if parts[i].Role == "user" {
+			prompt = parts[i].Text
+			break
+		}
+	}
+	if prompt == "" {
+		return ""
+	}
+	ordinal := 0
+	for i := 0; i < index; i++ {
+		if parts[i].Role == "assistant" {
+			ordinal++
+		}
+	}
+	answer := []rune(parts[index].Text)
+	if len(answer) > chatReasoningTurnPrefixRunes {
+		answer = answer[:chatReasoningTurnPrefixRunes]
+	}
+	return "chatturn|" + strconv.Itoa(ordinal) + "|" + prompt + "|" + string(answer)
+}
+
+// chatReasoningAnchors lists the lookup tiers in decreasing strictness. The
+// caller tries them in order and stops at the first hit.
+func chatReasoningAnchors(req *dto.GeneralOpenAIRequest) []string {
+	return []string{ChatReasoningAnchor(req), ChatReasoningAnchorLoose(req), ChatReasoningTurnAnchor(req)}
+}
+
 // CaptureChatReasoning cannot safely associate a text-only capture with the
 // assistant actually returned. Call CaptureChatReasoningTurn with that message.
 func CaptureChatReasoning(tokenID int, model string, req *dto.GeneralOpenAIRequest, reasoning string) bool {
@@ -329,7 +443,17 @@ func CaptureChatReasoningTurn(tokenID int, model string, scope ReasoningReplaySc
 		return false
 	}
 	history := &dto.GeneralOpenAIRequest{Messages: append(append([]dto.Message{}, req.Messages...), assistant)}
-	return storeReasoningReplay(reasoningReplayKey(tokenID, model, ChatReasoningAnchor(history), scope), reasoningReplayEntry{Reasoning: assistant.GetReasoningContent()})
+	entry := reasoningReplayEntry{Reasoning: assistant.GetReasoningContent()}
+	// Store every tier. The exact anchor keeps today's precise behaviour; the
+	// looser tiers are the safety net for clients that rewrite what they echo
+	// back on the next turn.
+	stored := false
+	for _, anchor := range chatReasoningAnchors(history) {
+		if key := reasoningReplayKey(tokenID, model, anchor, scope); key != "" && storeReasoningReplay(key, entry) {
+			stored = true
+		}
+	}
+	return stored
 }
 func ReplayChatReasoning(tokenID int, model, mode string, req *dto.GeneralOpenAIRequest, scopes ...ReasoningReplayScope) bool {
 	if req == nil || !ReasoningReplayAllows(mode, ReasoningReplayModeChat) {
@@ -338,18 +462,25 @@ func ReplayChatReasoning(tokenID int, model, mode string, req *dto.GeneralOpenAI
 	changed := false
 	for i := range req.Messages {
 		message := &req.Messages[i]
-		if message.Role != "assistant" || message.ReasoningContent != nil || message.Reasoning != nil {
+		// An empty string or blank value is as unusable upstream as a missing
+		// field; clients that "clear" reasoning this way must still be patched.
+		if message.Role != "assistant" || strings.TrimSpace(message.GetReasoningContent()) != "" {
 			continue
 		}
-		key := reasoningReplayKey(tokenID, model, ChatReasoningAnchor(&dto.GeneralOpenAIRequest{Messages: req.Messages[:i+1]}), scopes...)
-		if key == "" {
-			continue
-		}
-		entry, found, err := getReasoningReplayCache().Get(key)
-		if err == nil && found && !entry.Ambiguous && entry.Reasoning != "" {
+		for _, anchor := range chatReasoningAnchors(&dto.GeneralOpenAIRequest{Messages: req.Messages[:i+1]}) {
+			key := reasoningReplayKey(tokenID, model, anchor, scopes...)
+			if key == "" {
+				continue
+			}
+			entry, found, err := getReasoningReplayCache().Get(key)
+			if err != nil || !found || entry.Ambiguous || entry.Reasoning == "" {
+				continue
+			}
 			reasoning := entry.Reasoning
 			message.ReasoningContent = &reasoning
+			message.Reasoning = nil
 			changed = true
+			break
 		}
 	}
 	return changed
@@ -370,7 +501,9 @@ func ReplayChatReasoningBody(tokenID int, model, mode string, body []byte, scope
 		}
 		original := ojson.GetBytes(body, "messages."+strconv.Itoa(i)+".reasoning_content")
 		legacy := ojson.GetBytes(body, "messages."+strconv.Itoa(i)+".reasoning")
-		if original.Exists() || legacy.Exists() {
+		// An existing but blank field is the same upstream failure as a missing
+		// one, so only a non-blank value blocks the patch.
+		if strings.TrimSpace(original.String()) != "" || strings.TrimSpace(legacy.String()) != "" {
 			continue
 		}
 		if doc.Set("messages."+strconv.Itoa(i)+".reasoning_content", *message.ReasoningContent) != nil {
