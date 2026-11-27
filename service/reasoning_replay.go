@@ -53,6 +53,18 @@ type reasoningReplayEntry struct {
 	Reasoning string            `json:"reasoning,omitempty"`
 	Items     []json.RawMessage `json:"items,omitempty"`
 	Ambiguous bool              `json:"ambiguous,omitempty"`
+	// Recent is the scope-level safety net: the last few captures of this
+	// conversation with no history anchor at all. Used only when every exact
+	// anchor misses, and only on the official DeepSeek pool.
+	Recent []reasoningReplayRecent `json:"recent,omitempty"`
+}
+
+// reasoningReplayRecent keeps one capture that can be matched by the assistant
+// text alone. Answer holds a normalized prefix, not the whole message.
+type reasoningReplayRecent struct {
+	Reasoning string `json:"r,omitempty"`
+	Answer    string `json:"a,omitempty"`
+	At        int64  `json:"t,omitempty"`
 }
 
 var (
@@ -134,10 +146,24 @@ func ReasoningReplayPolicyForChannel(info *relaycommon.RelayInfo, surface string
 		replay = replay && (officialDeepSeek || (info.ChannelType == constant.ChannelTypeCodex && surface == ReasoningReplayModeResponses))
 	}
 	strip = surface == ReasoningReplayModeChat && (settings.StripReasoningContent || (!officialDeepSeek && !replay))
-	if settings.StripReasoningContent || IsCodexClient(ClientUserAgent(info.RequestHeaders)) {
+	if settings.StripReasoningContent {
 		replay = false
 	}
-	if surface == ReasoningReplayModeChat {
+	// A Codex user agent means "the client round-trips provider state itself".
+	// That holds for signed upstreams (codex channels), but api.deepseek.com
+	// validates only that reasoning_content is present, and Codex-flagged
+	// clients that talk chat/completions frequently send the assistant turn
+	// without it. Dropping replay there turns every multi-turn request into a
+	// 400, so official DeepSeek keeps replay and only fills blanks — a value the
+	// client already sent is never overwritten.
+	if IsCodexClient(ClientUserAgent(info.RequestHeaders)) && !officialDeepSeek {
+		replay = false
+	}
+	if surface == ReasoningReplayModeChat && !officialDeepSeek {
+		// An unstable header fingerprint means the upstream identity cannot be
+		// pinned, which forbids sharing cached state between accounts. The
+		// official DeepSeek pool has no such identity (reasoning_content is not
+		// bound to a key), so it drops the fingerprint instead of failing closed.
 		if _, stable := chatReasoningHeaderFingerprint(info); !stable {
 			replay = false
 		}
@@ -220,7 +246,15 @@ func ReasoningReplayScopeForChannel(info *relaycommon.RelayInfo) ReasoningReplay
 	if _, chat := info.Request.(*dto.GeneralOpenAIRequest); chat {
 		fingerprint, stable := chatReasoningHeaderFingerprint(info)
 		if !stable {
-			return ReasoningReplayScope{}
+			// The official DeepSeek pool has no per-account upstream identity to
+			// pin: reasoning_content is plain text the API only checks for
+			// presence. Keep the scope usable with a constant marker instead of
+			// dropping the key, otherwise a dynamic header override silently
+			// disables replay for every request on that channel.
+			if !IsOfficialDeepSeekChannel(info) {
+				return ReasoningReplayScope{}
+			}
+			fingerprint = "dynamic"
 		}
 		scope.HeaderFingerprint = fingerprint
 	}
@@ -427,10 +461,93 @@ func ChatReasoningTurnAnchor(req *dto.GeneralOpenAIRequest) string {
 	return "chatturn|" + strconv.Itoa(ordinal) + "|" + prompt + "|" + string(answer)
 }
 
+// chatReasoningRecentAnchor is the last-resort slot: it carries no history at
+// all, so it cannot miss on rewriting. Entries inside it are matched by the
+// assistant text itself, which is the only thing the client always echoes.
+const chatReasoningRecentAnchor = "chatrecent|"
+const chatReasoningRecentLimit = 4
+
 // chatReasoningAnchors lists the lookup tiers in decreasing strictness. The
 // caller tries them in order and stops at the first hit.
 func chatReasoningAnchors(req *dto.GeneralOpenAIRequest) []string {
 	return []string{ChatReasoningAnchor(req), ChatReasoningAnchorLoose(req), ChatReasoningTurnAnchor(req)}
+}
+
+// chatReasoningAnswerPrefix returns the normalized head of an assistant message,
+// used to match the last-resort slot.
+func chatReasoningAnswerPrefix(message *dto.Message) string {
+	text := chatReasoningNormalizeText(message.StringContent())
+	runes := []rune(text)
+	if len(runes) > 64 {
+		runes = runes[:64]
+	}
+	return string(runes)
+}
+
+// rememberChatReasoningRecent appends one capture to the history-free slot.
+func rememberChatReasoningRecent(tokenID int, model string, scope ReasoningReplayScope, assistant dto.Message) {
+	if tokenID <= 0 || scope.ChannelID <= 0 || scope.Credential == "" {
+		return
+	}
+	key := reasoningReplayKey(tokenID, model, chatReasoningRecentAnchor, scope)
+	if key == "" {
+		return
+	}
+	cache := getReasoningReplayCache()
+	entry, found, err := cache.Get(key)
+	if err != nil || !found {
+		entry = reasoningReplayEntry{}
+	}
+	recent := reasoningReplayRecent{
+		Reasoning: assistant.GetReasoningContent(),
+		Answer:    chatReasoningAnswerPrefix(&assistant),
+		At:        time.Now().Unix(),
+	}
+	entry.Recent = append([]reasoningReplayRecent{recent}, entry.Recent...)
+	if len(entry.Recent) > chatReasoningRecentLimit {
+		entry.Recent = entry.Recent[:chatReasoningRecentLimit]
+	}
+	entry.Ambiguous = false
+	_ = cache.SetWithTTL(key, entry, reasoningReplayTTLSeconds*time.Second)
+}
+
+// recallChatReasoningRecent matches the history-free slot by the assistant text
+// the client echoed back: an exact prefix match first, then a containment match
+// so a client that truncated or extended the tail still resolves.
+func recallChatReasoningRecent(tokenID int, model string, message *dto.Message, scope ReasoningReplayScope) string {
+	key := reasoningReplayKey(tokenID, model, chatReasoningRecentAnchor, scope)
+	if key == "" {
+		return ""
+	}
+	entry, found, err := getReasoningReplayCache().Get(key)
+	if err != nil || !found || len(entry.Recent) == 0 {
+		return ""
+	}
+	answer := chatReasoningAnswerPrefix(message)
+	if answer == "" {
+		return ""
+	}
+	for _, recent := range entry.Recent {
+		if recent.Reasoning == "" || recent.Answer == "" {
+			continue
+		}
+		if recent.Answer == answer {
+			return recent.Reasoning
+		}
+	}
+	for _, recent := range entry.Recent {
+		if recent.Reasoning == "" || recent.Answer == "" {
+			continue
+		}
+		shorter, longer := recent.Answer, answer
+		if len([]rune(shorter)) > len([]rune(longer)) {
+			shorter, longer = longer, shorter
+		}
+		if len([]rune(shorter)) >= 24 && strings.HasPrefix(longer, shorter) {
+			return recent.Reasoning
+		}
+	}
+	return ""
 }
 
 // CaptureChatReasoning cannot safely associate a text-only capture with the
@@ -453,6 +570,9 @@ func CaptureChatReasoningTurn(tokenID int, model string, scope ReasoningReplaySc
 			stored = true
 		}
 	}
+	if scope.SharedChannel {
+		rememberChatReasoningRecent(tokenID, model, scope, assistant)
+	}
 	return stored
 }
 func ReplayChatReasoning(tokenID int, model, mode string, req *dto.GeneralOpenAIRequest, scopes ...ReasoningReplayScope) bool {
@@ -467,6 +587,7 @@ func ReplayChatReasoning(tokenID int, model, mode string, req *dto.GeneralOpenAI
 		if message.Role != "assistant" || strings.TrimSpace(message.GetReasoningContent()) != "" {
 			continue
 		}
+		filled := false
 		for _, anchor := range chatReasoningAnchors(&dto.GeneralOpenAIRequest{Messages: req.Messages[:i+1]}) {
 			key := reasoningReplayKey(tokenID, model, anchor, scopes...)
 			if key == "" {
@@ -479,8 +600,27 @@ func ReplayChatReasoning(tokenID int, model, mode string, req *dto.GeneralOpenAI
 			reasoning := entry.Reasoning
 			message.ReasoningContent = &reasoning
 			message.Reasoning = nil
+			filled = true
 			changed = true
 			break
+		}
+		if filled {
+			continue
+		}
+		// Last resort: the history-free slot, matched on the assistant text the
+		// client echoed. Only the official DeepSeek pool keeps that slot, and
+		// reasoning_content there is unsigned text, so a near-match still
+		// satisfies the upstream check that would otherwise be a hard 400.
+		for _, scope := range scopes {
+			if !scope.SharedChannel {
+				continue
+			}
+			if reasoning := recallChatReasoningRecent(tokenID, model, message, scope); reasoning != "" {
+				message.ReasoningContent = &reasoning
+				message.Reasoning = nil
+				changed = true
+				break
+			}
 		}
 	}
 	return changed

@@ -16,14 +16,26 @@ import (
 
 func TestChatReasoningHeaderIdentity(t *testing.T) {
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 9911, ChannelType: 43, ApiKey: "configured-key"}, Request: &dto.GeneralOpenAIRequest{Model: "m"}}
+	// A dynamic or wildcard override cannot pin an upstream account, so a
+	// third-party channel must fail closed. The official DeepSeek pool has no
+	// per-account identity to pin — reasoning_content is unsigned text the API
+	// only checks for presence — so it keeps replay with a constant marker
+	// instead of dropping every request on that channel.
 	for _, overrides := range []map[string]any{
 		{"Authorization": "{client_header:X-Upstream-Authorization}"}, {"*": ""}, {"re:^X-": ""}, {"regex:^X-": ""},
 	} {
 		info.HeadersOverride = overrides
 		strip, replay := ReasoningReplayPolicyForChannel(info, "chat")
 		assert.False(t, strip, "client-owned DeepSeek state must survive")
-		assert.False(t, replay)
-		assert.Zero(t, ReasoningReplayScopeForChannel(info).ChannelID)
+		assert.True(t, replay, "official DeepSeek keeps replay on an unstable fingerprint")
+		scope := ReasoningReplayScopeForChannel(info)
+		assert.Equal(t, 9911, scope.ChannelID)
+		assert.Equal(t, "dynamic", scope.HeaderFingerprint)
+
+		thirdParty := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 9912, ChannelType: 1, ChannelBaseUrl: "https://api.groq.com/openai", ApiKey: "k", ChannelOtherSettings: dto.ChannelOtherSettings{ReasoningReplay: "chat"}, HeadersOverride: overrides}, Request: &dto.GeneralOpenAIRequest{Model: "m"}}
+		_, thirdPartyReplay := ReasoningReplayPolicyForChannel(thirdParty, "chat")
+		assert.False(t, thirdPartyReplay, "an unpinnable third-party upstream must still fail closed")
+		assert.Zero(t, ReasoningReplayScopeForChannel(thirdParty).ChannelID)
 	}
 	info.HeadersOverride = map[string]any{"Authorization": "Bearer account-a"}
 	scopeA := ReasoningReplayScopeForChannel(info)
@@ -58,6 +70,10 @@ func TestReasoningPolicyIsPerChannel(t *testing.T) {
 		{name: "explicit strip wins", kind: 43, surface: "chat", stripSetting: true, strip: true},
 		{name: "native codex client", kind: 57, surface: "responses", ua: "codex_cli_rs/1"},
 		{name: "native codex generic client", kind: 57, surface: "responses", replay: true},
+		// #27: a Codex-flagged client on chat/completions against the official
+		// DeepSeek pool still needs the gateway to fill missing thinking state.
+		{name: "codex ua on official deepseek keeps replay", kind: 43, endpoint: "https://api.deepseek.com", surface: "chat", ua: "codex_cli_rs/0.4.1", replay: true},
+		{name: "codex ua on third party chat still disables", kind: 1, endpoint: "http://fixture", mode: "chat", surface: "chat", ua: "codex_cli_rs/0.4.1"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 22, ChannelType: tc.kind, ChannelBaseUrl: tc.endpoint, ChannelOtherSettings: dto.ChannelOtherSettings{ReasoningReplay: tc.mode, StripReasoningContent: tc.stripSetting}}, RequestHeaders: map[string]string{"User-Agent": tc.ua}}
