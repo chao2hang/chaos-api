@@ -184,6 +184,52 @@ describe('OpenAI-compatible request settings', () => {
   })
 
   test.each([1, 43])(
+    'type %s round-trips the tools/reasoning conflict policy',
+    (type) => {
+      const channel = channelSchema.parse({
+        id: 9,
+        name: 'gpt-6 relay',
+        type,
+        key: '',
+        status: 1,
+        created_time: 1,
+        test_time: 0,
+        response_time: 0,
+        balance_updated_time: 0,
+        models: 'gpt-6-luna',
+        settings: JSON.stringify({
+          tools_reasoning_conflict_policy: ' STRIP_TOOLS ',
+        }),
+      })
+      const defaults = transformChannelToFormDefaults(channel)
+      expect(defaults.tools_reasoning_conflict_policy).toBe('strip_tools')
+
+      const update = transformFormDataToUpdatePayload(
+        { ...defaults, tools_reasoning_conflict_policy: 'passthrough' },
+        channel.id
+      )
+      expect(
+        JSON.parse(update.settings ?? '{}').tools_reasoning_conflict_policy
+      ).toBe('passthrough')
+
+      // The default policy is omitted from the stored JSON so untouched
+      // channels keep an equivalent settings blob.
+      const defaulted = transformFormDataToUpdatePayload(
+        { ...defaults, tools_reasoning_conflict_policy: 'strip_reasoning_effort' },
+        channel.id
+      )
+      expect(
+        JSON.parse(defaulted.settings ?? '{}')
+      ).not.toHaveProperty('tools_reasoning_conflict_policy')
+
+      expect(
+        transformChannelToFormDefaults({ ...channel, settings: '{}' })
+          .tools_reasoning_conflict_policy
+      ).toBe('strip_reasoning_effort')
+    }
+  )
+
+  test.each([1, 43])(
     'type %s preserves existing reasoning modes across edits',
     (type) => {
       const channel = channelSchema.parse({

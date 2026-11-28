@@ -123,6 +123,16 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 				return newAPIErrorFromParamOverride(err)
 			}
 		}
+		// A Claude-format request converted onto a gpt-6 chat upstream can carry
+		// both tools and a reasoning effort; the same 400 applies.
+		var conflict relaycommon.ToolsReasoningConflictResult
+		jsonData, conflict, err = relaycommon.ResolveToolsReasoningConflict(jsonData, info.ChannelOtherSettings, info.UpstreamModelName, info.OriginModelName)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if conflict.Changed && conflict.Policy == dto.ToolsReasoningConflictStripEffort {
+			info.SetReasoningEffort("")
+		}
 		if newAPIError = requestplugin.Egress(c, info, jsonData); newAPIError != nil {
 			return newAPIError
 		}

@@ -128,6 +128,7 @@ type ChannelOtherSettings struct {
 	StripPromptCacheOptions               bool                  `json:"strip_prompt_cache_options,omitempty"`           // 仅 Responses 出站时移除顶层 prompt_cache_options，默认保留
 	ReasoningReplay                       string                `json:"reasoning_replay,omitempty"`                     // thinking 状态回传策略：auto（空，按渠道能力）/ off / chat / responses / all / force（标准渠道强制回放）
 	ReasoningReplayCrossChannel           *bool                 `json:"reasoning_replay_cross_channel,omitempty"`       // 官方 DeepSeek 多渠道池共享 reasoning 回放缓存，nil=默认开启；非官方渠道不生效。
+	ToolsReasoningConflictPolicy          string                `json:"tools_reasoning_conflict_policy,omitempty"`      // chat/completions 下 tools 与 reasoning_effort 冲突时的处理：strip_reasoning_effort（默认）/ strip_tools / passthrough
 	DisableChatToResponsesAutoRoute       bool                  `json:"disable_chat_to_responses_auto_route,omitempty"` // 官方 OpenAI 渠道收到 responses-only 模型时不自动改走 Responses 接口
 	DisableStore                          bool                  `json:"disable_store,omitempty"`                        // 是否禁用 store 透传（默认允许透传，禁用后可能导致 Codex 无法使用）
 	AllowIncludeObfuscation               bool                  `json:"allow_include_obfuscation,omitempty"`            // 是否允许 stream_options.include_obfuscation 透传（默认过滤以避免关闭流混淆保护）
@@ -172,6 +173,48 @@ func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
 		return nil
 	default:
 		return fmt.Errorf("invalid tool_loss_policy: %s", s.ToolLossPolicy)
+	}
+}
+
+// Tools/reasoning conflict policies for chat/completions.
+const (
+	// ToolsReasoningConflictStripEffort drops reasoning_effort and keeps tools.
+	ToolsReasoningConflictStripEffort = "strip_reasoning_effort"
+	// ToolsReasoningConflictStripTools drops tools and keeps reasoning_effort.
+	ToolsReasoningConflictStripTools = "strip_tools"
+	// ToolsReasoningConflictPassthrough leaves the body untouched.
+	ToolsReasoningConflictPassthrough = "passthrough"
+)
+
+// ToolsReasoningConflictPolicyOrDefault resolves the channel policy. An empty
+// value means strip_reasoning_effort: a client that sent tools wants a function
+// call this turn, and reasoning_effort has no effect once tools are present.
+func (s *ChannelOtherSettings) ToolsReasoningConflictPolicyOrDefault() string {
+	if s == nil {
+		return ToolsReasoningConflictStripEffort
+	}
+	switch policy := strings.ToLower(strings.TrimSpace(s.ToolsReasoningConflictPolicy)); policy {
+	case "", ToolsReasoningConflictStripEffort:
+		return ToolsReasoningConflictStripEffort
+	case ToolsReasoningConflictStripTools:
+		return ToolsReasoningConflictStripTools
+	case ToolsReasoningConflictPassthrough:
+		return ToolsReasoningConflictPassthrough
+	default:
+		return ToolsReasoningConflictStripEffort
+	}
+}
+
+// ValidateToolsReasoningConflictPolicy validates the channel-level policy.
+func (s *ChannelOtherSettings) ValidateToolsReasoningConflictPolicy() error {
+	if s == nil {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(s.ToolsReasoningConflictPolicy)) {
+	case "", ToolsReasoningConflictStripEffort, ToolsReasoningConflictStripTools, ToolsReasoningConflictPassthrough:
+		return nil
+	default:
+		return fmt.Errorf("invalid tools_reasoning_conflict_policy: %s", s.ToolsReasoningConflictPolicy)
 	}
 }
 

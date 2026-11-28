@@ -181,6 +181,21 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				return newAPIErrorFromParamOverride(err)
 			}
 		}
+		// A reasoning model on the chat surface rejects function tools combined
+		// with a non-none reasoning_effort with a hard 400. The client asked for a
+		// function call, so the effort is the member that has to go; channels can
+		// override the policy to drop tools or pass through instead.
+		var conflict relaycommon.ToolsReasoningConflictResult
+		jsonData, conflict, err = relaycommon.ResolveToolsReasoningConflict(jsonData, info.ChannelOtherSettings, info.UpstreamModelName, info.OriginModelName)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if conflict.Changed {
+			if conflict.Policy == dto.ToolsReasoningConflictStripEffort {
+				info.SetReasoningEffort("")
+			}
+			logger.LogDebug(c, "tools/reasoning conflict resolved (channel #%d, model %s, policy %s)", info.ChannelId, info.UpstreamModelName, conflict.Policy)
+		}
 		_, replayReasoning = service.ReasoningReplayPolicyForChannel(info, service.ReasoningReplayModeChat)
 		if !stripReasoning && replayReasoning {
 			scope = service.ReasoningReplayScopeForChannel(info)

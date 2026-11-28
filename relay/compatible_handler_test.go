@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/pkg/requestpatch"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -635,4 +636,112 @@ func TestTextHelperStripsReasoningContentOnStandardUpstreams(t *testing.T) {
 	}
 	require.NotContains(t, string(forwarded), "reasoning_content")
 	require.Contains(t, string(forwarded), `"content":"answer"`)
+}
+
+// #28 end to end: the upstream rejects function tools combined with a non-none
+// reasoning_effort on gpt-6 chat, so the gateway must drop the effort and still
+// deliver the tool call.
+func TestTextHelperResolvesToolsReasoningConflictOnGpt6(t *testing.T) {
+	previousGinMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(previousGinMode) })
+
+	globalSettings := model_setting.GetGlobalSettings()
+	previousPassThrough := globalSettings.PassThroughRequestEnabled
+	previousPolicy := globalSettings.ChatCompletionsToResponsesPolicy
+	globalSettings.PassThroughRequestEnabled = false
+	globalSettings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{}
+	t.Cleanup(func() {
+		globalSettings.PassThroughRequestEnabled = previousPassThrough
+		globalSettings.ChatCompletionsToResponsesPolicy = previousPolicy
+	})
+	require.NoError(t, i18n.Init())
+
+	database := setupRelayChannelDB(t)
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Token{}, &model.Log{}))
+	previousRedis := common.RedisEnabled
+	common.RedisEnabled = false
+	previousLogDB := model.LOG_DB
+	model.LOG_DB = database
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedis
+		model.LOG_DB = previousLogDB
+	})
+
+	const successBody = `{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"gpt-6-luna","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+
+	cases := []struct {
+		name       string
+		settings   dto.ChannelOtherSettings
+		wantStatus int
+		wantEffort bool
+		wantTools  bool
+	}{
+		{name: "default drops the effort and keeps tools", wantStatus: http.StatusOK, wantEffort: false, wantTools: true},
+		{name: "strip_tools keeps the effort", settings: dto.ChannelOtherSettings{ToolsReasoningConflictPolicy: dto.ToolsReasoningConflictStripTools}, wantStatus: http.StatusOK, wantEffort: true, wantTools: false},
+		{name: "passthrough still fails upstream", settings: dto.ChannelOtherSettings{ToolsReasoningConflictPolicy: dto.ToolsReasoningConflictPassthrough}, wantStatus: http.StatusBadRequest, wantEffort: true, wantTools: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			received := make(chan []byte, 1)
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, readErr := io.ReadAll(r.Body)
+				if readErr == nil {
+					received <- body
+				}
+				// Behaves like the real gpt-6 chat endpoint: tools plus a non-none
+				// reasoning_effort is a hard 400.
+				hasTools := strings.Contains(string(body), `"tools"`)
+				hasEffort := strings.Contains(string(body), `"reasoning_effort"`)
+				w.Header().Set("Content-Type", "application/json")
+				if hasTools && hasEffort {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = io.WriteString(w, `{"error":{"message":"Function tools with reasoning_effort are not supported for gpt-6-luna in /v1/chat/completions.","type":"invalid_request_error","param":"reasoning_effort"}}`)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = io.WriteString(w, successBody)
+			}))
+			t.Cleanup(upstream.Close)
+
+			body := `{"model":"gpt-6-luna","reasoning_effort":"medium","messages":[{"role":"user","content":"list files"}],"tools":[{"type":"function","function":{"name":"ls","parameters":{"type":"object"}}}]}`
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-6-luna")
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-test")
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, tc.settings)
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+
+			steps, records, apiErr := requestplugin.Ingress(c, types.RelayFormatOpenAI)
+			require.Nil(t, apiErr)
+			request, err := helper.GetAndValidateTextRequest(c, relayconstant.RelayModeChatCompletions)
+			require.NoError(t, err)
+			info := relaycommon.GenRelayInfoOpenAI(c, request)
+			info.SetRequestPluginIngress(steps, records)
+
+			apiErr = TextHelper(c, info)
+			if tc.wantStatus == http.StatusOK {
+				require.Nil(t, apiErr, "the gateway must resolve the conflict: %v", apiErr)
+				require.Equal(t, http.StatusOK, recorder.Code)
+			} else {
+				require.NotNil(t, apiErr)
+				require.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+			}
+
+			var forwarded []byte
+			select {
+			case forwarded = <-received:
+			default:
+				t.Fatal("upstream did not receive the chat request")
+			}
+			require.Equal(t, tc.wantTools, strings.Contains(string(forwarded), `"tools"`), string(forwarded))
+			require.Equal(t, tc.wantEffort, strings.Contains(string(forwarded), `"reasoning_effort"`), string(forwarded))
+		})
+	}
 }

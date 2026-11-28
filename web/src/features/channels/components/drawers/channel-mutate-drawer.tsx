@@ -3115,6 +3115,55 @@ export function ChannelMutateDrawer({
       />
     )
 
+  // A reasoning model on /v1/chat/completions rejects function tools combined
+  // with a non-none reasoning_effort. Default drops the effort because a client
+  // that sent tools wants a function call this turn.
+  const toolsReasoningConflictOptions = [
+    { value: 'strip_reasoning_effort', label: t('Drop reasoning_effort') },
+    { value: 'strip_tools', label: t('Drop tools') },
+    { value: 'passthrough', label: t('Pass through unchanged') },
+  ] as const
+  const toolsReasoningConflictField =
+    REASONING_REPLAY_TYPES.has(currentType) && (
+      <FormField
+        control={form.control}
+        name='tools_reasoning_conflict_policy'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('Tools and reasoning_effort conflict')}</FormLabel>
+            <Select
+              disabled={sensitiveLocked || isSubmitting}
+              items={toolsReasoningConflictOptions}
+              value={field.value ?? 'strip_reasoning_effort'}
+              onValueChange={(value) => {
+                if (value !== null) field.onChange(value)
+              }}
+            >
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {toolsReasoningConflictOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <FormDescription>
+              {t(
+                'gpt-6 reasoning models reject function tools together with reasoning_effort on chat/completions. Dropping the effort keeps the tool call working.'
+              )}
+            </FormDescription>
+          </FormItem>
+        )}
+      />
+    )
+
   // A plugin channel without relay routes relays no client fields.
   const fieldPassthroughSupported =
     FIELD_PASSTHROUGH_TYPES.has(currentType) &&
@@ -5145,6 +5194,7 @@ export function ChannelMutateDrawer({
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
                 {reasoningReplayField}
+                {toolsReasoningConflictField}
                 {passthroughFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}

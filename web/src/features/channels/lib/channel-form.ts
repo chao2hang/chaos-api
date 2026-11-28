@@ -57,6 +57,14 @@ const reasoningReplayMode = z.enum([
   'force',
 ])
 
+// How chat/completions resolves a body that carries both function tools and a
+// non-none reasoning_effort for a model that rejects the combination.
+const toolsReasoningConflictPolicy = z.enum([
+  'strip_reasoning_effort',
+  'strip_tools',
+  'passthrough',
+])
+
 const SUPPORTED_PROXY_PROTOCOLS = new Set([
   'http:',
   'https:',
@@ -296,6 +304,7 @@ export const channelFormSchema = z
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
     reasoning_replay: reasoningReplayMode.optional(),
+    tools_reasoning_conflict_policy: toolsReasoningConflictPolicy.optional(),
     strip_reasoning_content: z.boolean().optional(), // OpenAI-compatible Chat Completions
     strip_prompt_cache_options: z.boolean().optional(), // Responses only
     disable_store: z.boolean().optional(), // OpenAI only
@@ -590,6 +599,8 @@ export function transformChannelToFormDefaults(
   let awsApiType: 'invoke_model' | 'mantle' = 'invoke_model'
   let allowServiceTier = false
   let reasoningReplay: z.infer<typeof reasoningReplayMode> = 'auto'
+  let toolsReasoningConflict: z.infer<typeof toolsReasoningConflictPolicy> =
+    'strip_reasoning_effort'
   let stripReasoningContent = false
   let stripPromptCacheOptions = false
   let disableStore = false
@@ -623,6 +634,13 @@ export function transformChannelToFormDefaults(
         typeof mode === 'string' ? mode.trim().toLowerCase() : undefined
       )
       if (result.success) reasoningReplay = result.data
+      const conflictPolicy = parsed.tools_reasoning_conflict_policy
+      const conflictResult = toolsReasoningConflictPolicy.safeParse(
+        typeof conflictPolicy === 'string'
+          ? conflictPolicy.trim().toLowerCase()
+          : undefined
+      )
+      if (conflictResult.success) toolsReasoningConflict = conflictResult.data
       stripReasoningContent = parsed.strip_reasoning_content === true
       stripPromptCacheOptions = parsed.strip_prompt_cache_options === true
       disableStore = parsed.disable_store === true
@@ -692,6 +710,7 @@ export function transformChannelToFormDefaults(
     aws_api_type: awsApiType,
     allow_service_tier: allowServiceTier,
     reasoning_replay: reasoningReplay,
+    tools_reasoning_conflict_policy: toolsReasoningConflict,
     strip_reasoning_content: stripReasoningContent,
     strip_prompt_cache_options: stripPromptCacheOptions,
     disable_store: disableStore,
@@ -827,6 +846,20 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
 
   if (REASONING_REPLAY_TYPES.has(formData.type) && formData.reasoning_replay) {
     settingsObj.reasoning_replay = formData.reasoning_replay
+  }
+
+  // Only chat/completions surfaces carry reasoning_effort, so the policy follows
+  // the same channel set as reasoning replay. The default is dropped from the
+  // stored blob so an untouched channel keeps an equivalent settings JSON.
+  if (
+    REASONING_REPLAY_TYPES.has(formData.type) &&
+    formData.tools_reasoning_conflict_policy &&
+    formData.tools_reasoning_conflict_policy !== 'strip_reasoning_effort'
+  ) {
+    settingsObj.tools_reasoning_conflict_policy =
+      formData.tools_reasoning_conflict_policy
+  } else {
+    delete settingsObj.tools_reasoning_conflict_policy
   }
 
   if (OPENAI_FIELD_PASSTHROUGH_TYPES.has(formData.type)) {

@@ -736,3 +736,22 @@ func TestChannelOtherSettingsValidateToolLossPolicy(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tool_loss_policy")
 }
+
+func TestChannelOtherSettingsValidateToolsReasoningConflictPolicy(t *testing.T) {
+	require.NoError(t, (*ChannelOtherSettings)(nil).ValidateToolsReasoningConflictPolicy())
+	require.NoError(t, (&ChannelOtherSettings{}).ValidateToolsReasoningConflictPolicy())
+	require.NoError(t, (&ChannelOtherSettings{ToolsReasoningConflictPolicy: ToolsReasoningConflictStripEffort}).ValidateToolsReasoningConflictPolicy())
+	require.NoError(t, (&ChannelOtherSettings{ToolsReasoningConflictPolicy: "Strip_Tools"}).ValidateToolsReasoningConflictPolicy())
+	require.NoError(t, (&ChannelOtherSettings{ToolsReasoningConflictPolicy: "passthrough"}).ValidateToolsReasoningConflictPolicy())
+
+	err := (&ChannelOtherSettings{ToolsReasoningConflictPolicy: "drop_everything"}).ValidateToolsReasoningConflictPolicy()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "tools_reasoning_conflict_policy")
+
+	// An unknown stored value falls back to the safe default instead of
+	// silently disabling the fix.
+	require.Equal(t, ToolsReasoningConflictStripEffort,
+		(&ChannelOtherSettings{ToolsReasoningConflictPolicy: "bogus"}).ToolsReasoningConflictPolicyOrDefault())
+	require.Equal(t, ToolsReasoningConflictStripEffort,
+		(*ChannelOtherSettings)(nil).ToolsReasoningConflictPolicyOrDefault())
+}
